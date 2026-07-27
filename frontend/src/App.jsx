@@ -12,9 +12,7 @@ import EditReferralDoctor from './pages/EditReferralDoctor'
 import ClinicalWorkspace from './pages/ClinicalWorkspace'
 import ImagesViewer from './pages/ImagesViewer'
 import Measurements from './pages/Measurements'
-import AIAssistant from './pages/AIAssistant'
 import Reports from './pages/Reports'
-import CRM from './pages/CRM'
 import Analytics from './pages/Analytics'
 import Administration from './pages/Administration'
 import Settings from './pages/Settings'
@@ -85,13 +83,13 @@ function App() {
           <ProtectedPage><Measurements /></ProtectedPage>
         } />
         <Route path="/ai-assistant" element={
-          <ProtectedPage><AIAssistant /></ProtectedPage>
+          <Navigate to="/dashboard" replace />
         } />
         <Route path="/reports" element={
           <ProtectedPage><Reports /></ProtectedPage>
         } />
         <Route path="/crm" element={
-          <ProtectedPage><CRM /></ProtectedPage>
+          <Navigate to="/dashboard" replace />
         } />
         <Route path="/analytics" element={
           <ProtectedPage><Analytics /></ProtectedPage>

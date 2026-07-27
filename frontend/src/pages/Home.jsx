@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { patientService } from '../api/patientService'
+import { scanService } from '../api/scanService'
 import {
   Activity,
   ArrowRight,
@@ -167,6 +169,13 @@ function Home() {
   const [remember, setRemember] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    Promise.allSettled([
+      scanService.getDashboardStats(),
+      patientService.getPatients(),
+    ])
+  }, [])
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))

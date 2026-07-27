@@ -4,9 +4,7 @@ import {
   Activity,
   CalendarDays,
   Pencil,
-  Power,
   RefreshCw,
-  RotateCcw,
   Search as SearchIcon,
   UserPlus,
 } from 'lucide-react'
@@ -42,7 +40,7 @@ function Layout({ children }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#eef3f8] text-slate-900">
-      <Sidebar />
+      <Sidebar onSignOut={handleSignOut} />
       <div className="flex h-full min-w-0 flex-1 flex-col px-1 py-1 sm:px-2 lg:px-3">
         <header className="mb-3 flex shrink-0 flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
@@ -91,10 +89,6 @@ function Layout({ children }) {
             <button type="button" onClick={handleRefresh} className="toolbar-button">
               <RefreshCw className="h-4 w-4" />
               <span>Refresh</span>
-            </button>
-            <button type="button" onClick={handleSignOut} className="toolbar-button text-red-700">
-              <Power className="h-4 w-4" />
-              <span>Sign out</span>
             </button>
           </div>
         </header>
