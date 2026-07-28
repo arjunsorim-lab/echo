@@ -342,42 +342,6 @@ function PlatformTemplate() {
           </div>
         </div>
 
-        {/* ── RECENT PATIENT ACTIVITY TICKER ── */}
-        <div className="relative overflow-hidden rounded-2xl border border-white/80 bg-white/60 shadow-sm backdrop-blur-sm" style={{ height: '54px' }}>
-          <style>{`
-            @keyframes tickerScroll {
-              0%   { transform: translateX(0); }
-              100% { transform: translateX(-50%); }
-            }
-          `}</style>
-          {/* Header label */}
-          <div className="absolute left-0 top-0 z-10 flex h-full items-center gap-2 rounded-l-2xl border-r border-blue-100 bg-gradient-to-r from-blue-600 to-indigo-600 px-3.5">
-            <Activity className="h-4 w-4 text-white" />
-            <span className="text-[11px] font-bold uppercase tracking-widest text-white whitespace-nowrap">Live Scans</span>
-          </div>
-          {/* Scrolling ticker */}
-          <div className="ml-[100px] h-full overflow-hidden">
-            <div
-              className="flex h-full items-center"
-              style={{ width: 'max-content', animation: 'tickerScroll 28s linear infinite' }}
-            >
-              {[...tamilPatients, ...tamilPatients].map((p, i) => (
-                <div key={i} className="mx-3 flex items-center gap-2.5 rounded-xl border border-slate-100 bg-white px-3 py-1.5 shadow-sm shrink-0">
-                  <span className={`flex h-7 w-7 items-center justify-center rounded-full text-[10px] font-bold text-white ${p.badge}`}>{p.initials}</span>
-                  <div className="leading-none">
-                    <p className="text-[11px] font-bold text-[#08145f]">{p.name} <span className="font-normal text-slate-400">· {p.age}y · {p.city}</span></p>
-                    <p className="mt-0.5 text-[10px] text-slate-500">{p.dx} &nbsp;·&nbsp; EF {p.ef}</p>
-                  </div>
-                  <span className={`ml-1 rounded-full px-2 py-0.5 text-[9px] font-bold text-white ${p.badge}`}>{p.status}</span>
-                  <span className="text-[9px] text-slate-400 whitespace-nowrap">{p.time}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          {/* Right fade */}
-          <div className="pointer-events-none absolute inset-y-0 right-0 w-10 rounded-r-2xl" style={{ background: 'linear-gradient(to left, white 40%, transparent)' }} />
-        </div>
-
         {/* ── PIPELINE CARDS ── */}
         <div className="relative grid grid-cols-6 gap-3">
           {pipelineSteps.map((step, index) => {
