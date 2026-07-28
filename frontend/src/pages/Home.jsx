@@ -1,17 +1,30 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  Activity,
   ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  Database,
   Eye,
   EyeOff,
+  FileText,
+  LineChart,
+  Link2,
   Lock,
   Mail,
+  PieChart,
+  Rocket,
+  Search,
+  ShieldCheck,
   Sparkles,
+  TrendingUp,
+  Upload,
+  Users,
   Zap,
 } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
-import showcaseImage from '../assets/echoai_showcase.png'
 
 const demoUsers = [
   {
@@ -23,28 +36,102 @@ const demoUsers = [
   },
 ]
 
-/*
---- PREVIOUS PLATFORM SHOWCASE CODE (COMMENTED AS REQUESTED) ---
-
 const pipelineSteps = [
-  { number: '1', title: 'Connect', copy: 'Securely connect your data in seconds' },
-  { number: '2', title: 'Ingest', copy: 'Capture and unify your data' },
-  { number: '3', title: 'Analyze', copy: 'Detect patterns and key insights' },
-  { number: '4', title: 'Report', copy: 'Generate reports instantly' },
-  { number: '5', title: 'Act', copy: 'Take action with confidence' },
-  { number: '6', title: 'Impact', copy: 'Drive better outcomes together' },
+  {
+    number: '1',
+    title: 'Connect',
+    copy: 'Securely connect your data in seconds',
+    badgeBg: 'bg-blue-600',
+    cardBorder: 'border-blue-200/80 hover:border-blue-400',
+    cardGradient: 'from-blue-50/90 via-blue-100/50 to-indigo-50/40',
+    shadowColor: 'shadow-blue-500/10',
+    iconGradient: 'from-blue-500 to-indigo-600',
+    iconShadow: 'shadow-blue-500/30',
+    icon: Database,
+    subIcon: Link2,
+    subIconBg: 'bg-blue-600 text-white',
+  },
+  {
+    number: '2',
+    title: 'Ingest',
+    copy: 'Capture and unify your data',
+    badgeBg: 'bg-emerald-500',
+    cardBorder: 'border-emerald-200/80 hover:border-emerald-400',
+    cardGradient: 'from-emerald-50/90 via-teal-100/50 to-emerald-50/40',
+    shadowColor: 'shadow-emerald-500/10',
+    iconGradient: 'from-emerald-500 to-teal-600',
+    iconShadow: 'shadow-emerald-500/30',
+    icon: Upload,
+    subIcon: CheckCircle2,
+    subIconBg: 'bg-emerald-600 text-white',
+  },
+  {
+    number: '3',
+    title: 'Analyze',
+    copy: 'Detect patterns and key insights',
+    badgeBg: 'bg-purple-600',
+    cardBorder: 'border-purple-200/80 hover:border-purple-400',
+    cardGradient: 'from-purple-50/90 via-violet-100/50 to-indigo-50/40',
+    shadowColor: 'shadow-purple-500/10',
+    iconGradient: 'from-purple-500 to-indigo-600',
+    iconShadow: 'shadow-purple-500/30',
+    icon: Search,
+    subIcon: BarChart3,
+    subIconBg: 'bg-purple-600 text-white',
+  },
+  {
+    number: '4',
+    title: 'Report',
+    copy: 'Generate reports instantly',
+    badgeBg: 'bg-sky-600',
+    cardBorder: 'border-sky-200/80 hover:border-sky-400',
+    cardGradient: 'from-sky-50/90 via-blue-100/50 to-cyan-50/40',
+    shadowColor: 'shadow-sky-500/10',
+    iconGradient: 'from-sky-500 to-blue-600',
+    iconShadow: 'shadow-sky-500/30',
+    icon: PieChart,
+    subIcon: FileText,
+    subIconBg: 'bg-sky-600 text-white',
+  },
+  {
+    number: '5',
+    title: 'Act',
+    copy: 'Take action with confidence',
+    badgeBg: 'bg-teal-600',
+    cardBorder: 'border-teal-200/80 hover:border-teal-400',
+    cardGradient: 'from-teal-50/90 via-emerald-100/50 to-teal-50/40',
+    shadowColor: 'shadow-teal-500/10',
+    iconGradient: 'from-teal-500 to-emerald-600',
+    iconShadow: 'shadow-teal-500/30',
+    icon: Rocket,
+    subIcon: Sparkles,
+    subIconBg: 'bg-teal-600 text-white',
+  },
+  {
+    number: '6',
+    title: 'Impact',
+    copy: 'Drive better outcomes together',
+    badgeBg: 'bg-indigo-600',
+    cardBorder: 'border-indigo-200/80 hover:border-indigo-400',
+    cardGradient: 'from-indigo-50/90 via-purple-100/50 to-violet-50/40',
+    shadowColor: 'shadow-indigo-500/10',
+    iconGradient: 'from-indigo-500 to-purple-600',
+    iconShadow: 'shadow-indigo-500/30',
+    icon: Users,
+    subIcon: Sparkles,
+    subIconBg: 'bg-indigo-600 text-white',
+  },
 ]
 
 const outcomes = [
-  { title: 'Connect', copy: 'All Your Data' },
-  { title: 'Ingest', copy: 'Any Format' },
-  { title: 'Analyze', copy: 'AI-Powered Insights' },
-  { title: 'Report', copy: 'Clear & Actionable' },
-  { title: 'Act', copy: 'Drive Impact' },
-  { title: 'Secure', copy: 'Enterprise Ready' },
-  { title: 'Scale', copy: 'Built for Growth' },
+  { title: 'Connect', copy: 'All Your Data', icon: Link2, color: 'text-blue-600 bg-blue-50 border-blue-100' },
+  { title: 'Ingest', copy: 'Any Format', icon: Upload, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+  { title: 'Analyze', copy: 'AI-Powered Insights', icon: LineChart, color: 'text-purple-600 bg-purple-50 border-purple-100' },
+  { title: 'Report', copy: 'Clear & Actionable', icon: FileText, color: 'text-sky-600 bg-sky-50 border-sky-100' },
+  { title: 'Act', copy: 'Drive Impact', icon: Rocket, color: 'text-teal-600 bg-teal-50 border-teal-100' },
+  { title: 'Secure', copy: 'Enterprise Ready', icon: ShieldCheck, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+  { title: 'Scale', copy: 'Built for Growth', icon: TrendingUp, color: 'text-indigo-600 bg-indigo-50 border-indigo-100' },
 ]
-*/
 
 function buildGoogleAuthUrl() {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -69,15 +156,16 @@ function buildGoogleAuthUrl() {
 
 function EchoLogo({ compact = false }) {
   return (
-    <div className="flex items-center justify-center gap-2.5">
-      <div className="flex items-center gap-1 text-blue-600">
+    <div className="flex items-center justify-center gap-3">
+      {/* Soundwave Signal Bar Icon */}
+      <div className="flex items-center gap-1">
         <span className="h-4 w-1 rounded-full bg-blue-500" />
         <span className="h-6 w-1 rounded-full bg-blue-600" />
-        <span className="h-8 w-1 rounded-full bg-blue-700" />
-        <span className="h-5 w-1 rounded-full bg-blue-500" />
+        <span className="h-8 w-1.5 rounded-full bg-indigo-600" />
+        <span className="h-5 w-1 rounded-full bg-violet-500" />
       </div>
-      <div className={`font-black tracking-tight text-[#08145f] ${compact ? 'text-3xl' : 'text-4xl'}`}>
-        echo<span className="text-blue-600">AI</span>
+      <div className={`font-black tracking-tight text-[#0f172a] ${compact ? 'text-3xl' : 'text-4xl'}`}>
+        echo<span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">AI</span>
       </div>
     </div>
   )
@@ -85,13 +173,99 @@ function EchoLogo({ compact = false }) {
 
 function PlatformTemplate() {
   return (
-    <section className="relative hidden min-h-0 flex-col items-center justify-center overflow-hidden rounded-[2rem] border border-slate-200/90 bg-slate-50 p-2 shadow-xl backdrop-blur-md lg:flex">
-      {/* DISPLAYING THE EXACT SHOWCASE IMAGE AS REQUESTED */}
-      <img
-        src={showcaseImage}
-        alt="echoAI Data Intelligence Platform Showcase"
-        className="h-full w-full object-contain rounded-[1.75rem] shadow-sm"
-      />
+    <section className="relative hidden min-h-0 flex-col justify-between overflow-hidden rounded-[2.25rem] border border-blue-100/80 bg-gradient-to-br from-[#ffffff] via-[#f6f9fe] to-[#eef4ff] p-7 shadow-xl shadow-blue-500/5 backdrop-blur-xl lg:flex">
+      {/* Soft Ambient Mesh Background Accents */}
+      <div className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-blue-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute -right-28 -top-28 h-80 w-80 rounded-full bg-purple-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-28 left-1/3 h-80 w-80 rounded-full bg-emerald-200/25 blur-3xl" />
+
+      {/* Header Section */}
+      <div className="relative text-center">
+        <EchoLogo />
+        <h1 className="mt-2.5 text-2xl font-black tracking-tight text-[#0f172a] xl:text-3xl">
+          Your AI-Powered Data Intelligence Platform
+        </h1>
+        <p className="mt-1 text-xs font-extrabold uppercase tracking-widest text-blue-600">
+          Connect. Analyze. Act.
+        </p>
+      </div>
+
+      {/* 6-Step Horizontal Pipeline Flow */}
+      <div className="relative my-auto space-y-7">
+        <div className="grid grid-cols-6 gap-3.5">
+          {pipelineSteps.map((step, index) => {
+            const HeroIcon = step.icon
+            const SubIcon = step.subIcon
+
+            return (
+              <div key={step.title} className="group relative flex flex-col items-center text-center">
+                {/* Header Step Badge */}
+                <div className="mb-2 flex items-center justify-center gap-1.5">
+                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm ${step.badgeBg}`}>
+                    {step.number}
+                  </span>
+                  <span className="text-xs font-bold text-[#0f172a]">{step.title}</span>
+                </div>
+
+                <p className="mb-3 text-[11px] font-medium leading-tight text-slate-500 h-7 max-w-[130px]">
+                  {step.copy}
+                </p>
+
+                {/* 3D Glassmorphic Soft Card */}
+                <div className={`relative flex aspect-square w-full max-w-[140px] items-center justify-center rounded-3xl border bg-gradient-to-b ${step.cardGradient} ${step.cardBorder} p-4 shadow-lg ${step.shadowColor} backdrop-blur-md transition-all duration-300 group-hover:-translate-y-1.5 group-hover:shadow-xl`}>
+                  {/* Hero Icon Badge */}
+                  <div className={`flex h-15 w-15 items-center justify-center rounded-2xl bg-gradient-to-br ${step.iconGradient} text-white shadow-md ${step.iconShadow}`}>
+                    <HeroIcon className="h-7 w-7" />
+                  </div>
+
+                  {/* Corner Sub-Icon Badge */}
+                  <div className={`absolute bottom-2.5 right-2.5 flex h-6 w-6 items-center justify-center rounded-full shadow-md ring-2 ring-white ${step.subIconBg}`}>
+                    <SubIcon className="h-3.5 w-3.5" />
+                  </div>
+
+                  {/* Dotted Arrow Connector */}
+                  {index < pipelineSteps.length - 1 && (
+                    <div className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 flex items-center text-blue-400">
+                      <span className="text-xs font-black tracking-tighter">┈┈►</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        {/* Central Pulse Audio Waveform Orb Node */}
+        <div className="relative flex items-center justify-center pt-1">
+          <div className="absolute inset-x-10 h-0.5 border-b-2 border-dashed border-blue-300/80" />
+          <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-600 via-indigo-600 to-violet-600 text-white shadow-xl shadow-blue-500/40 ring-4 ring-white/90">
+            <div className="flex items-center gap-1">
+              <span className="h-3 w-0.5 rounded-full bg-white animate-pulse" />
+              <span className="h-5 w-0.5 rounded-full bg-white" />
+              <span className="h-4 w-0.5 rounded-full bg-white" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 7 Bottom Outcome Cards Grid */}
+      <div className="relative grid grid-cols-7 gap-3">
+        {outcomes.map((item) => {
+          const Icon = item.icon
+          return (
+            <div
+              key={item.title}
+              className="flex flex-col items-center justify-center rounded-2xl border border-slate-200/90 bg-white/90 p-3.5 text-center shadow-md shadow-blue-500/5 transition hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg"
+            >
+              <div className={`mb-2 flex h-10 w-10 items-center justify-center rounded-xl border ${item.color}`}>
+                <Icon className="h-5 w-5" />
+              </div>
+              <h3 className="text-xs font-bold text-[#0f172a]">{item.title}</h3>
+              <p className="mt-0.5 text-[10px] font-medium text-slate-500 leading-tight">{item.copy}</p>
+            </div>
+          )
+        })}
+      </div>
     </section>
   )
 }
@@ -166,10 +340,10 @@ function Home() {
       <div className="mx-auto grid h-full max-w-[1880px] grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_390px] xl:grid-cols-[minmax(0,1fr)_430px]">
         <PlatformTemplate />
 
-        <aside className="flex min-h-0 flex-col justify-center overflow-y-auto rounded-[1.75rem] border border-slate-200 bg-white px-7 py-5 text-[#07135d] shadow-xl shadow-slate-200/60">
+        <aside className="flex min-h-0 flex-col justify-center overflow-y-auto rounded-[2.25rem] border border-slate-200 bg-white px-7 py-5 text-[#0f172a] shadow-xl shadow-slate-200/60">
           <EchoLogo compact />
           <div className="mt-4 text-center">
-            <h2 className="text-2xl font-bold">Welcome Back</h2>
+            <h2 className="text-2xl font-bold text-[#0f172a]">Welcome Back</h2>
             <p className="mt-1 text-sm text-slate-600">Access scan reports and AI insights.</p>
           </div>
 
@@ -184,7 +358,7 @@ function Home() {
 
           <form className="mt-4 space-y-3" onSubmit={handleLogin}>
             <label className="block">
-              <span className="text-sm font-semibold">Email Address</span>
+              <span className="text-sm font-semibold text-[#0f172a]">Email Address</span>
               <span className="mt-1.5 flex h-11 items-center gap-3 rounded-xl border border-slate-300 px-4 text-slate-500 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
                 <Mail className="h-5 w-5" />
                 <input
@@ -194,7 +368,7 @@ function Home() {
                     setEmail(event.target.value)
                     setError('')
                   }}
-                  className="min-w-0 flex-1 bg-transparent text-sm text-[#07135d] outline-none"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-[#0f172a] outline-none"
                   placeholder="Email address or username"
                   autoComplete="username"
                   required
@@ -203,7 +377,7 @@ function Home() {
             </label>
 
             <label className="block">
-              <span className="text-sm font-semibold">Password</span>
+              <span className="text-sm font-semibold text-[#0f172a]">Password</span>
               <span className="mt-1.5 flex h-11 items-center gap-3 rounded-xl border border-slate-300 px-4 text-slate-500 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
                 <Lock className="h-5 w-5" />
                 <input
@@ -213,7 +387,7 @@ function Home() {
                     setPassword(event.target.value)
                     setError('')
                   }}
-                  className="min-w-0 flex-1 bg-transparent text-sm text-[#07135d] outline-none"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-[#0f172a] outline-none"
                   placeholder="Password"
                   autoComplete="current-password"
                   required
@@ -291,7 +465,7 @@ function Home() {
               onClick={() => useDemoUser()}
               className="mt-2 w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-left hover:border-blue-300"
             >
-              <span className="block text-sm font-bold text-[#07135d]">Dr Shanthi · Founder</span>
+              <span className="block text-sm font-bold text-[#0f172a]">Dr Shanthi · Founder</span>
               <span className="mt-1 block text-xs text-slate-600">dr.shanthi@echoai.com / password123</span>
             </button>
           </div>
