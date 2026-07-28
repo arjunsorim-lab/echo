@@ -39,6 +39,15 @@ function ProtectedPage({ children }) {
 }
 
 function LoginRoute() {
+  const searchParams = new URLSearchParams(window.location.search)
+  if (searchParams.get('signout') === '1') {
+    sessionStorage.removeItem('echoai_user')
+    localStorage.removeItem('echoai_user')
+    localStorage.removeItem('echoai_google_access_token')
+    window.history.replaceState({}, document.title, '/')
+    return <Home />
+  }
+
   return isSignedIn() ? <Navigate to="/dashboard" replace /> : <Home />
 }
 
