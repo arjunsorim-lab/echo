@@ -106,10 +106,10 @@ const pipelineSteps = [
 ]
 
 const echoStats = [
-  { label: 'Scans Analyzed', value: '1.2M+', icon: Activity, color: 'text-blue-600 bg-blue-50 border-blue-100' },
+  { label: 'Scans Analyzed', value: '100+', icon: Activity, color: 'text-blue-600 bg-blue-50 border-blue-100' },
   { label: 'Clinical Accuracy', value: '99.4%', icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
-  { label: 'Hospitals Trust Us', value: '500+', icon: Stethoscope, color: 'text-purple-600 bg-purple-50 border-purple-100' },
-  { label: 'Reports Generated', value: '4.8M+', icon: FileText, color: 'text-sky-600 bg-sky-50 border-sky-100' },
+  { label: 'Clinics', value: '10+', icon: Stethoscope, color: 'text-purple-600 bg-purple-50 border-purple-100' },
+  { label: 'Reports Generated', value: '200+', icon: FileText, color: 'text-sky-600 bg-sky-50 border-sky-100' },
 ]
 
 const bottomFeatures = [
@@ -139,46 +139,75 @@ function buildGoogleAuthUrl() {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
 }
 
-/* Soundwave logo matching reference */
+/* Concentric Ring Logo — matches provided image */
 function EchoLogo({ compact = false }) {
+  const sz = compact ? 32 : 40
   return (
-    <div className="flex items-center justify-center gap-2.5">
-      <div className="flex items-end gap-[3px]" style={{ height: compact ? '26px' : '32px' }}>
-        {[10, 18, 28, 18, 10].map((h, i) => (
-          <span
-            key={i}
-            className="w-1 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600"
-            style={{ height: compact ? `${h * 0.85}px` : `${h}px` }}
-          />
-        ))}
-      </div>
-      <span className={`font-black tracking-tight text-[#08145f] ${compact ? 'text-[1.6rem]' : 'text-[2rem]'}`}>
-        echo<span className="text-blue-600">AI</span>
+    <div className="flex items-center justify-center gap-3">
+      <svg width={sz} height={sz} viewBox="0 0 40 40" fill="none">
+        {/* Outer ring */}
+        <circle cx="20" cy="20" r="18" stroke="url(#r1)" strokeWidth="2.5" fill="none" />
+        {/* Mid ring */}
+        <circle cx="20" cy="20" r="12" stroke="url(#r2)" strokeWidth="2.5" fill="none" />
+        {/* Inner ring */}
+        <circle cx="20" cy="20" r="6.5" stroke="url(#r3)" strokeWidth="2.5" fill="none" />
+        {/* Center dot */}
+        <circle cx="20" cy="20" r="2" fill="#3b82f6" />
+        <defs>
+          <linearGradient id="r1" x1="2" y1="2" x2="38" y2="38" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#38bdf8" />
+            <stop offset="1" stopColor="#818cf8" />
+          </linearGradient>
+          <linearGradient id="r2" x1="8" y1="8" x2="32" y2="32" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#6366f1" />
+            <stop offset="1" stopColor="#a78bfa" />
+          </linearGradient>
+          <linearGradient id="r3" x1="13" y1="13" x2="27" y2="27" gradientUnits="userSpaceOnUse">
+            <stop stopColor="#3b82f6" />
+            <stop offset="1" stopColor="#7c3aed" />
+          </linearGradient>
+        </defs>
+      </svg>
+      <span className={`font-black tracking-tight text-[#08145f] ${compact ? 'text-[1.5rem]' : 'text-[1.9rem]'}`}>
+        Echo<span className="text-blue-600"> AI</span>
       </span>
     </div>
   )
 }
 
-/* ECG Waveform SVG */
-function EcgWaveform() {
+/* Echo Ultrasound Fan Pulse — looks like a real echo scan beam */
+function EchoWaveform() {
   return (
-    <svg viewBox="0 0 400 60" className="w-full" preserveAspectRatio="none">
+    <svg viewBox="0 0 420 64" className="w-full" preserveAspectRatio="none">
       <defs>
-        <linearGradient id="ecgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
-          <stop offset="40%" stopColor="#6366f1" stopOpacity="0.8" />
-          <stop offset="60%" stopColor="#8b5cf6" stopOpacity="0.8" />
-          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.2" />
+        <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0" />
+          <stop offset="20%" stopColor="#6366f1" stopOpacity="0.9" />
+          <stop offset="50%" stopColor="#818cf8" stopOpacity="1" />
+          <stop offset="80%" stopColor="#6366f1" stopOpacity="0.9" />
+          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
+        </linearGradient>
+        <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.15" />
+          <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
         </linearGradient>
       </defs>
-      <polyline
-        points="0,30 30,30 40,30 50,10 60,50 70,5 80,55 90,30 120,30 130,30 140,30 150,15 160,45 170,10 180,50 190,30 220,30 230,30 240,20 250,40 260,8 270,52 280,30 310,30 320,30 330,25 340,35 350,12 360,48 370,30 400,30"
+      {/* Filled area under the wave */}
+      <path
+        d="M0,32 Q20,32 30,32 T50,32 Q55,32 58,24 T64,40 Q67,44 70,32 T80,32 Q90,32 100,32 T118,32 Q122,28 126,20 Q128,14 130,8 Q132,2 134,32 Q136,58 138,42 Q140,32 150,32 T168,32 Q172,28 176,22 T182,38 Q185,44 188,32 T200,32 Q212,32 218,32 T236,32 Q240,28 244,20 Q246,14 248,8 Q250,2 252,32 Q254,58 256,42 Q258,32 268,32 T286,32 Q290,28 294,22 T300,38 Q303,44 306,32 T318,32 Q330,32 340,32 T360,32 Q365,32 368,24 T374,40 Q378,44 382,32 T400,32 L420,32"
+        fill="url(#fillGrad)"
+      />
+      {/* Main waveform line */}
+      <path
+        d="M0,32 Q20,32 30,32 T50,32 Q55,32 58,24 T64,40 Q67,44 70,32 T80,32 Q90,32 100,32 T118,32 Q122,28 126,20 Q128,14 130,8 Q132,2 134,32 Q136,58 138,42 Q140,32 150,32 T168,32 Q172,28 176,22 T182,38 Q185,44 188,32 T200,32 Q212,32 218,32 T236,32 Q240,28 244,20 Q246,14 248,8 Q250,2 252,32 Q254,58 256,42 Q258,32 268,32 T286,32 Q290,28 294,22 T300,38 Q303,44 306,32 T318,32 Q330,32 340,32 T360,32 Q365,32 368,24 T374,40 Q378,44 382,32 T400,32 L420,32"
         fill="none"
-        stroke="url(#ecgGrad)"
-        strokeWidth="2"
+        stroke="url(#waveGrad)"
+        strokeWidth="2.2"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
+      {/* Subtle baseline */}
+      <line x1="0" y1="32" x2="420" y2="32" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
     </svg>
   )
 }
@@ -238,17 +267,17 @@ function PlatformTemplate() {
             })}
           </div>
 
-          {/* ECG Waveform banner */}
-          <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-white/70 px-4 py-2.5 shadow-sm backdrop-blur-sm">
-            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-red-400 to-pink-600 shadow-sm">
-              <Heart className="h-4 w-4 text-white" />
+          {/* Echo Waveform banner */}
+          <div className="flex items-center gap-3 rounded-xl border border-indigo-100 bg-white/70 px-4 py-3 shadow-sm backdrop-blur-sm">
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-md">
+              <Activity className="h-5 w-5 text-white" />
             </div>
             <div className="min-w-0 flex-1 overflow-hidden">
-              <EcgWaveform />
+              <EchoWaveform />
             </div>
-            <div className="shrink-0 text-right">
-              <p className="text-xs font-bold text-[#08145f]">Live ECG Monitor</p>
-              <p className="text-[10px] font-medium text-slate-500">72 bpm · Normal Sinus</p>
+            <div className="shrink-0 text-right pl-2">
+              <p className="text-xs font-bold text-[#08145f]">Echo Scan Monitor</p>
+              <p className="text-[10px] font-medium text-slate-500">Live · AI Assisted</p>
             </div>
           </div>
         </div>
