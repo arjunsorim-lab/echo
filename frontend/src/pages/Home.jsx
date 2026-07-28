@@ -154,18 +154,17 @@ function buildGoogleAuthUrl() {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
 }
 
+/* Original Concentric Ring Target Logo Matching User Reference Image */
 function EchoLogo({ compact = false }) {
   return (
     <div className="flex items-center justify-center gap-3">
-      {/* Soundwave Signal Bar Icon */}
-      <div className="flex items-center gap-1">
-        <span className="h-4 w-1 rounded-full bg-blue-500" />
-        <span className="h-6 w-1 rounded-full bg-blue-600" />
-        <span className="h-8 w-1.5 rounded-full bg-indigo-600" />
-        <span className="h-5 w-1 rounded-full bg-violet-500" />
+      <div className={`relative shrink-0 ${compact ? 'h-10 w-10' : 'h-12 w-12'}`}>
+        <div className="absolute inset-0 rounded-full border-[4px] border-blue-400 border-r-violet-500" />
+        <div className="absolute inset-2 rounded-full border-[3.5px] border-indigo-500 border-l-cyan-400" />
+        <div className="absolute inset-[0.95rem] rounded-full bg-gradient-to-br from-cyan-400 to-violet-500 shadow-sm" />
       </div>
-      <div className={`font-black tracking-tight text-[#0f172a] ${compact ? 'text-3xl' : 'text-4xl'}`}>
-        echo<span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">AI</span>
+      <div className={`font-black tracking-tight text-[#08145f] ${compact ? 'text-3xl' : 'text-4xl'}`}>
+        Echo <span className="bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 bg-clip-text text-transparent">AI</span>
       </div>
     </div>
   )
@@ -173,7 +172,7 @@ function EchoLogo({ compact = false }) {
 
 function PlatformTemplate() {
   return (
-    <section className="relative hidden min-h-0 flex-col justify-between overflow-hidden rounded-[2.25rem] border border-blue-100/80 bg-gradient-to-br from-[#ffffff] via-[#f6f9fe] to-[#eef4ff] p-7 shadow-xl shadow-blue-500/5 backdrop-blur-xl lg:flex">
+    <section className="relative hidden min-h-0 flex-col justify-between overflow-hidden rounded-[2.25rem] border border-blue-100/80 bg-gradient-to-br from-white via-[#f6f9fe] to-[#eef4ff] p-7 shadow-xl shadow-blue-500/5 backdrop-blur-xl lg:flex">
       {/* Soft Ambient Mesh Background Accents */}
       <div className="pointer-events-none absolute -left-28 -top-28 h-80 w-80 rounded-full bg-blue-200/30 blur-3xl" />
       <div className="pointer-events-none absolute -right-28 -top-28 h-80 w-80 rounded-full bg-purple-200/30 blur-3xl" />
@@ -181,8 +180,12 @@ function PlatformTemplate() {
 
       {/* Header Section */}
       <div className="relative text-center">
+        <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3.5 py-1 text-xs font-semibold text-blue-700 shadow-2xs mb-2">
+          <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+          <span>Medical-Grade AI Echocardiography Intelligence Platform</span>
+        </div>
         <EchoLogo />
-        <h1 className="mt-2.5 text-2xl font-black tracking-tight text-[#0f172a] xl:text-3xl">
+        <h1 className="mt-2 text-2xl font-black tracking-tight text-[#08145f] xl:text-3xl">
           Your AI-Powered Data Intelligence Platform
         </h1>
         <p className="mt-1 text-xs font-extrabold uppercase tracking-widest text-blue-600">
@@ -204,7 +207,7 @@ function PlatformTemplate() {
                   <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-sm ${step.badgeBg}`}>
                     {step.number}
                   </span>
-                  <span className="text-xs font-bold text-[#0f172a]">{step.title}</span>
+                  <span className="text-xs font-bold text-[#08145f]">{step.title}</span>
                 </div>
 
                 <p className="mb-3 text-[11px] font-medium leading-tight text-slate-500 h-7 max-w-[130px]">
@@ -260,7 +263,7 @@ function PlatformTemplate() {
               <div className={`mb-2 flex h-10 w-10 items-center justify-center rounded-xl border ${item.color}`}>
                 <Icon className="h-5 w-5" />
               </div>
-              <h3 className="text-xs font-bold text-[#0f172a]">{item.title}</h3>
+              <h3 className="text-xs font-bold text-[#08145f]">{item.title}</h3>
               <p className="mt-0.5 text-[10px] font-medium text-slate-500 leading-tight">{item.copy}</p>
             </div>
           )
@@ -340,10 +343,10 @@ function Home() {
       <div className="mx-auto grid h-full max-w-[1880px] grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_390px] xl:grid-cols-[minmax(0,1fr)_430px]">
         <PlatformTemplate />
 
-        <aside className="flex min-h-0 flex-col justify-center overflow-y-auto rounded-[2.25rem] border border-slate-200 bg-white px-7 py-5 text-[#0f172a] shadow-xl shadow-slate-200/60">
+        <aside className="flex min-h-0 flex-col justify-center overflow-y-auto rounded-[2.25rem] border border-slate-200 bg-white px-7 py-5 text-[#08145f] shadow-xl shadow-slate-200/60">
           <EchoLogo compact />
           <div className="mt-4 text-center">
-            <h2 className="text-2xl font-bold text-[#0f172a]">Welcome Back</h2>
+            <h2 className="text-2xl font-bold text-[#08145f]">Welcome Back</h2>
             <p className="mt-1 text-sm text-slate-600">Access scan reports and AI insights.</p>
           </div>
 
@@ -358,7 +361,7 @@ function Home() {
 
           <form className="mt-4 space-y-3" onSubmit={handleLogin}>
             <label className="block">
-              <span className="text-sm font-semibold text-[#0f172a]">Email Address</span>
+              <span className="text-sm font-semibold text-[#08145f]">Email Address</span>
               <span className="mt-1.5 flex h-11 items-center gap-3 rounded-xl border border-slate-300 px-4 text-slate-500 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
                 <Mail className="h-5 w-5" />
                 <input
@@ -368,7 +371,7 @@ function Home() {
                     setEmail(event.target.value)
                     setError('')
                   }}
-                  className="min-w-0 flex-1 bg-transparent text-sm text-[#0f172a] outline-none"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-[#08145f] outline-none"
                   placeholder="Email address or username"
                   autoComplete="username"
                   required
@@ -377,7 +380,7 @@ function Home() {
             </label>
 
             <label className="block">
-              <span className="text-sm font-semibold text-[#0f172a]">Password</span>
+              <span className="text-sm font-semibold text-[#08145f]">Password</span>
               <span className="mt-1.5 flex h-11 items-center gap-3 rounded-xl border border-slate-300 px-4 text-slate-500 focus-within:border-blue-400 focus-within:ring-2 focus-within:ring-blue-100">
                 <Lock className="h-5 w-5" />
                 <input
@@ -387,7 +390,7 @@ function Home() {
                     setPassword(event.target.value)
                     setError('')
                   }}
-                  className="min-w-0 flex-1 bg-transparent text-sm text-[#0f172a] outline-none"
+                  className="min-w-0 flex-1 bg-transparent text-sm text-[#08145f] outline-none"
                   placeholder="Password"
                   autoComplete="current-password"
                   required
@@ -465,7 +468,7 @@ function Home() {
               onClick={() => useDemoUser()}
               className="mt-2 w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-left hover:border-blue-300"
             >
-              <span className="block text-sm font-bold text-[#0f172a]">Dr Shanthi · Founder</span>
+              <span className="block text-sm font-bold text-[#08145f]">Dr Shanthi · Founder</span>
               <span className="mt-1 block text-xs text-slate-600">dr.shanthi@echoai.com / password123</span>
             </button>
           </div>
