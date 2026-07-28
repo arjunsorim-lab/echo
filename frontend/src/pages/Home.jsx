@@ -175,42 +175,90 @@ function EchoLogo({ compact = false }) {
   )
 }
 
-/* Echo Ultrasound Fan Pulse — looks like a real echo scan beam */
+/* Animated scrolling echo waveform — live monitor effect */
 function EchoWaveform() {
+  // One full cycle of the waveform path (420 units wide)
+  const wave =
+    'M0,32 Q20,32 30,32 T50,32 Q55,32 58,24 T64,40 Q67,44 70,32 T80,32 Q90,32 100,32 T118,32 Q122,28 126,20 Q128,14 130,8 Q132,2 134,32 Q136,58 138,42 Q140,32 150,32 T168,32 Q172,28 176,22 T182,38 Q185,44 188,32 T200,32 Q212,32 218,32 T236,32 Q240,28 244,20 Q246,14 248,8 Q250,2 252,32 Q254,58 256,42 Q258,32 268,32 T286,32 Q290,28 294,22 T300,38 Q303,44 306,32 T318,32 Q330,32 340,32 T360,32 Q365,32 368,24 T374,40 Q378,44 382,32 T400,32 L420,32'
+
+  // Shift same path by 420 for seamless loop
+  const wave2 = wave.replace(/(-?\d+(\.\d+)?),(\d+(\.\d+)?)/g, (m, x, _xd, y) =>
+    `${parseFloat(x) + 420},${y}`,
+  )
+
   return (
-    <svg viewBox="0 0 420 64" className="w-full" preserveAspectRatio="none">
-      <defs>
-        <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#38bdf8" stopOpacity="0" />
-          <stop offset="20%" stopColor="#6366f1" stopOpacity="0.9" />
-          <stop offset="50%" stopColor="#818cf8" stopOpacity="1" />
-          <stop offset="80%" stopColor="#6366f1" stopOpacity="0.9" />
-          <stop offset="100%" stopColor="#38bdf8" stopOpacity="0" />
-        </linearGradient>
-        <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="#6366f1" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      {/* Filled area under the wave */}
-      <path
-        d="M0,32 Q20,32 30,32 T50,32 Q55,32 58,24 T64,40 Q67,44 70,32 T80,32 Q90,32 100,32 T118,32 Q122,28 126,20 Q128,14 130,8 Q132,2 134,32 Q136,58 138,42 Q140,32 150,32 T168,32 Q172,28 176,22 T182,38 Q185,44 188,32 T200,32 Q212,32 218,32 T236,32 Q240,28 244,20 Q246,14 248,8 Q250,2 252,32 Q254,58 256,42 Q258,32 268,32 T286,32 Q290,28 294,22 T300,38 Q303,44 306,32 T318,32 Q330,32 340,32 T360,32 Q365,32 368,24 T374,40 Q378,44 382,32 T400,32 L420,32"
-        fill="url(#fillGrad)"
-      />
-      {/* Main waveform line */}
-      <path
-        d="M0,32 Q20,32 30,32 T50,32 Q55,32 58,24 T64,40 Q67,44 70,32 T80,32 Q90,32 100,32 T118,32 Q122,28 126,20 Q128,14 130,8 Q132,2 134,32 Q136,58 138,42 Q140,32 150,32 T168,32 Q172,28 176,22 T182,38 Q185,44 188,32 T200,32 Q212,32 218,32 T236,32 Q240,28 244,20 Q246,14 248,8 Q250,2 252,32 Q254,58 256,42 Q258,32 268,32 T286,32 Q290,28 294,22 T300,38 Q303,44 306,32 T318,32 Q330,32 340,32 T360,32 Q365,32 368,24 T374,40 Q378,44 382,32 T400,32 L420,32"
-        fill="none"
-        stroke="url(#waveGrad)"
-        strokeWidth="2.2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {/* Subtle baseline */}
-      <line x1="0" y1="32" x2="420" y2="32" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="4 4" />
-    </svg>
+    <div className="relative w-full overflow-hidden" style={{ height: '64px' }}>
+      {/* CSS keyframes injected inline */}
+      <style>{`
+        @keyframes echoScroll {
+          from { transform: translateX(0); }
+          to   { transform: translateX(-50%); }
+        }
+        @keyframes scanPulse {
+          0%,100% { opacity:1; r:3; }
+          50%      { opacity:0.4; r:5; }
+        }
+        @keyframes fadeInWave {
+          from { opacity:0; }
+          to   { opacity:1; }
+        }
+      `}</style>
+
+      {/* Scrolling SVG — doubled width for seamless loop */}
+      <svg
+        viewBox="0 0 840 64"
+        style={{
+          width: '200%',
+          height: '100%',
+          animation: 'echoScroll 5s linear infinite',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+        }}
+        preserveAspectRatio="none"
+      >
+        <defs>
+          <linearGradient id="waveGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+            <stop offset="0%"   stopColor="#38bdf8" stopOpacity="0.1" />
+            <stop offset="25%"  stopColor="#6366f1" stopOpacity="0.9" />
+            <stop offset="50%"  stopColor="#818cf8" stopOpacity="1"   />
+            <stop offset="75%"  stopColor="#6366f1" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.1" />
+          </linearGradient>
+          <linearGradient id="fillGrad" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%"   stopColor="#6366f1" stopOpacity="0.18" />
+            <stop offset="100%" stopColor="#6366f1" stopOpacity="0"    />
+          </linearGradient>
+        </defs>
+
+        {/* Dashed baseline */}
+        <line x1="0" y1="32" x2="840" y2="32" stroke="#e2e8f0" strokeWidth="1" strokeDasharray="5 5" />
+
+        {/* Fill under wave — first copy */}
+        <path d={wave.replace('L420,32', 'L420,64 L0,64 Z')} fill="url(#fillGrad)" />
+        {/* Fill under wave — second copy */}
+        <path d={wave2.replace('L840,32', 'L840,64 L420,64 Z')} fill="url(#fillGrad)" />
+
+        {/* Waveform line — first copy */}
+        <path d={wave} fill="none" stroke="url(#waveGrad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+        {/* Waveform line — second copy */}
+        <path d={wave2} fill="none" stroke="url(#waveGrad)" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+      </svg>
+
+      {/* Edge fade masks so the wave fades in/out at edges */}
+      <div className="pointer-events-none absolute inset-y-0 left-0 w-12" style={{ background: 'linear-gradient(to right, white, transparent)' }} />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-12" style={{ background: 'linear-gradient(to left, white, transparent)' }} />
+
+      {/* Scanning glowing dot that moves with the wave */}
+      <svg className="absolute inset-0 w-full h-full" viewBox="0 0 420 64" preserveAspectRatio="none" style={{ pointerEvents: 'none' }}>
+        <circle cx="320" cy="32" r="4" fill="#6366f1" opacity="0.9" style={{ animation: 'scanPulse 1.2s ease-in-out infinite' }} />
+        <circle cx="320" cy="32" r="10" fill="#6366f1" opacity="0.15" style={{ animation: 'scanPulse 1.2s ease-in-out infinite' }} />
+      </svg>
+    </div>
   )
 }
+
+
 
 function PlatformTemplate() {
   return (
