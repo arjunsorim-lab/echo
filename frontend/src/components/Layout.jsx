@@ -34,10 +34,11 @@ function Layout({ children }) {
     '/ai-assistant': 'AI Assistant',
   }
 
-  const pageTitle =
-    Object.entries(pageTitles).find(
-      ([path]) => location.pathname === path || location.pathname.startsWith(`${path}/`),
-    )?.[1] || 'CardioEcho AI'
+  const pageTitle = /^\/patients\/[^/]+\/edit$/.test(location.pathname)
+    ? 'Edit Patient'
+    : Object.entries(pageTitles).sort(([left], [right]) => right.length - left.length).find(
+        ([path]) => location.pathname === path || location.pathname.startsWith(`${path}/`),
+      )?.[1] || 'CardioEcho AI'
 
   const handleSearch = (e) => {
     e?.preventDefault()
@@ -49,16 +50,9 @@ function Layout({ children }) {
     setTimeout(() => window.location.reload(), 100)
   }
 
-  const handleSignOut = () => {
-    sessionStorage.removeItem('echoai_user')
-    localStorage.removeItem('echoai_user')
-    localStorage.removeItem('echoai_google_access_token')
-    navigate('/', { replace: true })
-  }
-
   return (
     <div className="flex h-screen overflow-hidden bg-[#eef3f8] text-slate-900">
-      <Sidebar onSignOut={handleSignOut} />
+      <Sidebar />
       <div className="flex h-full min-w-0 flex-1 flex-col px-1 py-1 sm:px-2 lg:px-3">
         <header className="mb-3 flex shrink-0 flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3" aria-label="Echo AI">

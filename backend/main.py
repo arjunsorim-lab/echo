@@ -94,6 +94,29 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # Keep existing seeded and Render databases compatible with the current
+    # patient forms. CREATE TABLE IF NOT EXISTS does not add newly introduced
+    # columns to an older database, so apply additive migrations explicitly.
+    patient_columns = {
+        'middle_name': 'TEXT',
+        'street': 'TEXT',
+        'area': 'TEXT',
+        'area_po': 'TEXT',
+        'taluk': 'TEXT',
+        'district_city': 'TEXT',
+        'zip_code': 'TEXT',
+        'country': "TEXT DEFAULT 'India'",
+        'ethnic_origin': 'TEXT',
+        'fax': 'TEXT',
+        'family_doctor': 'TEXT',
+    }
+    existing_patient_columns = {
+        row[1] for row in c.execute('PRAGMA table_info(patients)').fetchall()
+    }
+    for column, definition in patient_columns.items():
+        if column not in existing_patient_columns:
+            c.execute(f'ALTER TABLE patients ADD COLUMN {column} {definition}')
     
     # 2. Visits table
     c.execute('''
@@ -147,6 +170,34 @@ def init_db():
             FOREIGN KEY (patient_id) REFERENCES patients(id)
         )
     ''')
+
+    # Keep older seeded and Render databases compatible with the current scan
+    # editor. Existing databases only contain the original core scan columns,
+    # and CREATE TABLE IF NOT EXISTS does not add the newer workflow fields.
+    scan_columns = {
+        'patient_display_id': 'TEXT',
+        'visit_id': 'INTEGER',
+        'abnormal': 'BOOLEAN DEFAULT 0',
+        'ambiguity': 'BOOLEAN DEFAULT 0',
+        'growthAbnormality': 'BOOLEAN DEFAULT 0',
+        'normal': 'BOOLEAN DEFAULT 1',
+        'normalVariant': 'BOOLEAN DEFAULT 0',
+        'indication': 'TEXT',
+        'diagnosis': 'TEXT',
+        'referralDoctor': 'TEXT',
+        'primaryConsultant': 'TEXT',
+        'signedByLeft': 'TEXT',
+        'signedByRight': 'TEXT',
+        'typedBy': 'TEXT',
+        'reviewedBy': 'TEXT',
+        'icdCode': 'TEXT',
+    }
+    existing_scan_columns = {
+        row[1] for row in c.execute('PRAGMA table_info(scans)').fetchall()
+    }
+    for column, definition in scan_columns.items():
+        if column not in existing_scan_columns:
+            c.execute(f'ALTER TABLE scans ADD COLUMN {column} {definition}')
     
     # 4. Referral doctors table
     c.execute('''
@@ -223,6 +274,16 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    settings_columns = {
+        'imageConfig': 'TEXT',
+    }
+    existing_settings_columns = {
+        row[1] for row in c.execute('PRAGMA table_info(settings)').fetchall()
+    }
+    for column, definition in settings_columns.items():
+        if column not in existing_settings_columns:
+            c.execute(f'ALTER TABLE settings ADD COLUMN {column} {definition}')
     
     # 8. Report templates table
     c.execute('''
@@ -486,34 +547,42 @@ def update_patient(patient_id: int, data: dict):
     aadhar_number = data.get('aadhaar_no') or data.get('aadhar_number') or ''
     age = int(data.get('age')) if data.get('age') and str(data.get('age')).isdigit() else None
     
-    cursor.execute('''
-        UPDATE patients SET
-            patient_id = ?, salutation = ?, first_name = ?, middle_name = ?, last_name = ?, gender = ?,
-            age = ?, dob = ?, mobile = ?, phone1 = ?, phone2 = ?, email = ?,
-            address = ?, street = ?, area = ?, area_po = ?, taluk = ?, city = ?, district_city = ?,
-            state = ?, pincode = ?, zip_code = ?, country = ?, ethnic_origin = ?, aadhar_number = ?,
-            abha_number = ?, blood_group = ?, marital_status = ?, occupation = ?,
-            religion = ?, nationality = ?, emergency_contact_name = ?,
-            emergency_contact_phone = ?, emergency_contact_relation = ?, fax = ?, family_doctor = ?,
-            referred_by = ?, registration_date = ?, referred_by_doctor_id = ?,
-            updated_at = CURRENT_TIMESTAMP
-        WHERE id = ?
-    ''', (
-        data.get('patient_id'), data.get('salutation'), data.get('first_name'), data.get('middle_name'),
-        data.get('last_name'), data.get('gender'), age, data.get('dob'), data.get('mobile'),
-        data.get('phone1'), data.get('phone2'), data.get('email'), street, street, data.get('area'),
-        data.get('area_po'), data.get('taluk'), city, city, data.get('state'), pincode, pincode,
-        data.get('country', 'India'), data.get('ethnic_origin'), aadhar_number, data.get('abha_number'),
-        data.get('blood_group'), data.get('marital_status'), data.get('occupation'), data.get('religion'),
-        data.get('nationality', 'Indian'), data.get('emergency_contact_name'), data.get('emergency_contact_phone'),
-        data.get('emergency_contact_relation'), data.get('fax'), data.get('family_doctor'), data.get('referred_by'),
-        data.get('registration_date'), data.get('referred_by_doctor_id'), patient_id
-    ))
-    
-    conn.commit()
-    updated = conn.execute('SELECT * FROM patients WHERE id = ?', (patient_id,)).fetchone()
-    conn.close()
-    return {"success": True, "data": _map_patient_row(updated)}
+    try:
+        cursor.execute('''
+            UPDATE patients SET
+                patient_id = ?, salutation = ?, first_name = ?, middle_name = ?, last_name = ?, gender = ?,
+                age = ?, dob = ?, mobile = ?, phone1 = ?, phone2 = ?, email = ?,
+                address = ?, street = ?, area = ?, area_po = ?, taluk = ?, city = ?, district_city = ?,
+                state = ?, pincode = ?, zip_code = ?, country = ?, ethnic_origin = ?, aadhar_number = ?,
+                abha_number = ?, blood_group = ?, marital_status = ?, occupation = ?,
+                religion = ?, nationality = ?, emergency_contact_name = ?,
+                emergency_contact_phone = ?, emergency_contact_relation = ?, fax = ?, family_doctor = ?,
+                referred_by = ?, registration_date = ?, referred_by_doctor_id = ?,
+                updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        ''', (
+            data.get('patient_id'), data.get('salutation'), data.get('first_name'), data.get('middle_name'),
+            data.get('last_name'), data.get('gender'), age, data.get('dob'), data.get('mobile'),
+            data.get('phone1'), data.get('phone2'), data.get('email'), street, street, data.get('area'),
+            data.get('area_po'), data.get('taluk'), city, city, data.get('state'), pincode, pincode,
+            data.get('country', 'India'), data.get('ethnic_origin'), aadhar_number, data.get('abha_number'),
+            data.get('blood_group'), data.get('marital_status'), data.get('occupation'), data.get('religion'),
+            data.get('nationality', 'Indian'), data.get('emergency_contact_name'), data.get('emergency_contact_phone'),
+            data.get('emergency_contact_relation'), data.get('fax'), data.get('family_doctor'), data.get('referred_by'),
+            data.get('registration_date'), data.get('referred_by_doctor_id'), patient_id
+        ))
+
+        if cursor.rowcount == 0:
+            conn.close()
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        conn.commit()
+        updated = conn.execute('SELECT * FROM patients WHERE id = ?', (patient_id,)).fetchone()
+        conn.close()
+        return {"success": True, "data": _map_patient_row(updated)}
+    except sqlite3.IntegrityError:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Patient ID already exists")
 
 @app.delete('/api/patients/{patient_id}')
 def delete_patient(patient_id: int):
@@ -861,7 +930,7 @@ def save_settings(data: dict):
     if existing:
         if filtered_data:
             set_clause = ', '.join([f"{key} = ?" for key in filtered_data.keys()])
-            values = list(filtered_data.values()) + [1]
+            values = list(filtered_data.values())
             cursor.execute(f'UPDATE settings SET {set_clause}, updated_at = CURRENT_TIMESTAMP WHERE id = 1', values)
     else:
         if filtered_data:

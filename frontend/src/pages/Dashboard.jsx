@@ -19,6 +19,43 @@ import {
   Users,
 } from 'lucide-react'
 import { scanService } from '../api/scanService'
+import { patientService } from '../api/patientService'
+
+const scanRoutes = {
+  'Adult Echo': '/adult-echo-report',
+  'Fetal Echo': '/fetal-echo-report',
+  'Pediatric Echo': '/pediatric-echo-report',
+}
+
+const formatPatientName = (patient) => {
+  if (!patient) return 'Unknown patient'
+  return [patient.salutation, patient.first_name, patient.middle_name, patient.last_name]
+    .filter(Boolean)
+    .join(' ')
+    .trim() || patient.patient_id || 'Unknown patient'
+}
+
+const formatDemographics = (patient) => {
+  if (!patient) return '—'
+  const age = patient.age ?? ''
+  const gender = String(patient.gender || '').trim().charAt(0).toUpperCase()
+  return `${age}${gender}` || '—'
+}
+
+const formatScanDate = (value) => {
+  const date = value ? new Date(value) : null
+  if (!date || Number.isNaN(date.getTime())) return { dateTime: 'Date not recorded', timeStr: '—' }
+  return {
+    dateTime: date.toLocaleDateString('en-AU', { day: '2-digit', month: 'short', year: 'numeric' }),
+    timeStr: date.toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit' }),
+  }
+}
+
+const getClinicalImportance = (scan) => {
+  if (scan.abnormal) return 'High'
+  if (scan.ambiguity || scan.growthAbnormality || scan.normalVariant) return 'Medium'
+  return 'Low'
+}
 
 export default function Dashboard() {
   const navigate = useNavigate()
@@ -33,23 +70,68 @@ export default function Dashboard() {
 
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedScanType, setSelectedScanType] = useState('All')
+  const [recentScans, setRecentScans] = useState([])
+  const [isLoadingScans, setIsLoadingScans] = useState(true)
 
   useEffect(() => {
-    scanService
-      .getDashboardStats()
-      .then((result) => {
-        if (result.success && result.data) {
+    Promise.all([
+      scanService.getDashboardStats(),
+      scanService.getScans(),
+      patientService.getPatients(),
+    ])
+      .then(([statsResult, scansResult, patientsResult]) => {
+        if (statsResult.success && statsResult.data) {
           setStats((prev) => ({
             ...prev,
-            total_patients: result.data.total_patients || prev.total_patients,
-            total_scans: result.data.total_scans || prev.total_scans,
-            adult_echo: result.data.adult_echo || prev.adult_echo,
-            fetal_echo: result.data.fetal_echo || prev.fetal_echo,
-            pediatric_echo: result.data.pediatric_echo || prev.pediatric_echo,
+            total_patients: statsResult.data.total_patients ?? prev.total_patients,
+            total_scans: statsResult.data.total_scans ?? prev.total_scans,
+            adult_echo: statsResult.data.adult_echo ?? prev.adult_echo,
+            fetal_echo: statsResult.data.fetal_echo ?? prev.fetal_echo,
+            pediatric_echo: statsResult.data.pediatric_echo ?? prev.pediatric_echo,
           }))
         }
+
+        const patients = patientsResult.data || []
+        const patientById = new Map(patients.map((patient) => [String(patient.id), patient]))
+        const scans = [...(scansResult.data || [])]
+          .sort((left, right) => {
+            const rightDate = new Date(right.scan_date || right.created_at || 0).getTime()
+            const leftDate = new Date(left.scan_date || left.created_at || 0).getTime()
+            return (rightDate - leftDate) || (right.id - left.id)
+          })
+          .slice(0, 10)
+          .map((scan) => {
+            const patient = patientById.get(String(scan.patient_id))
+            const { dateTime, timeStr } = formatScanDate(scan.scan_date || scan.created_at)
+            const patientName = formatPatientName(patient)
+            const initials = [patient?.first_name, patient?.last_name]
+              .filter(Boolean)
+              .map((part) => part.charAt(0).toUpperCase())
+              .join('')
+              .slice(0, 2) || '—'
+
+            return {
+              id: scan.id,
+              patientId: patient?.id || scan.patient_id,
+              visitId: scan.visit_id,
+              patientName,
+              patientCode: patient?.patient_id || scan.patient_display_id || `Patient ${scan.patient_id}`,
+              demographics: formatDemographics(patient),
+              initials,
+              scanType: scan.scan_type || 'Echo',
+              scanRoute: scanRoutes[scan.scan_type] || '/echo-studies',
+              dateTime,
+              timeStr,
+              aiSummary: scan.conclusion || scan.findings || 'No findings recorded.',
+              importance: getClinicalImportance(scan),
+              confidence: scan.ai_confidence ?? null,
+            }
+          })
+
+        setRecentScans(scans)
       })
-      .catch(() => {})
+      .catch(() => setRecentScans([]))
+      .finally(() => setIsLoadingScans(false))
   }, [])
 
   const statCards = [
@@ -115,154 +197,11 @@ export default function Dashboard() {
     },
   ]
 
-  const recentScans = [
-    {
-      id: 1,
-      patientName: 'John Doe',
-      mrn: 'MRN: 10023',
-      demographics: '45M',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=100&auto=format&fit=crop&q=80',
-      scanType: 'Adult Echo',
-      scanRoute: '/adult-echo-report',
-      dateTime: 'May 26, 2025',
-      timeStr: '09:35 AM',
-      aiSummary: 'Mild LV hypertrophy with normal systolic function.',
-      importance: 'Medium',
-      confidence: 92,
-    },
-    {
-      id: 2,
-      patientName: 'Sarah Johnson',
-      mrn: 'MRN: 10024',
-      demographics: '62F',
-      avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=100&auto=format&fit=crop&q=80',
-      scanType: 'Adult Echo',
-      scanRoute: '/adult-echo-report',
-      dateTime: 'May 26, 2025',
-      timeStr: '08:50 AM',
-      aiSummary: 'Moderate mitral regurgitation detected.',
-      importance: 'High',
-      confidence: 95,
-    },
-    {
-      id: 3,
-      patientName: 'Michael Brown',
-      mrn: 'MRN: 10025',
-      demographics: '34M',
-      avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=100&auto=format&fit=crop&q=80',
-      scanType: 'Pediatric Echo',
-      scanRoute: '/pediatric-echo-report',
-      dateTime: 'May 25, 2025',
-      timeStr: '04:15 PM',
-      aiSummary: 'Small ASD with left to right shunt.',
-      importance: 'Medium',
-      confidence: 90,
-    },
-    {
-      id: 4,
-      patientName: 'Emily Davis',
-      mrn: 'MRN: 10026',
-      demographics: '28F',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=100&auto=format&fit=crop&q=80',
-      scanType: 'Fetal Echo',
-      scanRoute: '/fetal-echo-report',
-      dateTime: 'May 25, 2025',
-      timeStr: '02:40 PM',
-      aiSummary: 'Normal fetal cardiac structures.',
-      importance: 'Low',
-      confidence: 93,
-    },
-    {
-      id: 5,
-      patientName: 'David Wilson',
-      mrn: 'MRN: 10027',
-      demographics: '55M',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=100&auto=format&fit=crop&q=80',
-      scanType: 'Adult Echo',
-      scanRoute: '/adult-echo-report',
-      dateTime: 'May 25, 2025',
-      timeStr: '11:20 AM',
-      aiSummary: 'Aortic valve sclerosis without stenosis.',
-      importance: 'Low',
-      confidence: 88,
-    },
-    {
-      id: 6,
-      patientName: 'Lisa Martinez',
-      mrn: 'MRN: 10028',
-      demographics: '41F',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80',
-      scanType: 'Adult Echo',
-      scanRoute: '/adult-echo-report',
-      dateTime: 'May 24, 2025',
-      timeStr: '03:30 PM',
-      aiSummary: 'Reduced LVEF (45%) with global hypokinesia.',
-      importance: 'High',
-      confidence: 94,
-    },
-    {
-      id: 7,
-      patientName: 'Daniel Taylor',
-      mrn: 'MRN: 10029',
-      demographics: '7M',
-      avatar: 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?w=100&auto=format&fit=crop&q=80',
-      scanType: 'Pediatric Echo',
-      scanRoute: '/pediatric-echo-report',
-      dateTime: 'May 24, 2025',
-      timeStr: '10:05 AM',
-      aiSummary: 'Pulmonary valve stenosis (mild).',
-      importance: 'Medium',
-      confidence: 91,
-    },
-    {
-      id: 8,
-      patientName: 'Olivia Anderson',
-      mrn: 'MRN: 10030',
-      demographics: '31F',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80',
-      scanType: 'Fetal Echo',
-      scanRoute: '/fetal-echo-report',
-      dateTime: 'May 23, 2025',
-      timeStr: '05:45 PM',
-      aiSummary: 'Suspected VSD, recommend follow-up.',
-      importance: 'High',
-      confidence: 89,
-    },
-    {
-      id: 9,
-      patientName: 'James Thomas',
-      mrn: 'MRN: 10031',
-      demographics: '66M',
-      avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?w=100&auto=format&fit=crop&q=80',
-      scanType: 'Adult Echo',
-      scanRoute: '/adult-echo-report',
-      dateTime: 'May 23, 2025',
-      timeStr: '01:15 PM',
-      aiSummary: 'Severe tricuspid regurgitation.',
-      importance: 'High',
-      confidence: 96,
-    },
-    {
-      id: 10,
-      patientName: 'Sophia Garcia',
-      mrn: 'MRN: 10032',
-      demographics: '3F',
-      avatar: 'https://images.unsplash.com/photo-1517841905240-472988babdf9?w=100&auto=format&fit=crop&q=80',
-      scanType: 'Pediatric Echo',
-      scanRoute: '/pediatric-echo-report',
-      dateTime: 'May 23, 2025',
-      timeStr: '09:20 AM',
-      aiSummary: 'Normal study.',
-      importance: 'Low',
-      confidence: 85,
-    },
-  ]
-
   const filteredScans = recentScans.filter((scan) => {
     const matchesSearch =
       !searchQuery ||
       scan.patientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      scan.mrn.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      scan.patientCode.toLowerCase().includes(searchQuery.toLowerCase()) ||
       scan.aiSummary.toLowerCase().includes(searchQuery.toLowerCase())
 
     const matchesType = selectedScanType === 'All' || scan.scanType === selectedScanType
@@ -365,7 +304,7 @@ export default function Dashboard() {
               className="inline-flex h-9 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 shadow-2xs hover:bg-slate-50"
             >
               <Calendar className="h-3.5 w-3.5 text-slate-500" />
-              <span>May 20 - May 26, 2025</span>
+              <span>Latest database records</span>
               <ChevronDown className="h-3 w-3 text-slate-400" />
             </button>
 
@@ -399,7 +338,7 @@ export default function Dashboard() {
               {filteredScans.map((scan, idx) => (
                 <tr
                   key={scan.id}
-                  onClick={() => navigate(`${scan.scanRoute}?patientId=${scan.id}&scatter=true`)}
+                  onClick={() => navigate(`${scan.scanRoute}/${scan.id}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
                   className="group cursor-pointer transition hover:bg-teal-50/30"
                 >
                   {/* Row # */}
@@ -408,17 +347,18 @@ export default function Dashboard() {
                   {/* Patient Info */}
                   <td className="py-3.5 px-4">
                     <div className="flex items-center gap-3">
-                      <img
-                        src={scan.avatar}
-                        alt={scan.patientName}
-                        className="h-9 w-9 rounded-full object-cover ring-2 ring-slate-100"
-                      />
+                      <div
+                        aria-hidden="true"
+                        className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-100 to-blue-100 text-xs font-bold text-teal-800 ring-2 ring-slate-100"
+                      >
+                        {scan.initials}
+                      </div>
                       <div>
                         <p className="font-bold text-slate-900 group-hover:text-teal-700 transition">
                           {scan.patientName}
                         </p>
                         <p className="text-[11px] text-slate-400">
-                          {scan.mrn} · {scan.demographics}
+                          {scan.patientCode} · {scan.demographics}
                         </p>
                       </div>
                     </div>
@@ -467,15 +407,19 @@ export default function Dashboard() {
 
                   {/* AI Confidence Bar */}
                   <td className="py-3.5 px-4 w-36">
-                    <div className="space-y-1">
-                      <span className="font-bold text-slate-800">{scan.confidence}%</span>
-                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
-                        <div
-                          className="h-full rounded-full bg-emerald-500 transition-all duration-300"
-                          style={{ width: `${scan.confidence}%` }}
-                        />
+                    {scan.confidence == null ? (
+                      <span className="text-slate-400">Not recorded</span>
+                    ) : (
+                      <div className="space-y-1">
+                        <span className="font-bold text-slate-800">{scan.confidence}%</span>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-emerald-500 transition-all duration-300"
+                            style={{ width: `${scan.confidence}%` }}
+                          />
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </td>
 
                   {/* Action Icon Buttons */}
@@ -483,7 +427,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-center gap-1">
                       <button
                         type="button"
-                        onClick={() => navigate(`${scan.scanRoute}?patientId=${scan.id}&scatter=true`)}
+                        onClick={() => navigate(`${scan.scanRoute}/${scan.id}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
                         className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-teal-700 transition"
                         title="View Report"
                       >
@@ -491,7 +435,7 @@ export default function Dashboard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`${scan.scanRoute}?patientId=${scan.id}&scatter=true`)}
+                        onClick={() => navigate(`${scan.scanRoute}/${scan.id}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
                         className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-teal-700 transition"
                         title="View Document"
                       >
@@ -508,6 +452,20 @@ export default function Dashboard() {
                   </td>
                 </tr>
               ))}
+              {!isLoadingScans && filteredScans.length === 0 && (
+                <tr>
+                  <td colSpan="8" className="px-4 py-10 text-center text-sm text-slate-500">
+                    No scans match the selected filters.
+                  </td>
+                </tr>
+              )}
+              {isLoadingScans && (
+                <tr>
+                  <td colSpan="8" className="px-4 py-10 text-center text-sm text-slate-500">
+                    Loading patient and scan records...
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>
@@ -515,9 +473,9 @@ export default function Dashboard() {
         {/* Table Footer & Pagination */}
         <div className="flex flex-col gap-3 border-t border-slate-200 px-5 py-3 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            Showing <span className="font-semibold text-slate-800">1</span> to{' '}
-            <span className="font-semibold text-slate-800">10</span> of{' '}
-            <span className="font-semibold text-slate-800">136</span> scans
+            Showing <span className="font-semibold text-slate-800">{filteredScans.length ? 1 : 0}</span> to{' '}
+            <span className="font-semibold text-slate-800">{filteredScans.length}</span> of{' '}
+            <span className="font-semibold text-slate-800">{stats.total_scans}</span> scans
           </div>
 
           <div className="flex flex-wrap items-center gap-3">

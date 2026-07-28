@@ -13,7 +13,7 @@ import {
   Power,
 } from 'lucide-react'
 
-function Sidebar({ onSignOut }) {
+function Sidebar() {
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/patients', icon: Users, label: 'Patients' },
@@ -23,6 +23,8 @@ function Sidebar({ onSignOut }) {
     { path: '/reports', icon: FileText, label: 'Reports' },
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/settings', icon: Cog, label: 'Settings' },
+  ]
+  const disabledItems = [
     { path: '/ai-assistant', icon: Brain, label: 'AI Assistant', disabled: true },
     { path: '/crm', icon: Building2, label: 'CRM', disabled: true },
   ]
@@ -81,14 +83,32 @@ function Sidebar({ onSignOut }) {
           )
         })}
 
-        <button
-          type="button"
-          onClick={onSignOut}
-          className="flex w-full items-center space-x-3 rounded-lg px-4 py-3 text-left text-white/90 transition-colors duration-200 hover:bg-white/10"
-        >
-          <Power className="h-5 w-5" />
-          <span className="font-medium">Sign out</span>
-        </button>
+        <form action="/" method="get">
+          <input type="hidden" name="signout" value="1" />
+          <button
+            type="submit"
+            className="flex w-full items-center space-x-3 rounded-lg px-4 py-3 text-left text-white/90 transition-colors duration-200 hover:bg-white/10"
+          >
+            <Power className="h-5 w-5" />
+            <span className="font-medium">Sign out</span>
+          </button>
+        </form>
+
+        {disabledItems.map((item) => {
+          const Icon = item.icon
+          return (
+            <button
+              key={item.path}
+              type="button"
+              disabled
+              title={`${item.label} is currently disabled`}
+              className="flex w-full cursor-not-allowed items-center space-x-3 rounded-lg px-4 py-3 text-left text-white/45"
+            >
+              <Icon className="h-5 w-5" />
+              <span className="font-medium">{item.label}</span>
+            </button>
+          )
+        })}
       </nav>
 
       <div className="absolute bottom-0 left-0 right-0 border-t border-white/20 p-4">
