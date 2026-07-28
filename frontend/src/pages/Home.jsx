@@ -19,6 +19,9 @@ import {
   Users,
   Zap,
   CheckCircle2,
+  Heart,
+  Activity,
+  Stethoscope,
 } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
@@ -39,10 +42,8 @@ const pipelineSteps = [
     title: 'Connect',
     copy: 'Securely connect your data in seconds',
     badge: 'bg-blue-500',
-    glow: 'shadow-blue-500/40',
-    border: 'hover:border-blue-400/50',
-    iconBg: 'from-blue-500 to-indigo-600',
-    accentText: 'text-blue-400',
+    iconBg: 'from-blue-400 to-indigo-600',
+    glow: 'shadow-blue-200',
     icon: Database,
     subIcon: Link2,
     subBg: 'bg-emerald-500',
@@ -52,10 +53,8 @@ const pipelineSteps = [
     title: 'Ingest',
     copy: 'Capture and unify your data',
     badge: 'bg-emerald-500',
-    glow: 'shadow-emerald-500/40',
-    border: 'hover:border-emerald-400/50',
     iconBg: 'from-emerald-400 to-teal-600',
-    accentText: 'text-emerald-400',
+    glow: 'shadow-emerald-200',
     icon: Upload,
     subIcon: CheckCircle2,
     subBg: 'bg-teal-500',
@@ -65,10 +64,8 @@ const pipelineSteps = [
     title: 'Analyze',
     copy: 'Detect patterns and key insights',
     badge: 'bg-purple-500',
-    glow: 'shadow-purple-500/40',
-    border: 'hover:border-purple-400/50',
     iconBg: 'from-purple-500 to-indigo-700',
-    accentText: 'text-purple-400',
+    glow: 'shadow-purple-200',
     icon: Search,
     subIcon: BarChart3,
     subBg: 'bg-violet-500',
@@ -78,10 +75,8 @@ const pipelineSteps = [
     title: 'Report',
     copy: 'Generate reports instantly',
     badge: 'bg-sky-500',
-    glow: 'shadow-sky-500/40',
-    border: 'hover:border-sky-400/50',
     iconBg: 'from-sky-400 to-blue-600',
-    accentText: 'text-sky-400',
+    glow: 'shadow-sky-200',
     icon: FileText,
     subIcon: FileText,
     subBg: 'bg-blue-500',
@@ -91,10 +86,8 @@ const pipelineSteps = [
     title: 'Act',
     copy: 'Take action with confidence',
     badge: 'bg-teal-500',
-    glow: 'shadow-teal-500/40',
-    border: 'hover:border-teal-400/50',
     iconBg: 'from-teal-400 to-emerald-600',
-    accentText: 'text-teal-400',
+    glow: 'shadow-teal-200',
     icon: Rocket,
     subIcon: Sparkles,
     subBg: 'bg-emerald-500',
@@ -104,23 +97,28 @@ const pipelineSteps = [
     title: 'Impact',
     copy: 'Drive better outcomes together',
     badge: 'bg-indigo-500',
-    glow: 'shadow-indigo-500/40',
-    border: 'hover:border-indigo-400/50',
     iconBg: 'from-indigo-400 to-violet-700',
-    accentText: 'text-indigo-400',
+    glow: 'shadow-indigo-200',
     icon: Users,
     subIcon: Sparkles,
     subBg: 'bg-yellow-500',
   },
 ]
 
+const echoStats = [
+  { label: 'Scans Analyzed', value: '1.2M+', icon: Activity, color: 'text-blue-600 bg-blue-50 border-blue-100' },
+  { label: 'Clinical Accuracy', value: '99.4%', icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+  { label: 'Hospitals Trust Us', value: '500+', icon: Stethoscope, color: 'text-purple-600 bg-purple-50 border-purple-100' },
+  { label: 'Reports Generated', value: '4.8M+', icon: FileText, color: 'text-sky-600 bg-sky-50 border-sky-100' },
+]
+
 const bottomFeatures = [
-  { title: 'All Your Data', copy: 'Connect any source', icon: Link2, color: 'from-blue-500 to-indigo-600' },
-  { title: 'Any Format', copy: 'Structured & unstructured', icon: Upload, color: 'from-emerald-400 to-teal-600' },
-  { title: 'AI-Powered Insights', copy: 'Smarter analysis', icon: BarChart3, color: 'from-purple-500 to-violet-700' },
-  { title: 'Clear & Actionable', copy: 'Reports that drive decisions', icon: FileText, color: 'from-sky-400 to-blue-600' },
-  { title: 'Enterprise Ready', copy: 'Secure and compliant', icon: ShieldCheck, color: 'from-teal-400 to-emerald-600' },
-  { title: 'Built for Growth', copy: 'Scale with your business', icon: TrendingUp, color: 'from-indigo-400 to-purple-700' },
+  { title: 'All Your Data', copy: 'Connect any source seamlessly', icon: Link2, color: 'from-blue-400 to-indigo-600' },
+  { title: 'Any Format', copy: 'Structured & unstructured data', icon: Upload, color: 'from-emerald-400 to-teal-600' },
+  { title: 'AI-Powered Insights', copy: 'Smarter analysis, deeper insights', icon: BarChart3, color: 'from-purple-400 to-violet-600' },
+  { title: 'Clear & Actionable', copy: 'Reports that drive real decisions', icon: FileText, color: 'from-sky-400 to-blue-600' },
+  { title: 'Enterprise Ready', copy: 'Secure, reliable and compliant', icon: ShieldCheck, color: 'from-teal-400 to-emerald-600' },
+  { title: 'Built for Growth', copy: 'Scale with your business', icon: TrendingUp, color: 'from-indigo-400 to-purple-600' },
 ]
 
 function buildGoogleAuthUrl() {
@@ -141,126 +139,148 @@ function buildGoogleAuthUrl() {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
 }
 
-function EchoLogo({ dark = false, compact = false }) {
-  const barBase = dark ? 'bg-gradient-to-b from-cyan-400 to-blue-500' : 'bg-gradient-to-b from-blue-400 to-indigo-600'
-  const textColor = dark ? 'text-white' : 'text-[#08145f]'
-  const aiGradient = dark
-    ? 'from-cyan-400 via-blue-400 to-violet-400'
-    : 'from-blue-600 via-indigo-600 to-violet-600'
-
+/* Soundwave logo matching reference */
+function EchoLogo({ compact = false }) {
   return (
-    <div className={`flex items-center justify-center gap-2.5`}>
-      <div className="flex items-end gap-[3px]" style={{ height: compact ? '28px' : '34px' }}>
-        <span className={`w-1 rounded-full ${barBase}`} style={{ height: compact ? '10px' : '12px' }} />
-        <span className={`w-1 rounded-full ${barBase}`} style={{ height: compact ? '18px' : '22px' }} />
-        <span className={`w-1.5 rounded-full ${barBase}`} style={{ height: compact ? '26px' : '32px' }} />
-        <span className={`w-1 rounded-full ${barBase}`} style={{ height: compact ? '18px' : '22px' }} />
-        <span className={`w-1 rounded-full ${barBase}`} style={{ height: compact ? '10px' : '12px' }} />
+    <div className="flex items-center justify-center gap-2.5">
+      <div className="flex items-end gap-[3px]" style={{ height: compact ? '26px' : '32px' }}>
+        {[10, 18, 28, 18, 10].map((h, i) => (
+          <span
+            key={i}
+            className="w-1 rounded-full bg-gradient-to-b from-blue-500 to-indigo-600"
+            style={{ height: compact ? `${h * 0.85}px` : `${h}px` }}
+          />
+        ))}
       </div>
-      <span className={`font-black tracking-tight ${textColor} ${compact ? 'text-2xl' : 'text-3xl'}`}>
-        echo<span className={`bg-gradient-to-r ${aiGradient} bg-clip-text text-transparent`}>AI</span>
+      <span className={`font-black tracking-tight text-[#08145f] ${compact ? 'text-[1.6rem]' : 'text-[2rem]'}`}>
+        echo<span className="text-blue-600">AI</span>
       </span>
     </div>
+  )
+}
+
+/* ECG Waveform SVG */
+function EcgWaveform() {
+  return (
+    <svg viewBox="0 0 400 60" className="w-full" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="ecgGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.2" />
+          <stop offset="40%" stopColor="#6366f1" stopOpacity="0.8" />
+          <stop offset="60%" stopColor="#8b5cf6" stopOpacity="0.8" />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.2" />
+        </linearGradient>
+      </defs>
+      <polyline
+        points="0,30 30,30 40,30 50,10 60,50 70,5 80,55 90,30 120,30 130,30 140,30 150,15 160,45 170,10 180,50 190,30 220,30 230,30 240,20 250,40 260,8 270,52 280,30 310,30 320,30 330,25 340,35 350,12 360,48 370,30 400,30"
+        fill="none"
+        stroke="url(#ecgGrad)"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
 
 function PlatformTemplate() {
   return (
     <section
-      className="relative hidden min-h-0 flex-col overflow-hidden rounded-[2.25rem] lg:flex"
-      style={{ background: 'linear-gradient(135deg, #060b1a 0%, #0d1535 35%, #0f1040 60%, #080c1f 100%)' }}
+      className="relative hidden min-h-0 flex-col justify-between overflow-hidden rounded-[2rem] border border-blue-100/60 lg:flex"
+      style={{ background: 'linear-gradient(145deg, #f8faff 0%, #f1f5ff 35%, #f4f0ff 65%, #f8f9ff 100%)' }}
     >
-      {/* ── Ambient Glow Orbs ── */}
-      <div className="pointer-events-none absolute -left-40 -top-40 h-[480px] w-[480px] rounded-full bg-blue-600/20 blur-[100px]" />
-      <div className="pointer-events-none absolute -right-40 top-20 h-[400px] w-[400px] rounded-full bg-violet-600/20 blur-[100px]" />
-      <div className="pointer-events-none absolute bottom-0 left-1/3 h-[350px] w-[350px] rounded-full bg-cyan-500/15 blur-[90px]" />
+      {/* Subtle soft corner glows */}
+      <div className="pointer-events-none absolute -left-32 -top-32 h-72 w-72 rounded-full bg-blue-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute -right-32 top-0 h-72 w-72 rounded-full bg-violet-200/30 blur-3xl" />
+      <div className="pointer-events-none absolute bottom-0 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-cyan-200/20 blur-3xl" />
 
-      {/* ── Decorative grid overlay ── */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-[0.04]"
-        style={{
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)',
-          backgroundSize: '40px 40px',
-        }}
-      />
-
-      {/* ── Top-right dot cluster ── */}
-      <div className="pointer-events-none absolute right-10 top-10 opacity-20">
-        {[...Array(5)].map((_, r) => (
-          <div key={r} className="flex gap-3 mb-3">
-            {[...Array(6)].map((_, c) => (
-              <div key={c} className="h-1.5 w-1.5 rounded-full bg-blue-300" />
-            ))}
-          </div>
-        ))}
+      {/* Dot grid top-right */}
+      <div className="pointer-events-none absolute right-8 top-8 grid gap-2.5 opacity-25" style={{ gridTemplateColumns: 'repeat(6,6px)' }}>
+        {[...Array(30)].map((_, i) => <div key={i} className="h-1.5 w-1.5 rounded-full bg-blue-400" />)}
       </div>
 
-      <div className="relative flex min-h-0 flex-1 flex-col justify-between px-10 py-8">
+      <div className="relative flex min-h-0 flex-1 flex-col justify-between p-8">
+
         {/* ── HEADER ── */}
         <div className="text-center">
-          <EchoLogo dark />
-
-          {/* Pill badge */}
-          <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-blue-500/30 bg-blue-500/10 px-4 py-1.5 backdrop-blur-sm">
-            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
-            <span className="text-xs font-semibold text-blue-300 tracking-wide">Medical-Grade AI · Echocardiography Intelligence</span>
-          </div>
-
-          <h1 className="mt-4 leading-none">
-            <span className="block text-[2.4rem] font-black tracking-tight text-white xl:text-[2.8rem]">
-              Your AI-Powered
-            </span>
+          <EchoLogo />
+          <h1 className="mt-3 leading-tight">
+            <span className="block text-[1.9rem] font-black text-[#08145f] xl:text-[2.2rem]">Your AI-Powered</span>
             <span
-              className="block text-[2.4rem] font-black tracking-tight xl:text-[2.8rem]"
-              style={{ background: 'linear-gradient(90deg, #38bdf8, #818cf8, #c084fc)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
+              className="block text-[1.9rem] font-black xl:text-[2.2rem]"
+              style={{ background: 'linear-gradient(90deg,#2563eb,#6366f1,#7c3aed)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}
             >
               Data Intelligence Platform
             </span>
           </h1>
-          <p className="mt-3 text-base font-medium text-slate-400 tracking-widest uppercase">
+          <p className="mt-2 text-sm font-medium text-slate-500 tracking-widest">
             Connect · Analyze · Act
           </p>
         </div>
 
+        {/* ── ECHO STATS + ECG ROW ── */}
+        <div className="my-3">
+          {/* Stat Cards */}
+          <div className="grid grid-cols-4 gap-3 mb-3">
+            {echoStats.map((s) => {
+              const Icon = s.icon
+              return (
+                <div key={s.label} className={`flex items-center gap-2.5 rounded-xl border bg-white/80 px-3.5 py-2.5 shadow-sm ${s.color.split(' ').find(c => c.startsWith('border-'))}`}>
+                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border ${s.color}`}>
+                    <Icon className="h-4.5 w-4.5" />
+                  </div>
+                  <div>
+                    <p className="text-base font-black text-[#08145f] leading-none">{s.value}</p>
+                    <p className="text-[10px] font-semibold text-slate-500 mt-0.5">{s.label}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {/* ECG Waveform banner */}
+          <div className="flex items-center gap-3 rounded-xl border border-blue-100 bg-white/70 px-4 py-2.5 shadow-sm backdrop-blur-sm">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-red-400 to-pink-600 shadow-sm">
+              <Heart className="h-4 w-4 text-white" />
+            </div>
+            <div className="min-w-0 flex-1 overflow-hidden">
+              <EcgWaveform />
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-xs font-bold text-[#08145f]">Live ECG Monitor</p>
+              <p className="text-[10px] font-medium text-slate-500">72 bpm · Normal Sinus</p>
+            </div>
+          </div>
+        </div>
+
         {/* ── PIPELINE CARDS ── */}
-        <div className="relative my-auto grid grid-cols-6 gap-3.5 py-2">
+        <div className="relative grid grid-cols-6 gap-3">
           {pipelineSteps.map((step, index) => {
             const HeroIcon = step.icon
             const SubIcon = step.subIcon
-
             return (
               <div key={step.title} className="relative flex flex-col items-center group">
-                <div
-                  className={`relative w-full rounded-2xl border border-white/10 bg-white/5 p-4 backdrop-blur-xl transition-all duration-300 group-hover:-translate-y-1.5 group-hover:bg-white/8 group-hover:border-white/20 group-hover:shadow-2xl ${step.border} text-center flex flex-col items-center group-hover:${step.glow}`}
-                >
-                  {/* Inner glow on hover */}
-                  <div className={`absolute inset-0 rounded-2xl opacity-0 group-hover:opacity-100 transition-opacity duration-300 bg-gradient-to-b ${step.iconBg} blur-2xl`} style={{ opacity: 0 }} />
-
-                  {/* Step number */}
-                  <span className={`relative z-10 flex h-7 w-7 items-center justify-center rounded-full text-xs font-bold text-white shadow-lg mb-3 ${step.badge}`}>
+                <div className="relative w-full rounded-2xl border border-white bg-white/90 px-2 py-4 shadow-md shadow-slate-200/70 backdrop-blur-sm transition-all duration-300 group-hover:-translate-y-1 group-hover:shadow-xl text-center flex flex-col items-center">
+                  <span className={`flex h-6 w-6 items-center justify-center rounded-full text-[11px] font-bold text-white mb-3 ${step.badge}`}>
                     {step.number}
                   </span>
 
-                  {/* Large 3D Icon */}
-                  <div className="relative z-10 mb-4">
-                    <div className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${step.iconBg} shadow-xl ${step.glow}`}>
-                      <HeroIcon className="h-8 w-8 text-white" strokeWidth={1.5} />
+                  <div className="relative mb-3">
+                    <div className={`flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br ${step.iconBg} shadow-lg ${step.glow}`}>
+                      <HeroIcon className="h-7 w-7 text-white" strokeWidth={1.5} />
                     </div>
-                    {/* Corner sub-badge */}
-                    <div className={`absolute -bottom-1.5 -right-1.5 flex h-6 w-6 items-center justify-center rounded-full ring-2 ring-slate-900 shadow-lg ${step.subBg}`}>
-                      <SubIcon className="h-3 w-3 text-white" />
+                    <div className={`absolute -bottom-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full ring-2 ring-white shadow-sm ${step.subBg}`}>
+                      <SubIcon className="h-2.5 w-2.5 text-white" />
                     </div>
                   </div>
 
-                  {/* Text */}
-                  <h3 className="relative z-10 text-sm font-bold text-white">{step.title}</h3>
-                  <p className={`relative z-10 mt-1 text-[10.5px] font-medium leading-tight ${step.accentText} opacity-80`}>{step.copy}</p>
+                  <h3 className="text-xs font-bold text-[#08145f]">{step.title}</h3>
+                  <p className="mt-1 text-[10px] font-medium leading-tight text-slate-500">{step.copy}</p>
                 </div>
 
-                {/* Arrow connector */}
                 {index < pipelineSteps.length - 1 && (
-                  <div className="absolute -right-3 top-[46%] z-20 flex h-6 w-6 items-center justify-center rounded-full border border-slate-600/60 bg-slate-800/80 backdrop-blur-sm shadow-lg">
-                    <ArrowRight className="h-3 w-3 text-slate-300" />
+                  <div className="absolute -right-2.5 top-1/2 z-20 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm">
+                    <ArrowRight className="h-3 w-3 text-slate-400" />
                   </div>
                 )}
               </div>
@@ -269,35 +289,29 @@ function PlatformTemplate() {
         </div>
 
         {/* ── BOTTOM FEATURES + TRUST ── */}
-        <div
-          className="rounded-2xl border border-white/10 backdrop-blur-xl px-6 py-4"
-          style={{ background: 'rgba(255,255,255,0.04)' }}
-        >
-          <div className="grid grid-cols-6 gap-4">
+        <div className="mt-3 rounded-2xl border border-white/80 bg-white/70 px-5 py-4 shadow-sm backdrop-blur-sm">
+          <div className="grid grid-cols-6 gap-3">
             {bottomFeatures.map((item) => {
               const Icon = item.icon
               return (
-                <div key={item.title} className="flex items-start gap-2.5">
-                  <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br ${item.color} shadow-lg`}>
-                    <Icon className="h-4.5 w-4.5 text-white" strokeWidth={2} />
+                <div key={item.title} className="flex items-start gap-2">
+                  <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br ${item.color} shadow-md`}>
+                    <Icon className="h-4 w-4 text-white" strokeWidth={2} />
                   </div>
                   <div>
-                    <h4 className="text-[11px] font-bold text-white leading-tight">{item.title}</h4>
-                    <p className="mt-0.5 text-[10px] font-medium text-slate-400 leading-tight">{item.copy}</p>
+                    <h4 className="text-[11px] font-bold text-[#08145f] leading-tight">{item.title}</h4>
+                    <p className="mt-0.5 text-[10px] text-slate-500 leading-tight">{item.copy}</p>
                   </div>
                 </div>
               )
             })}
           </div>
 
-          {/* Trust line */}
-          <div className="mt-4 flex items-center justify-center gap-2 border-t border-white/10 pt-3.5">
-            <div className="flex h-5 w-5 items-center justify-center rounded-full border border-cyan-400/40 bg-cyan-400/10">
-              <ShieldCheck className="h-3 w-3 text-cyan-400" />
-            </div>
-            <p className="text-[11.5px] font-medium text-slate-400">
+          <div className="mt-3 flex items-center justify-center gap-2 border-t border-slate-100 pt-2.5">
+            <ShieldCheck className="h-3.5 w-3.5 text-slate-400" />
+            <p className="text-[11px] text-slate-500">
               Trusted by forward-thinking clinical teams to turn scan data into{' '}
-              <span className="font-semibold text-cyan-400">real impact.</span>
+              <span className="font-semibold text-blue-600">real impact.</span>
             </p>
           </div>
         </div>
@@ -359,24 +373,23 @@ function Home() {
   }
 
   return (
-    <main className="h-screen overflow-hidden bg-[#0a0f1e] p-3 text-slate-900 sm:p-4">
-      <div className="mx-auto grid h-full max-w-[1880px] grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_390px] xl:grid-cols-[minmax(0,1fr)_420px]">
+    <main className="h-screen overflow-hidden bg-slate-100 p-3 text-slate-900 sm:p-4">
+      <div className="mx-auto grid h-full max-w-[1880px] grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_390px] xl:grid-cols-[minmax(0,1fr)_410px]">
         <PlatformTemplate />
 
-        {/* ── RIGHT LOGIN PANEL ── */}
-        <aside className="flex min-h-0 flex-col justify-center overflow-y-auto rounded-[2.25rem] border border-slate-200 bg-white px-7 py-6 text-[#08145f] shadow-2xl shadow-black/30">
+        {/* ── LOGIN PANEL ── */}
+        <aside className="flex min-h-0 flex-col justify-center overflow-y-auto rounded-[2rem] border border-slate-200 bg-white px-7 py-6 text-[#08145f] shadow-xl shadow-slate-300/40">
           <EchoLogo compact />
 
-          <div className="mt-5 text-center">
+          <div className="mt-4 text-center">
             <h2 className="text-2xl font-black text-[#08145f]">Welcome Back</h2>
             <p className="mt-1 text-sm text-slate-500">Access scan reports and AI insights.</p>
           </div>
 
-          {/* Quick demo login */}
           <button
             type="button"
             onClick={() => useDemoUser()}
-            className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-sm font-semibold text-white shadow-lg shadow-indigo-500/30 transition hover:shadow-indigo-500/50 hover:opacity-95 active:scale-[0.98]"
+            className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-md shadow-blue-300/50 transition hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98]"
           >
             <ArrowRight className="h-4 w-4" />
             Use Dr Shanthi Account
@@ -385,8 +398,8 @@ function Home() {
           <form className="mt-4 space-y-3" onSubmit={handleLogin}>
             <label className="block">
               <span className="text-sm font-semibold text-[#08145f]">Email Address</span>
-              <span className="mt-1.5 flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-400 transition focus-within:border-indigo-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100">
-                <Mail className="h-4 w-4 shrink-0" />
+              <span className="mt-1.5 flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-400 transition-all focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100">
+                <Mail className="h-4 w-4 shrink-0 text-slate-400" />
                 <input
                   type="text"
                   value={email}
@@ -401,8 +414,8 @@ function Home() {
 
             <label className="block">
               <span className="text-sm font-semibold text-[#08145f]">Password</span>
-              <span className="mt-1.5 flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-400 transition focus-within:border-indigo-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-indigo-100">
-                <Lock className="h-4 w-4 shrink-0" />
+              <span className="mt-1.5 flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-400 transition-all focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100">
+                <Lock className="h-4 w-4 shrink-0 text-slate-400" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -412,30 +425,27 @@ function Home() {
                   autoComplete="current-password"
                   required
                 />
-                <button type="button" onClick={() => setShowPassword(v => !v)} className="rounded p-1 hover:bg-slate-100 text-slate-400 transition" aria-label="Toggle password">
+                <button type="button" onClick={() => setShowPassword(v => !v)} className="rounded p-1 hover:bg-slate-100 text-slate-400" aria-label="Toggle password">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </span>
             </label>
 
             <div className="flex items-center justify-between text-xs">
-              <label className="flex items-center gap-2 text-slate-600 cursor-pointer">
-                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-indigo-600" />
+              <label className="flex cursor-pointer items-center gap-2 text-slate-600">
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-blue-600" />
                 Remember me
               </label>
-              <button type="button" onClick={() => setError('Use the founder credentials below.')} className="font-semibold text-indigo-600 hover:underline">
+              <button type="button" onClick={() => setError('Use the founder credentials below.')} className="font-semibold text-blue-600 hover:underline">
                 Forgot Password?
               </button>
             </div>
 
             {error && (
-              <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{error}</p>
+              <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-600">{error}</p>
             )}
 
-            <button
-              type="submit"
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-50 to-blue-50 border border-indigo-200 text-sm font-semibold text-indigo-700 transition hover:from-indigo-100 hover:to-blue-100 hover:border-indigo-300"
-            >
+            <button type="submit" className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 text-sm font-semibold text-blue-700 transition hover:bg-blue-100">
               <Zap className="h-4 w-4" />
               Login
             </button>
@@ -443,44 +453,46 @@ function Home() {
 
           <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
             <div className="h-px flex-1 bg-slate-200" />
-            <span>or continue with</span>
+            <span>or</span>
             <div className="h-px flex-1 bg-slate-200" />
           </div>
 
+          {/* ── GOOGLE BUTTON (proper icon) ── */}
           <button
             type="button"
             onClick={handleGoogleSignIn}
-            className="flex h-10 w-full items-center justify-center gap-2.5 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-xs transition hover:border-slate-300 hover:shadow-md"
+            className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:shadow-md active:scale-[0.98]"
           >
-            <svg className="h-4.5 w-4.5" viewBox="0 0 24 24">
-              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
-              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
-              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" />
-              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" />
+            {/* Official Google coloured G */}
+            <svg width="18" height="18" viewBox="0 0 48 48" className="shrink-0">
+              <path fill="#EA4335" d="M24 9.5c3.2 0 5.9 1.1 8.1 2.9l6-6C34.5 3.2 29.6 1 24 1 14.8 1 7 6.7 3.7 14.5l7 5.4C12.4 13.8 17.7 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.4 5.7c4.3-4 6.8-9.9 6.8-16.9z"/>
+              <path fill="#FBBC05" d="M10.7 28.6A14.9 14.9 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7-5.4A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.5 10.8l8.2-6.2z"/>
+              <path fill="#34A853" d="M24 47c5.9 0 10.9-1.9 14.5-5.2l-7.4-5.7c-2 1.3-4.5 2.1-7.1 2.1-6.3 0-11.6-4.2-13.5-10l-8.2 6.2C6.6 41.6 14.8 47 24 47z"/>
             </svg>
             Sign in with Google
           </button>
 
-          {/* Founder login card */}
-          <div className="mt-4 rounded-2xl border border-indigo-100 bg-gradient-to-br from-indigo-50 via-blue-50 to-violet-50 p-3.5">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600">
-                <Sparkles className="h-3 w-3 text-white" />
-              </div>
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-indigo-700">Founder Access</p>
+          {/* ── FOUNDER ACCESS CARD ── */}
+          <div className="mt-4 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5">
+            <div className="flex items-center gap-2 mb-2.5">
+              <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Founder Access</p>
             </div>
             <button
               type="button"
               onClick={() => useDemoUser()}
-              className="w-full rounded-xl border border-indigo-100 bg-white px-3.5 py-3 text-left shadow-xs transition hover:border-indigo-300 hover:shadow-sm active:scale-[0.99]"
+              className="w-full rounded-xl border border-blue-100 bg-white px-3.5 py-3 text-left shadow-xs transition hover:border-blue-300 hover:shadow-md"
             >
-              <span className="flex items-center gap-2">
-                <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-xs font-bold text-white shadow-sm">DS</span>
-                <span>
-                  <span className="block text-sm font-bold text-[#08145f]">Dr Shanthi · Founder</span>
-                  <span className="block text-[11px] text-slate-500">dr.shanthi@echoai.com</span>
-                </span>
-              </span>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
+                  DS
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-[#08145f]">Dr Shanthi · Founder</p>
+                  <p className="text-[11px] text-slate-500">dr.shanthi@echoai.com</p>
+                </div>
+              </div>
             </button>
           </div>
         </aside>
