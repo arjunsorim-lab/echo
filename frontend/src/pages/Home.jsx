@@ -1,29 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  Activity,
   ArrowRight,
-  BarChart3,
-  Database,
   Eye,
   EyeOff,
-  FileText,
-  LineChart,
-  Link2,
   Lock,
   Mail,
-  PieChart,
-  Rocket,
-  Search,
-  ShieldCheck,
   Sparkles,
-  TrendingUp,
-  Upload,
-  Users,
   Zap,
 } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
+import showcaseImage from '../assets/echoai_showcase.png'
 
 const demoUsers = [
   {
@@ -35,78 +23,28 @@ const demoUsers = [
   },
 ]
 
+/*
+--- PREVIOUS PLATFORM SHOWCASE CODE (COMMENTED AS REQUESTED) ---
+
 const pipelineSteps = [
-  {
-    number: '1',
-    title: 'Connect',
-    copy: 'Securely connect your data in seconds',
-    badgeBg: 'bg-blue-600',
-    cardGradient: 'from-[#e4f0ff] via-[#d6e7ff] to-[#c5deff] border-blue-200',
-    iconColor: 'text-blue-600',
-    iconBg: 'bg-blue-600 text-white shadow-md shadow-blue-500/30',
-    icon: Database,
-  },
-  {
-    number: '2',
-    title: 'Ingest',
-    copy: 'Capture and unify your data',
-    badgeBg: 'bg-emerald-500',
-    cardGradient: 'from-[#e3f9ed] via-[#d2f5e3] to-[#bbf0d6] border-emerald-200',
-    iconColor: 'text-emerald-600',
-    iconBg: 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30',
-    icon: Upload,
-  },
-  {
-    number: '3',
-    title: 'Analyze',
-    copy: 'Detect patterns and key insights',
-    badgeBg: 'bg-purple-600',
-    cardGradient: 'from-[#f3e6ff] via-[#e8d2ff] to-[#dac0ff] border-purple-200',
-    iconColor: 'text-purple-600',
-    iconBg: 'bg-purple-600 text-white shadow-md shadow-purple-500/30',
-    icon: Search,
-  },
-  {
-    number: '4',
-    title: 'Report',
-    copy: 'Generate reports instantly',
-    badgeBg: 'bg-blue-500',
-    cardGradient: 'from-[#e4f0ff] via-[#d6e7ff] to-[#c5deff] border-blue-200',
-    iconColor: 'text-blue-500',
-    iconBg: 'bg-blue-500 text-white shadow-md shadow-blue-500/30',
-    icon: PieChart,
-  },
-  {
-    number: '5',
-    title: 'Act',
-    copy: 'Take action with confidence',
-    badgeBg: 'bg-emerald-500',
-    cardGradient: 'from-[#e3f9ed] via-[#d2f5e3] to-[#bbf0d6] border-emerald-200',
-    iconColor: 'text-emerald-500',
-    iconBg: 'bg-emerald-500 text-white shadow-md shadow-emerald-500/30',
-    icon: Rocket,
-  },
-  {
-    number: '6',
-    title: 'Impact',
-    copy: 'Drive better outcomes together',
-    badgeBg: 'bg-purple-600',
-    cardGradient: 'from-[#f3e6ff] via-[#e8d2ff] to-[#dac0ff] border-purple-200',
-    iconColor: 'text-purple-600',
-    iconBg: 'bg-purple-600 text-white shadow-md shadow-purple-500/30',
-    icon: Users,
-  },
+  { number: '1', title: 'Connect', copy: 'Securely connect your data in seconds' },
+  { number: '2', title: 'Ingest', copy: 'Capture and unify your data' },
+  { number: '3', title: 'Analyze', copy: 'Detect patterns and key insights' },
+  { number: '4', title: 'Report', copy: 'Generate reports instantly' },
+  { number: '5', title: 'Act', copy: 'Take action with confidence' },
+  { number: '6', title: 'Impact', copy: 'Drive better outcomes together' },
 ]
 
 const outcomes = [
-  { title: 'Connect', copy: 'All Your Data', icon: Link2, color: 'text-blue-600 bg-blue-50 border-blue-100' },
-  { title: 'Ingest', copy: 'Any Format', icon: Upload, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
-  { title: 'Analyze', copy: 'AI-Powered Insights', icon: LineChart, color: 'text-purple-600 bg-purple-50 border-purple-100' },
-  { title: 'Report', copy: 'Clear & Actionable', icon: FileText, color: 'text-blue-500 bg-blue-50 border-blue-100' },
-  { title: 'Act', copy: 'Drive Impact', icon: Rocket, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
-  { title: 'Secure', copy: 'Enterprise Ready', icon: ShieldCheck, color: 'text-teal-600 bg-teal-50 border-teal-100' },
-  { title: 'Scale', copy: 'Built for Growth', icon: TrendingUp, color: 'text-indigo-600 bg-indigo-50 border-indigo-100' },
+  { title: 'Connect', copy: 'All Your Data' },
+  { title: 'Ingest', copy: 'Any Format' },
+  { title: 'Analyze', copy: 'AI-Powered Insights' },
+  { title: 'Report', copy: 'Clear & Actionable' },
+  { title: 'Act', copy: 'Drive Impact' },
+  { title: 'Secure', copy: 'Enterprise Ready' },
+  { title: 'Scale', copy: 'Built for Growth' },
 ]
+*/
 
 function buildGoogleAuthUrl() {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -132,7 +70,6 @@ function buildGoogleAuthUrl() {
 function EchoLogo({ compact = false }) {
   return (
     <div className="flex items-center justify-center gap-2.5">
-      {/* Soundwave Signal Bar Icon Matching Mockup */}
       <div className="flex items-center gap-1 text-blue-600">
         <span className="h-4 w-1 rounded-full bg-blue-500" />
         <span className="h-6 w-1 rounded-full bg-blue-600" />
@@ -148,91 +85,13 @@ function EchoLogo({ compact = false }) {
 
 function PlatformTemplate() {
   return (
-    <section className="relative hidden min-h-0 flex-col justify-between overflow-hidden rounded-[2rem] border border-blue-100/80 bg-white/90 p-7 shadow-xl shadow-blue-500/5 backdrop-blur-md lg:flex">
-      {/* Background Soft Wave Graphic Elements */}
-      <div className="pointer-events-none absolute -left-20 -top-20 h-72 w-72 rounded-full bg-blue-100/40 blur-3xl" />
-      <div className="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-purple-100/40 blur-3xl" />
-      <div className="pointer-events-none absolute bottom-10 left-1/3 h-64 w-64 rounded-full bg-teal-100/30 blur-3xl" />
-
-      {/* Header Matching Mockup */}
-      <div className="relative text-center">
-        <EchoLogo />
-        <h1 className="mt-2 text-2xl font-black tracking-tight text-[#08145f] xl:text-3xl">
-          Your AI-Powered Data Intelligence Platform
-        </h1>
-        <p className="mt-1.5 text-sm font-bold text-blue-600 tracking-wide">Connect. Analyze. Act.</p>
-      </div>
-
-      {/* 6-Step Horizontal Pipeline Flow Matching Mockup */}
-      <div className="relative my-auto space-y-8">
-        <div className="grid grid-cols-6 gap-4">
-          {pipelineSteps.map((step, index) => {
-            const Icon = step.icon
-
-            return (
-              <div key={step.title} className="group relative flex flex-col items-center text-center">
-                {/* Header Step Pill */}
-                <div className="mb-2 flex items-center justify-center gap-1.5">
-                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white shadow-2xs ${step.badgeBg}`}>
-                    {step.number}
-                  </span>
-                  <span className="text-xs font-bold text-[#08145f]">{step.title}</span>
-                </div>
-
-                <p className="mb-4 text-[11px] font-medium leading-tight text-slate-500 h-8 max-w-[130px]">
-                  {step.copy}
-                </p>
-
-                {/* 3D Glass Soft Rounded Card */}
-                <div className={`relative flex aspect-square w-full max-w-[136px] items-center justify-center rounded-3xl border bg-gradient-to-b ${step.cardGradient} p-4 shadow-lg shadow-blue-500/10 transition duration-300 group-hover:-translate-y-1.5 group-hover:shadow-xl`}>
-                  {/* Inner Icon Box */}
-                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${step.iconBg}`}>
-                    <Icon className="h-7 w-7" />
-                  </div>
-
-                  {/* Dotted Arrow Connector */}
-                  {index < pipelineSteps.length - 1 && (
-                    <div className="absolute -right-4 top-1/2 -translate-y-1/2 z-10 flex items-center gap-1 text-blue-400">
-                      <span className="text-xs font-bold">┄┄►</span>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-
-        {/* Central Connected Waveform Orb Node */}
-        <div className="relative flex items-center justify-center pt-2">
-          <div className="absolute inset-x-12 h-0.5 border-b-2 border-dashed border-blue-200" />
-          <div className="relative z-10 flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white shadow-lg shadow-blue-500/40 ring-4 ring-white">
-            <div className="flex items-center gap-0.5">
-              <span className="h-3 w-0.5 rounded-full bg-white animate-pulse" />
-              <span className="h-5 w-0.5 rounded-full bg-white" />
-              <span className="h-4 w-0.5 rounded-full bg-white" />
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 7 Feature Cards at Bottom Matching Mockup */}
-      <div className="relative grid grid-cols-7 gap-3">
-        {outcomes.map((item) => {
-          const Icon = item.icon
-          return (
-            <div
-              key={item.title}
-              className="flex flex-col items-center justify-center rounded-2xl border border-slate-200/90 bg-white p-3.5 text-center shadow-md shadow-blue-500/5 transition hover:-translate-y-0.5 hover:shadow-lg hover:border-blue-200"
-            >
-              <div className={`mb-2 flex h-10 w-10 items-center justify-center rounded-xl border ${item.color}`}>
-                <Icon className="h-5 w-5" />
-              </div>
-              <h3 className="text-xs font-bold text-[#08145f]">{item.title}</h3>
-              <p className="text-[10px] font-medium text-slate-500 leading-tight mt-0.5">{item.copy}</p>
-            </div>
-          )
-        })}
-      </div>
+    <section className="relative hidden min-h-0 flex-col items-center justify-center overflow-hidden rounded-[2rem] border border-slate-200/90 bg-slate-50 p-2 shadow-xl backdrop-blur-md lg:flex">
+      {/* DISPLAYING THE EXACT SHOWCASE IMAGE AS REQUESTED */}
+      <img
+        src={showcaseImage}
+        alt="echoAI Data Intelligence Platform Showcase"
+        className="h-full w-full object-contain rounded-[1.75rem] shadow-sm"
+      />
     </section>
   )
 }
