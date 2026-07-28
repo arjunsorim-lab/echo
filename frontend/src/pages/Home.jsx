@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
+  Activity,
   ArrowRight,
   BarChart3,
+  CheckCircle2,
+  Clock,
   Database,
   Eye,
   EyeOff,
   FileText,
+  LineChart,
   Link2,
   Lock,
   Mail,
   Rocket,
   ShieldCheck,
   Sparkles,
+  Target,
   TrendingUp,
   Upload,
   Users,
@@ -23,80 +28,86 @@ import { scanService } from '../api/scanService'
 
 const demoUsers = [
   {
-    name: 'Dr Shanti',
-    role: 'Owner',
-    email: 'dr.shanti@echoai.com',
-    userName: 'dr.shanti',
+    name: 'Dr Shanthi',
+    role: 'Founder',
+    email: 'dr.shanthi@echoai.com',
+    userName: 'dr.shanthi',
     password: 'password123',
   },
 ]
 
 const pipelineSteps = [
   {
+    number: '1',
     title: 'Connect',
-    copy: 'Securely connect your data in seconds',
+    copy: 'Securely connect scan data in seconds',
     icon: Database,
-    tone: 'blue',
+    badgeBg: 'bg-blue-600',
+    cardGradient: 'from-blue-50/90 to-indigo-50/40 border-blue-100',
+    iconColor: 'text-blue-600',
+    iconBg: 'bg-blue-500/10 border-blue-200',
   },
   {
+    number: '2',
     title: 'Ingest',
-    copy: 'Capture and unify your data',
+    copy: 'Capture and unify raw DICOM images',
     icon: Upload,
-    tone: 'emerald',
+    badgeBg: 'bg-emerald-600',
+    cardGradient: 'from-emerald-50/90 to-teal-50/40 border-emerald-100',
+    iconColor: 'text-emerald-600',
+    iconBg: 'bg-emerald-500/10 border-emerald-200',
   },
   {
+    number: '3',
     title: 'Analyze',
-    copy: 'Detect patterns and key insights',
+    copy: 'Detect cardiac patterns and key insights',
     icon: BarChart3,
-    tone: 'violet',
+    badgeBg: 'bg-purple-600',
+    cardGradient: 'from-purple-50/90 to-violet-50/40 border-purple-100',
+    iconColor: 'text-purple-600',
+    iconBg: 'bg-purple-500/10 border-purple-200',
   },
   {
+    number: '4',
     title: 'Report',
-    copy: 'Generate reports instantly',
+    copy: 'Generate structured reports instantly',
     icon: FileText,
-    tone: 'blue',
+    badgeBg: 'bg-blue-500',
+    cardGradient: 'from-blue-50/90 to-sky-50/40 border-blue-100',
+    iconColor: 'text-blue-500',
+    iconBg: 'bg-sky-500/10 border-sky-200',
   },
   {
+    number: '5',
     title: 'Act',
-    copy: 'Take action with confidence',
+    copy: 'Take action with clinical confidence',
     icon: Rocket,
-    tone: 'emerald',
+    badgeBg: 'bg-teal-600',
+    cardGradient: 'from-teal-50/90 to-emerald-50/40 border-teal-100',
+    iconColor: 'text-teal-600',
+    iconBg: 'bg-teal-500/10 border-teal-200',
   },
   {
+    number: '6',
     title: 'Impact',
-    copy: 'Drive better outcomes together',
+    copy: 'Drive better patient outcomes together',
     icon: Users,
-    tone: 'violet',
+    badgeBg: 'bg-indigo-600',
+    cardGradient: 'from-indigo-50/90 to-purple-50/40 border-indigo-100',
+    iconColor: 'text-indigo-600',
+    iconBg: 'bg-indigo-500/10 border-indigo-200',
   },
 ]
 
 const outcomes = [
-  { title: 'Connect', copy: 'All Your Data', icon: Link2, tone: 'blue' },
-  { title: 'Ingest', copy: 'Any Format', icon: Upload, tone: 'emerald' },
-  { title: 'Analyze', copy: 'AI-Powered Insights', icon: BarChart3, tone: 'violet' },
-  { title: 'Report', copy: 'Clear & Actionable', icon: FileText, tone: 'blue' },
-  { title: 'Act', copy: 'Drive Impact', icon: Rocket, tone: 'emerald' },
-  { title: 'Secure', copy: 'Enterprise Ready', icon: ShieldCheck, tone: 'emerald' },
-  { title: 'Scale', copy: 'Built for Growth', icon: TrendingUp, tone: 'violet' },
+  { title: 'Connect', copy: 'All Your Data', icon: Link2, color: 'text-blue-600 bg-blue-50 border-blue-100' },
+  { title: 'Ingest', copy: 'Any Format', icon: Upload, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+  { title: 'Analyze', copy: 'AI-Powered Insights', icon: LineChart, color: 'text-purple-600 bg-purple-50 border-purple-100' },
+  { title: 'Report', copy: 'Clear & Actionable', icon: FileText, color: 'text-blue-500 bg-blue-50 border-blue-100' },
+  { title: 'Act', copy: 'Drive Impact', icon: Rocket, color: 'text-teal-600 bg-teal-50 border-teal-100' },
+  { title: 'Secure', copy: 'Enterprise Ready', icon: ShieldCheck, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+  { title: 'Scale', copy: 'Built for Growth', icon: TrendingUp, color: 'text-indigo-600 bg-indigo-50 border-indigo-100' },
 ]
-
-const toneClasses = {
-  blue: {
-    badge: 'bg-blue-500',
-    icon: 'text-blue-600',
-    iconBackground: 'from-blue-50 to-blue-100/80',
-  },
-  emerald: {
-    badge: 'bg-emerald-500',
-    icon: 'text-emerald-500',
-    iconBackground: 'from-emerald-50 to-cyan-50',
-  },
-  violet: {
-    badge: 'bg-violet-500',
-    icon: 'text-violet-600',
-    iconBackground: 'from-violet-50 to-indigo-50',
-  },
-}
 
 function buildGoogleAuthUrl() {
   const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
@@ -121,11 +132,11 @@ function buildGoogleAuthUrl() {
 
 function EchoLogo({ compact = false }) {
   return (
-    <div className="flex items-center justify-center gap-3">
+    <div className="flex items-center justify-center gap-3.5">
       <div className={`relative shrink-0 ${compact ? 'h-10 w-10' : 'h-12 w-12'}`}>
         <div className="absolute inset-0 rounded-full border-[4px] border-blue-400 border-r-violet-500" />
         <div className="absolute inset-2 rounded-full border-[3.5px] border-indigo-500 border-l-cyan-400" />
-        <div className="absolute inset-[0.95rem] rounded-full bg-gradient-to-br from-cyan-400 to-violet-500 shadow-sm" />
+        <div className="absolute inset-[0.95rem] rounded-full bg-gradient-to-br from-cyan-400 to-violet-500 shadow-xs" />
       </div>
       <div className={`font-black tracking-tight text-[#08145f] ${compact ? 'text-3xl' : 'text-4xl'}`}>
         echo<span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">AI</span>
@@ -136,58 +147,86 @@ function EchoLogo({ compact = false }) {
 
 function PlatformTemplate() {
   return (
-    <section className="relative hidden min-h-0 overflow-hidden rounded-[1.75rem] border border-blue-100 bg-gradient-to-br from-white via-[#f8fbff] to-[#f1f6ff] p-5 shadow-sm lg:flex lg:flex-col">
-      <div className="pointer-events-none absolute -left-16 -top-20 h-64 w-64 rounded-full bg-blue-100/40 blur-sm" />
-      <div className="pointer-events-none absolute -right-16 -top-20 h-52 w-52 rounded-full bg-indigo-100/50" />
-      <div className="pointer-events-none absolute bottom-10 right-8 h-36 w-36 rounded-full bg-blue-100/30 blur-2xl" />
+    <section className="relative hidden min-h-0 flex-col justify-between overflow-hidden rounded-[1.75rem] border border-slate-200/80 bg-gradient-to-br from-white via-slate-50/50 to-blue-50/30 p-6 shadow-sm backdrop-blur-md lg:flex">
+      {/* Background Soft Glow Accents */}
+      <div className="pointer-events-none absolute -left-20 -top-20 h-64 w-64 rounded-full bg-blue-100/50 blur-2xl" />
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 rounded-full bg-purple-100/50 blur-2xl" />
 
+      {/* Header */}
       <div className="relative text-center">
-        <EchoLogo compact />
-        <h1 className="mt-2 text-2xl font-black tracking-tight text-[#08145f] xl:text-3xl">
+        <div className="inline-flex items-center gap-2 rounded-full border border-blue-200 bg-blue-50 px-3.5 py-1 text-xs font-semibold text-blue-700 shadow-2xs mb-2">
+          <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+          <span>AI-Powered Echo Reporting & Diagnostic Intelligence</span>
+        </div>
+        <EchoLogo />
+        <h1 className="mt-1 text-2xl font-black tracking-tight text-[#08145f] xl:text-3xl">
           Your AI-Powered Data Intelligence Platform
         </h1>
-        <p className="mt-1 text-sm font-bold text-blue-600">Connect. Analyze. Act.</p>
+        <p className="mt-1 text-xs font-bold tracking-wide text-blue-600">Connect. Analyze. Act.</p>
       </div>
 
-      <div className="relative mt-5 grid min-h-0 flex-1 grid-cols-6 gap-3">
-        {pipelineSteps.map((step, index) => {
-          const Icon = step.icon
-          const tone = toneClasses[step.tone]
+      {/* 6-Step Modern Process Pipeline */}
+      <div className="relative my-auto space-y-6">
+        <div className="grid grid-cols-6 gap-3">
+          {pipelineSteps.map((step, index) => {
+            const Icon = step.icon
 
-          return (
-            <article key={step.title} className="relative flex min-w-0 flex-col items-center text-center">
-              {index < pipelineSteps.length - 1 && (
-                <div className="absolute left-[67%] top-[9.6rem] z-10 hidden w-[72%] border-t-2 border-dotted border-blue-400 xl:block">
-                  <ArrowRight className="absolute -right-2 -top-2.5 h-4 w-4 text-blue-500" />
+            return (
+              <div key={step.title} className="group relative flex flex-col items-center text-center">
+                {/* Step Badge */}
+                <div className="mb-2 flex items-center justify-center gap-1.5">
+                  <span className={`flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold shadow-2xs ${step.badgeBg} text-white`}>
+                    {step.number}
+                  </span>
+                  <span className="text-xs font-bold text-[#08145f]">{step.title}</span>
                 </div>
-              )}
-              <div className="flex min-h-[54px] items-start justify-center gap-1.5">
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold text-white ${tone.badge}`}>
-                  {index + 1}
-                </span>
-                <div className="text-left">
-                  <h2 className="text-xs font-bold text-[#08145f]">{step.title}</h2>
-                  <p className="mt-1 text-[10px] leading-tight text-slate-600">{step.copy}</p>
+
+                <p className="mb-3 text-[11px] font-medium leading-tight text-slate-500 h-8 max-w-[130px]">
+                  {step.copy}
+                </p>
+
+                {/* 3D Modern Glass Card */}
+                <div className={`relative flex aspect-square w-full max-w-[140px] items-center justify-center rounded-2xl border bg-gradient-to-b ${step.cardGradient} p-4 shadow-sm transition duration-300 group-hover:-translate-y-1 group-hover:shadow-md`}>
+                  <div className={`flex h-14 w-14 items-center justify-center rounded-2xl border bg-white shadow-xs ${step.iconBg}`}>
+                    <Icon className={`h-7 w-7 ${step.iconColor}`} />
+                  </div>
+
+                  {/* Arrow Connector */}
+                  {index < pipelineSteps.length - 1 && (
+                    <div className="absolute -right-3.5 top-1/2 -translate-y-1/2 z-10 text-blue-400">
+                      <span className="text-xs font-bold">→</span>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className={`mt-3 flex h-28 w-full max-w-[124px] items-center justify-center rounded-2xl border border-blue-100 bg-gradient-to-br ${tone.iconBackground} shadow-lg shadow-blue-100/60`}>
-                <Icon className={`h-14 w-14 ${tone.icon}`} strokeWidth={1.8} />
-              </div>
-            </article>
-          )
-        })}
+            )
+          })}
+        </div>
+
+        {/* Central Pulse Line */}
+        <div className="relative flex items-center justify-center">
+          <div className="absolute inset-x-8 h-0.5 border-b-2 border-dashed border-blue-200" />
+          <div className="relative z-10 flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-white shadow-md shadow-blue-500/30">
+            <Activity className="h-5 w-5" />
+          </div>
+        </div>
       </div>
 
-      <div className="relative mt-4 grid grid-cols-7 gap-3">
+      {/* 7 Modern Feature Outcome Cards */}
+      <div className="relative grid grid-cols-7 gap-2.5">
         {outcomes.map((item) => {
           const Icon = item.icon
-          const tone = toneClasses[item.tone]
           return (
-            <article key={item.title} className="flex min-h-[104px] flex-col items-center justify-center rounded-2xl border border-blue-100 bg-white px-2 py-3 text-center shadow-lg shadow-blue-100/50">
-              <Icon className={`h-8 w-8 ${tone.icon}`} />
-              <h3 className="mt-2 text-xs font-bold text-[#08145f]">{item.title}</h3>
-              <p className="mt-0.5 text-[10px] text-slate-600">{item.copy}</p>
-            </article>
+            <div
+              key={item.title}
+              className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-white/90 p-3 text-center shadow-2xs transition hover:border-blue-200 hover:bg-white hover:shadow-xs"
+            >
+              <div className={`mb-1.5 flex h-9 w-9 items-center justify-center rounded-xl border ${item.color}`}>
+                <Icon className="h-4 w-4" />
+              </div>
+              <h3 className="text-xs font-bold text-[#08145f]">{item.title}</h3>
+              <p className="mt-0.5 text-[10px] font-medium text-slate-500 leading-tight">{item.copy}</p>
+            </div>
           )
         })}
       </div>
@@ -230,24 +269,28 @@ function Home() {
   const handleLogin = (event) => {
     event.preventDefault()
     const login = email.trim().toLowerCase()
-    const matchedUser = demoUsers.find((user) => (
-      (user.email.toLowerCase() === login || user.userName.toLowerCase() === login) &&
-      user.password === password
-    ))
+    const matchedUser = demoUsers.find(
+      (user) =>
+        (user.email.toLowerCase() === login || user.userName.toLowerCase() === login) &&
+        user.password === password,
+    )
 
     if (!matchedUser) {
-      setError('Email or password is incorrect. Use the Dr Shanti owner credentials below.')
+      setError('Email or password is incorrect. Use the Dr Shanthi founder credentials below.')
       return
     }
 
     const storage = remember ? localStorage : sessionStorage
     const otherStorage = remember ? sessionStorage : localStorage
     otherStorage.removeItem('echoai_user')
-    storage.setItem('echoai_user', JSON.stringify({
-      name: matchedUser.name,
-      role: matchedUser.role,
-      email: matchedUser.email,
-    }))
+    storage.setItem(
+      'echoai_user',
+      JSON.stringify({
+        name: matchedUser.name,
+        role: matchedUser.role,
+        email: matchedUser.email,
+      }),
+    )
     navigate('/dashboard', { replace: true })
   }
 
@@ -274,7 +317,7 @@ function Home() {
             className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-violet-600 text-sm font-semibold text-white shadow-md shadow-violet-200 transition hover:from-blue-700 hover:to-violet-700"
           >
             <ArrowRight className="h-4 w-4" />
-            Use Dr Shanti Account
+            Use Dr Shanthi Account
           </button>
 
           <form className="mt-4 space-y-3" onSubmit={handleLogin}>
@@ -334,18 +377,28 @@ function Home() {
                 />
                 Remember me
               </label>
-              <button type="button" onClick={() => setError('Use the owner credentials shown below.')} className="font-semibold text-blue-600 hover:underline">
+              <button
+                type="button"
+                onClick={() => setError('Use the founder credentials below.')}
+                className="font-semibold text-blue-600 hover:underline"
+              >
                 Forgot Password?
               </button>
             </div>
 
             {error && (
-              <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+              <p
+                role="alert"
+                className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-medium text-red-700"
+              >
                 {error}
               </p>
             )}
 
-            <button type="submit" className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 text-sm font-semibold text-blue-700 transition hover:bg-blue-100">
+            <button
+              type="submit"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-blue-200 bg-blue-50 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+            >
               <Zap className="h-4 w-4" />
               Login
             </button>
@@ -357,7 +410,11 @@ function Home() {
             <div className="h-px flex-1 bg-slate-200" />
           </div>
 
-          <button type="button" onClick={handleGoogleSignIn} className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50">
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            className="flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
             <span className="text-lg font-bold text-blue-600">G</span>
             Sign in with Google
           </button>
@@ -365,11 +422,15 @@ function Home() {
           <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/70 p-3">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-blue-600" />
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Owner login</p>
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Founder login</p>
             </div>
-            <button type="button" onClick={() => useDemoUser()} className="mt-2 w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-left hover:border-blue-300">
-              <span className="block text-sm font-bold text-[#07135d]">Dr Shanti · Owner</span>
-              <span className="mt-1 block text-xs text-slate-600">dr.shanti@echoai.com / password123</span>
+            <button
+              type="button"
+              onClick={() => useDemoUser()}
+              className="mt-2 w-full rounded-lg border border-blue-100 bg-white px-3 py-2 text-left hover:border-blue-300"
+            >
+              <span className="block text-sm font-bold text-[#07135d]">Dr Shanthi · Founder</span>
+              <span className="mt-1 block text-xs text-slate-600">dr.shanthi@echoai.com / password123</span>
             </button>
           </div>
         </aside>
