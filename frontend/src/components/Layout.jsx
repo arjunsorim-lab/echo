@@ -13,13 +13,32 @@ function Layout({ children }) {
   const navigate = useNavigate()
   const location = useLocation()
   const pageTitles = {
-    '/': 'Dashboard', '/dashboard': 'Dashboard', '/search': 'Patient Search', '/patients': 'Patients',
-    '/patients/new': 'New Patient', '/visits': 'Visits', '/referral-doctors': 'Referral Doctors',
-    '/echo-studies': 'Echo Studies', '/images': 'Images & DICOM', '/measurements': 'Measurements',
-    '/reports': 'Clinical Reports', '/analytics': 'Queries & Analytics', '/settings': 'Settings',
-    '/administration': 'Administration', '/crm': 'CRM', '/ai-assistant': 'AI Assistant',
+    '/': 'Dashboard',
+    '/dashboard': 'Dashboard',
+    '/search': 'Patient Search',
+    '/patients': 'Patients',
+    '/patients/new': 'New Patient',
+    '/visits': 'Visits',
+    '/referral-doctors': 'Referral Doctors',
+    '/echo-studies': 'Echo Studies',
+    '/fetal-echo-report': 'Fetal Echo Report',
+    '/adult-echo-report': 'Adult Echo Report',
+    '/pediatric-echo-report': 'Pediatric Echo Report',
+    '/echo-scan': 'Echo Scan',
+    '/images': 'Images & DICOM',
+    '/measurements': 'Measurements',
+    '/reports': 'Clinical Reports',
+    '/analytics': 'Queries & Analytics',
+    '/settings': 'Settings',
+    '/administration': 'Administration',
+    '/crm': 'CRM',
+    '/ai-assistant': 'AI Assistant',
   }
-  const pageTitle = Object.entries(pageTitles).find(([path]) => location.pathname === path || location.pathname.startsWith(`${path}/`))?.[1] || 'CardioEcho AI'
+
+  const pageTitle =
+    Object.entries(pageTitles).find(
+      ([path]) => location.pathname === path || location.pathname.startsWith(`${path}/`),
+    )?.[1] || 'CardioEcho AI'
 
   const handleSearch = (e) => {
     e?.preventDefault()
@@ -44,11 +63,15 @@ function Layout({ children }) {
       <div className="flex h-full min-w-0 flex-1 flex-col px-1 py-1 sm:px-2 lg:px-3">
         <header className="mb-3 flex shrink-0 flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-teal-600 text-white shadow-sm">
-              <Activity className="h-6 w-6" />
+            <div className="relative h-11 w-11 shrink-0">
+              <div className="absolute inset-0 rounded-full border-[3.5px] border-blue-400 border-r-violet-500" />
+              <div className="absolute inset-1.5 rounded-full border-[3px] border-indigo-500 border-l-cyan-400" />
+              <div className="absolute inset-[0.85rem] rounded-full bg-gradient-to-br from-cyan-400 to-violet-500 shadow-xs" />
             </div>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-teal-700">EchoScan</p>
+              <p className="text-xs font-bold tracking-tight text-[#08145f]">
+                echo<span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">AI</span>
+              </p>
               <h1 className="text-2xl font-semibold tracking-normal text-slate-950">{pageTitle}</h1>
             </div>
           </div>

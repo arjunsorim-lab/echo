@@ -20,23 +20,27 @@ function Sidebar({ onSignOut }) {
     { path: '/echo-studies', icon: Activity, label: 'Echo Studies' },
     { path: '/images', icon: ImageIcon, label: 'Images' },
     { path: '/measurements', icon: Ruler, label: 'Measurements' },
-    { path: '/ai-assistant', icon: Brain, label: 'AI Assistant', disabled: true },
     { path: '/reports', icon: FileText, label: 'Reports' },
-    { path: '/crm', icon: Building2, label: 'CRM', disabled: true },
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/settings', icon: Cog, label: 'Settings' },
+    { path: '/ai-assistant', icon: Brain, label: 'AI Assistant', disabled: true },
+    { path: '/crm', icon: Building2, label: 'CRM', disabled: true },
   ]
 
   return (
     <div className="relative min-h-screen w-64 shrink-0 overflow-y-auto bg-gradient-to-b from-[#449087] to-[#32635e] pb-24 text-white">
       <div className="border-b border-white/20 p-6">
         <div className="flex items-center space-x-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white/10 ring-1 ring-white/25">
-            <Activity className="h-6 w-6 text-white" />
+          <div className="relative h-10 w-10 shrink-0">
+            <div className="absolute inset-0 rounded-full border-[3.5px] border-cyan-300 border-r-white" />
+            <div className="absolute inset-1.5 rounded-full border-[3px] border-white border-l-cyan-300" />
+            <div className="absolute inset-[0.8rem] rounded-full bg-white shadow-xs" />
           </div>
           <div>
-            <h1 className="text-xl font-bold">CardioEcho AI</h1>
-            <p className="text-xs text-slate-300">Reporting System</p>
+            <h1 className="text-xl font-bold tracking-tight text-white">
+              echo<span className="text-cyan-200">AI</span>
+            </h1>
+            <p className="text-[11px] text-slate-200">Reporting System</p>
           </div>
         </div>
       </div>
@@ -55,7 +59,6 @@ function Sidebar({ onSignOut }) {
               >
                 <Icon className="h-5 w-5" />
                 <span className="font-medium">{item.label}</span>
-                <span className="ml-auto text-[10px] font-semibold uppercase tracking-wide">Disabled</span>
               </button>
             )
           }
@@ -77,6 +80,7 @@ function Sidebar({ onSignOut }) {
             </NavLink>
           )
         })}
+
         <button
           type="button"
           onClick={onSignOut}

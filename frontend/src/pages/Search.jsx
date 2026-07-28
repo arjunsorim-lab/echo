@@ -613,10 +613,13 @@ function SearchPage() {
                         return (
                           <tr
                             key={patient.id}
-                            onClick={() => selectPatient(patient)}
+                            onClick={() => {
+                              selectPatient(patient)
+                              navigate(`/visits?patient=${patient.id}`)
+                            }}
                             onDoubleClick={() => openPatientWorkflow(patient)}
-                            title="Double-click to open the patient's fetal echo report"
-                            className={isSelected ? 'selected-row' : undefined}
+                            title="Click to go to Visits page for this patient"
+                            className={`cursor-pointer ${isSelected ? 'selected-row' : undefined}`}
                           >
                             <td>
                               <span
@@ -670,7 +673,12 @@ function SearchPage() {
                       </thead>
                       <tbody>
                         {visits.map((visit, index) => (
-                          <tr key={visit.id || index}>
+                          <tr
+                            key={visit.id || index}
+                            onClick={() => navigate(`/fetal-echo-report?patientId=${selectedPatient?.id || ''}&visitId=${visit.id || ''}&scatter=true`)}
+                            title="Click to open report with normal comments"
+                            className="cursor-pointer transition hover:bg-teal-50/60"
+                          >
                             <td>{index + 1}</td>
                             <td>{formatDateTime(visit.visit_date || visit.created_at)}</td>
                             <td>{getValue(visit, ['referral_doctor', 'ref_doctor'], 'Self')}</td>

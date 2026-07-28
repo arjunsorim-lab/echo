@@ -17,6 +17,10 @@ import Analytics from './pages/Analytics'
 import Administration from './pages/Administration'
 import Settings from './pages/Settings'
 import Home from './pages/Home'
+import FetalEchoReport from './pages/FetalEchoReport'
+import AdultEchoReport from './pages/AdultEchoReport'
+import PediatricEchoReport from './pages/PediatricEchoReport'
+import EchoScan from './pages/EchoScan'
 
 function isSignedIn() {
   return Boolean(
@@ -76,6 +80,30 @@ function App() {
         <Route path="/echo-studies" element={
           <ProtectedPage><ClinicalWorkspace initialType="Adult Echo" /></ProtectedPage>
         } />
+        <Route path="/fetal-echo-report" element={
+          <ProtectedPage><FetalEchoReport /></ProtectedPage>
+        } />
+        <Route path="/fetal-echo-report/:scanId" element={
+          <ProtectedPage><FetalEchoReport /></ProtectedPage>
+        } />
+        <Route path="/adult-echo-report" element={
+          <ProtectedPage><AdultEchoReport /></ProtectedPage>
+        } />
+        <Route path="/adult-echo-report/:scanId" element={
+          <ProtectedPage><AdultEchoReport /></ProtectedPage>
+        } />
+        <Route path="/pediatric-echo-report" element={
+          <ProtectedPage><PediatricEchoReport /></ProtectedPage>
+        } />
+        <Route path="/pediatric-echo-report/:scanId" element={
+          <ProtectedPage><PediatricEchoReport /></ProtectedPage>
+        } />
+        <Route path="/echo-scan" element={
+          <ProtectedPage><EchoScan /></ProtectedPage>
+        } />
+        <Route path="/echo-scan/:scanId" element={
+          <ProtectedPage><EchoScan /></ProtectedPage>
+        } />
         <Route path="/images" element={
           <ProtectedPage><ImagesViewer /></ProtectedPage>
         } />
@@ -83,13 +111,13 @@ function App() {
           <ProtectedPage><Measurements /></ProtectedPage>
         } />
         <Route path="/ai-assistant" element={
-          <Navigate to="/dashboard" replace />
+          <Navigate to="/settings?tab=AI Assistant" replace />
         } />
         <Route path="/reports" element={
           <ProtectedPage><Reports /></ProtectedPage>
         } />
         <Route path="/crm" element={
-          <Navigate to="/dashboard" replace />
+          <Navigate to="/settings?tab=CRM" replace />
         } />
         <Route path="/analytics" element={
           <ProtectedPage><Analytics /></ProtectedPage>
