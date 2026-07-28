@@ -15,7 +15,6 @@ import {
   MoreHorizontal,
   Search,
   Smile,
-  Stethoscope,
   TrendingUp,
   Users,
 } from 'lucide-react'
@@ -33,7 +32,6 @@ export default function Dashboard() {
   })
 
   const [searchQuery, setSearchQuery] = useState('')
-  const [department, setDepartment] = useState('Cardiology Department')
   const [selectedScanType, setSelectedScanType] = useState('All')
 
   useEffect(() => {
@@ -273,20 +271,6 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6">
-      {/* Top Department Header */}
-      <div className="flex items-center justify-end">
-        <div className="relative inline-block text-left">
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50"
-          >
-            <Stethoscope className="h-4 w-4 text-teal-600" />
-            <span>{department}</span>
-            <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
-          </button>
-        </div>
-      </div>
-
       {/* 6 Stat Cards Grid */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {statCards.map((card) => {

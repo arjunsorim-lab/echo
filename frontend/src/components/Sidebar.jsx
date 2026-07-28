@@ -94,7 +94,7 @@ function Sidebar({ onSignOut }) {
       <div className="absolute bottom-0 left-0 right-0 border-t border-white/20 p-4">
         <div className="text-xs text-slate-300">
           <p>Version 1.0.0</p>
-          <p className="mt-1">© 2024 CardioEcho AI</p>
+          <p className="mt-1">© 2026 Echo AI</p>
         </div>
       </div>
     </div>

@@ -1,7 +1,6 @@
 import { useNavigate, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
 import {
-  Activity,
   CalendarDays,
   Pencil,
   RefreshCw,
@@ -62,18 +61,15 @@ function Layout({ children }) {
       <Sidebar onSignOut={handleSignOut} />
       <div className="flex h-full min-w-0 flex-1 flex-col px-1 py-1 sm:px-2 lg:px-3">
         <header className="mb-3 flex shrink-0 flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3" aria-label="Echo AI">
             <div className="relative h-11 w-11 shrink-0">
               <div className="absolute inset-0 rounded-full border-[3.5px] border-blue-400 border-r-violet-500" />
               <div className="absolute inset-1.5 rounded-full border-[3px] border-indigo-500 border-l-cyan-400" />
               <div className="absolute inset-[0.85rem] rounded-full bg-gradient-to-br from-cyan-400 to-violet-500 shadow-xs" />
             </div>
-            <div>
-              <p className="text-xs font-bold tracking-tight text-[#08145f]">
-                echo<span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">AI</span>
-              </p>
-              <h1 className="text-2xl font-semibold tracking-normal text-slate-950">{pageTitle}</h1>
-            </div>
+            <p className="text-2xl font-black tracking-tight text-[#08145f]">
+              Echo <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">AI</span>
+            </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -117,6 +113,9 @@ function Layout({ children }) {
         </header>
 
         <main className="flex min-h-0 flex-1 flex-col gap-3 overflow-x-hidden overflow-y-auto pb-3">
+          <div className="shrink-0 px-1 pt-1">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950">{pageTitle}</h1>
+          </div>
           {children}
         </main>
       </div>

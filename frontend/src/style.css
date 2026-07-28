@@ -35,6 +35,22 @@
     @apply h-10 w-full rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-100;
   }
 
+  .legacy-input {
+    @apply h-10 min-w-0 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-teal-500 focus:ring-2 focus:ring-teal-100;
+  }
+
+  .legacy-plus-button {
+    @apply inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-primary-300 bg-primary-100 text-base font-bold text-primary-800 shadow-sm transition hover:border-primary-500 hover:bg-primary-200 hover:text-primary-900 focus:outline-none focus:ring-2 focus:ring-primary-500;
+  }
+
+  .legacy-small-button {
+    @apply inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500;
+  }
+
+  .legacy-action-button {
+    @apply inline-flex h-10 items-center justify-center rounded-lg border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-teal-300 hover:bg-teal-50 hover:text-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500;
+  }
+
   .data-table {
     @apply w-full border-collapse text-sm;
   }
