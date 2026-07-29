@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { CheckCircle2, FileDown, FileText, Film, Mail, Plus, Printer, Save, Trash2, Upload } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { Field, FieldGrid, Section, Tabs, Workspace } from '../components/WorkspaceUI'
+import SearchableSelect from '../components/SearchableSelect'
 import { patientService } from '../api/patientService'
 import { referralDoctorService } from '../api/referralDoctorService'
 import { workspaceService } from '../api/workspaceService'
@@ -11,7 +12,7 @@ import {
 } from '../data/clinicalFields'
 
 const tabsByType = {
-  'Adult Echo': ['Echo details', '2D measurements', 'M-Mode', 'Doppler', 'PISA', 'Aortic Stenosis', 'Impression', 'Multiframes', 'Referral letter', 'Preview'],
+  'Adult Echo': ['Echo details', '2D measurements', 'M-Mode', 'Doppler', 'PISA', 'Aortic Stenosis', 'Impression', 'Multiframes', 'Preview'],
   'Pediatric Echo': ['Echo details', 'Biometry', 'Doppler', 'Custom measurements', 'Impression', 'Multiframes', 'Preview'],
   'Fetal Echo': ['LMP details', 'Echo details', 'Aortic', 'Biometry', 'Doppler', 'Impression', 'Multiframes', 'Preview'],
 }
@@ -39,6 +40,13 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
   const [clips, setClips] = useState([])
+
+  const patientOptions = useMemo(() => {
+    return patients.map((item) => ({
+      value: item.id,
+      label: `${item.patient_id || ''} — ${item.first_name || ''} ${item.last_name || ''}`.trim(),
+    }))
+  }, [patients])
 
   useEffect(() => {
     Promise.all([patientService.getPatients(), referralDoctorService.getReferralDoctors()])
@@ -91,7 +99,29 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
   const fields = activeTab === '2D measurements' ? adult2D : activeTab === 'M-Mode' ? mMode : activeTab === 'PISA' ? pisa : activeTab === 'Aortic' || activeTab === 'Aortic Stenosis' ? aortic : activeTab === 'Biometry' ? (scanType === 'Fetal Echo' ? fetalBiometry : pediatricBiometry) : activeTab === 'Doppler' ? (scanType === 'Adult Echo' ? adultDoppler : scanType === 'Fetal Echo' ? fetalDoppler : pediatricDoppler) : []
 
   return <Workspace title={`${scanType} reporting`} description="Patient-linked measurements, images, impression, referral letter and report output." actions={<><select className="field-control w-44" value={scanType} onChange={(e)=>changeType(e.target.value)}>{Object.keys(tabsByType).map((type)=><option key={type}>{type}</option>)}</select><button className="primary-button" onClick={save} disabled={saving}><Save className="h-4 w-4" />{saving?'Saving…':'Save report'}</button>{saved&&<span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4"/>Saved to database</span>}</>}>
-    <Section title="Patient and visit" className="mb-4"><div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4"><label className="field-label"><span>Patient</span><select className="field-control" value={patientId} onChange={(e)=>{setPatientId(e.target.value);setVisitId('')}}><option value="">Select</option>{patients.map((item)=><option key={item.id} value={item.id}>{item.patient_id} — {item.first_name} {item.last_name}</option>)}</select></label><label className="field-label"><span>Visit</span><select className="field-control" value={visitId} onChange={(e)=>setVisitId(e.target.value)}><option value="">Select</option>{visits.map((visit)=><option key={visit.id} value={visit.id}>{visit.visit_date ? new Date(visit.visit_date).toLocaleString() : visit.id}</option>)}</select></label><Field label="Report title" value={data.reportTitle} onChange={(value)=>setData({...data,reportTitle:value})}/><Field label="Indication" value={data.indication} onChange={(value)=>setData({...data,indication:value})}/></div></Section>
+    <Section title="Patient and visit" className="mb-4">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+        <div className="field-label">
+          <span>Patient</span>
+          <SearchableSelect
+            options={patientOptions}
+            value={patientId}
+            onChange={(val) => { setPatientId(val); setVisitId('') }}
+            placeholder="Select"
+            searchPlaceholder="Search patient ID or name..."
+          />
+        </div>
+        <label className="field-label">
+          <span>Visit</span>
+          <select className="field-control" value={visitId} onChange={(e)=>setVisitId(e.target.value)}>
+            <option value="">Select</option>
+            {visits.map((visit)=><option key={visit.id} value={visit.id}>{visit.visit_date ? new Date(visit.visit_date).toLocaleString() : visit.id}</option>)}
+          </select>
+        </label>
+        <Field label="Report title" value={data.reportTitle} onChange={(value)=>setData({...data,reportTitle:value})}/>
+        <Field label="Indication" value={data.indication} onChange={(value)=>setData({...data,indication:value})}/>
+      </div>
+    </Section>
     <FieldGrid columns="lg:grid-cols-5" fields={formatFields} data={data} setData={setData}/>
     <div className="mt-4"><Tabs items={tabsByType[scanType]} value={activeTab} onChange={setActiveTab}/></div>
 

@@ -30,7 +30,7 @@ function Sidebar() {
   ]
 
   return (
-    <div className="relative min-h-screen w-64 shrink-0 overflow-y-auto bg-gradient-to-b from-[#449087] to-[#32635e] pb-24 text-white">
+    <div className="no-print relative min-h-screen w-64 shrink-0 overflow-y-auto bg-gradient-to-b from-[#449087] to-[#32635e] pb-24 text-white">
       <div className="border-b border-white/20 p-6">
         <div className="flex items-center space-x-3">
           <div className="relative h-10 w-10 shrink-0">

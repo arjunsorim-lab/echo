@@ -901,14 +901,14 @@ def get_next_patient_id():
     settings = conn.execute('SELECT next_number, prefix, pad_length FROM settings WHERE id = 1').fetchone()
     if settings:
         next_num = settings['next_number']
-        prefix = settings['prefix'] if settings['prefix'] is not None else 'PAT'
+        prefix = settings['prefix'] if settings['prefix'] is not None else 'TM'
         pad_len = settings['pad_length'] if settings['pad_length'] is not None else 6
         patient_id = f"{prefix}{str(next_num).zfill(pad_len)}"
         conn.close()
         return {"success": True, "data": {"patient_id": patient_id}}
     
     count = conn.execute('SELECT COUNT(*) FROM patients').fetchone()[0]
-    patient_id = f"PAT{str(count + 1).zfill(6)}"
+    patient_id = f"TM{str(count + 1).zfill(6)}"
     conn.close()
     return {"success": True, "data": {"patient_id": patient_id}}
 

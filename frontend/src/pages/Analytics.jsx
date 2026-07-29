@@ -18,10 +18,52 @@ export default function Analytics(){
  }),[patients,scans,query])
  const stats=useMemo(()=>['Adult Echo','Pediatric Echo','Fetal Echo'].map((type)=>({type,count:rows.filter((row)=>row.scan_type===type).length,completed:rows.filter((row)=>row.scan_type===type&&String(row.status).toLowerCase()==='completed').length})),[rows])
  const exportCsv=()=>{const headers=columns;const values=(row)=>columns.map((column)=>{const p=row.patient||{};const map={'Patient ID':p.patient_id,'Name':`${p.first_name||''} ${p.last_name||''}`.trim(),'Gender':p.gender,'Date of birth':p.dob,'Address':[p.street,p.area,p.district_city].filter(Boolean).join(' '),'Visit date':row.visit_date||row.created_at,'Visit no':row.visit_id,'Referral doctor':row.referral_doctor,'Age':p.age,'Alias ID':p.alias_id,'Scan type':row.scan_type,'Status':row.status,'Diagnosis':row.diagnosis||row.impression,'Consultant':row.primaryConsultant};return `"${String(map[column]||'').replaceAll('"','""')}"`}).join(',');const content=[headers.join(','),...rows.map(values)].join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type:'text/csv'}));a.download='echo-query.csv';a.click()}
+ const genderStats = useMemo(() => {
+    const male = rows.filter((r) => r.patient?.gender === 'M' || String(r.patient?.gender).toLowerCase() === 'male').length
+    const female = rows.filter((r) => r.patient?.gender === 'F' || String(r.patient?.gender).toLowerCase() === 'female').length
+    const other = Math.max(0, rows.length - male - female)
+    return [
+      { label: 'Male', count: male, percent: rows.length ? ((male / rows.length) * 100).toFixed(1) : '0', color: 'bg-blue-600', textColor: 'text-blue-700' },
+      { label: 'Female', count: female, percent: rows.length ? ((female / rows.length) * 100).toFixed(1) : '0', color: 'bg-rose-500', textColor: 'text-rose-700' },
+      { label: 'Unspecified / Other', count: other, percent: rows.length ? ((other / rows.length) * 100).toFixed(1) : '0', color: 'bg-slate-400', textColor: 'text-slate-700' },
+    ]
+  }, [rows])
+
  return <Workspace title="Queries & analytics" description="Advanced clinical queries, reusable search definitions, printable columns and scan statistics." actions={<button className="secondary-button" onClick={exportCsv}><Download className="h-4 w-4"/>Export selected columns</button>}><Tabs items={['Advanced query','Saved queries','Statistics']} value={tab} onChange={setTab}/>
  {tab==='Advanced query'&&<><Section title="Sonocare query criteria"><FieldGrid fields={[f('from','From date','date'),f('to','To date','date'),f('sex','Sex','select',['Male','Female','Unknown']),f('patientId','Patient ID'),f('firstName','First name'),f('lastName','Last name'),f('ageFrom','Age from','number'),f('ageTo','Age to','number'),f('ethnicOrigin','Ethnic origin','select',[],true),f('scanType','Scan type','select',['Adult Echo','Pediatric Echo','Fetal Echo','Template report']),f('status','Investigation status','select',['Draft','In progress','Completed']),f('indication','Indication'),f('diagnosis','Diagnosis / final impression'),f('referralDoctor','Referral doctor'),f('primaryConsultant','Primary consultant'),f('signedByLeft','Signed by (L)'),f('signedByRight','Signed by (R)'),f('typedBy','Typed by'),f('reviewedBy','Reviewed by'),f('icdCode','Provisional / final ICD code')]} data={query} setData={setQuery}/><div className="mt-4 grid gap-2 sm:grid-cols-5">{[['abnormal','Abnormal'],['ambiguity','Ambiguity'],['growthAbnormality','Growth abnormality'],['normal','Normal'],['normalVariant','Normal variant']].map(([key,label])=><label key={key} className="flex gap-2 rounded-lg border p-3 text-sm"><input type="checkbox" checked={query[key]} onChange={(e)=>setQuery({...query,[key]:e.target.checked})}/>{label}</label>)}</div><div className="mt-4 flex gap-2"><button className="primary-button"><Search className="h-4 w-4"/>Search</button><button className="secondary-button" onClick={()=>setQuery(initial)}>Clear</button></div></Section><Section title="Select columns to print" className="mt-4"><div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-5">{columnNames.map((column)=><label key={column} className="flex gap-2 text-sm"><input type="checkbox" checked={columns.includes(column)} onChange={()=>setColumns(columns.includes(column)?columns.filter((item)=>item!==column):[...columns,column])}/>{column}</label>)}</div></Section><Results rows={rows}/></>}
  {tab==='Saved queries'&&<SavedQueries saved={saved} setSaved={setSaved} query={query} setQuery={setQuery} setTab={setTab}/>}
- {tab==='Statistics'&&<><Section title="Statistics filters"><FieldGrid fields={[f('from','From date','date'),f('to','To date','date'),f('sex','Sex','select',['Male','Female','Unknown']),f('icdCode','Provisional / final ICD code')]} data={query} setData={setQuery}/></Section><div className="mt-4 grid gap-4 lg:grid-cols-3">{stats.map((item)=><div key={item.type} className="rounded-xl border bg-white p-6 shadow-sm"><p className="text-sm font-medium text-slate-500">{item.type}</p><p className="mt-2 text-4xl font-semibold">{item.count}</p><p className="mt-2 text-sm text-emerald-700">{item.completed} completed</p></div>)}</div></>}
+ {tab==='Statistics'&&<>
+    <Section title="Statistics filters">
+      <FieldGrid fields={[f('from','From date','date'),f('to','To date','date'),f('sex','Sex','select',['Male','Female','Unknown']),f('icdCode','Provisional / final ICD code')]} data={query} setData={setQuery}/>
+    </Section>
+    
+    <div className="mt-4 grid gap-4 lg:grid-cols-3">
+      {stats.map((item)=>(
+        <div key={item.type} className="rounded-xl border bg-white p-6 shadow-sm">
+          <p className="text-sm font-medium text-slate-500">{item.type}</p>
+          <p className="mt-2 text-4xl font-semibold">{item.count}</p>
+          <p className="mt-2 text-sm text-emerald-700">{item.completed} completed</p>
+        </div>
+      ))}
+    </div>
+
+    <Section title="Gender Distribution Data" className="mt-6">
+      <div className="grid gap-4 sm:grid-cols-3">
+        {genderStats.map((item) => (
+          <div key={item.label} className="rounded-xl border border-slate-200 bg-white p-5 shadow-2xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-semibold uppercase tracking-wider text-slate-500">{item.label}</span>
+              <span className={`text-xs font-bold ${item.textColor}`}>{item.percent}%</span>
+            </div>
+            <p className="mt-2 text-3xl font-bold text-slate-900">{item.count}</p>
+            <div className="mt-3 h-2 w-full overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full rounded-full transition-all duration-500 ${item.color}`} style={{ width: `${item.percent}%` }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </Section>
+  </>}
  </Workspace>
 }
 

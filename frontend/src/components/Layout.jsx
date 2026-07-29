@@ -54,7 +54,7 @@ function Layout({ children }) {
     <div className="flex h-screen overflow-hidden bg-[#eef3f8] text-slate-900">
       <Sidebar />
       <div className="flex h-full min-w-0 flex-1 flex-col px-1 py-1 sm:px-2 lg:px-3">
-        <header className="mb-3 flex shrink-0 flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-center lg:justify-between">
+        <header className="no-print mb-3 flex shrink-0 flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-center gap-3" aria-label="Echo AI">
             <div className="relative h-11 w-11 shrink-0">
               <div className="absolute inset-0 rounded-full border-[3.5px] border-blue-400 border-r-violet-500" />

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Activity, Calendar, CheckCircle2, FileText, Plus, Save, Search, Stethoscope, Trash2, UserCheck } from 'lucide-react'
 import { QRCodeSVG } from 'qrcode.react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
@@ -6,6 +6,7 @@ import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 import { workspaceService } from '../api/workspaceService'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
+import SearchableSelect from '../components/SearchableSelect'
 
 export default function Visits() {
   const navigate = useNavigate()
@@ -21,6 +22,13 @@ export default function Visits() {
   const [templates, setTemplates] = useState([])
   const [referralOpen, setReferralOpen] = useState(false)
   const [visitData, setVisitData] = useState({ visit_date: '', referral_doctor: '', report_template_id: '', notes: '' })
+
+  const patientOptions = useMemo(() => {
+    return patients.map((item) => ({
+      value: item.id,
+      label: `${item.patient_id || ''} — ${item.first_name || ''} ${item.last_name || ''}`.trim(),
+    }))
+  }, [patients])
 
   useEffect(() => {
     Promise.all([patientService.getPatients(), workspaceService.getTemplates()])
@@ -98,16 +106,16 @@ export default function Visits() {
     <div className="space-y-3">
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-end">
-          <label className="field-label flex-1">
+          <div className="field-label flex-1">
             <span>Select patient</span>
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <select className="field-control pl-9" value={selectedPatient} onChange={(event) => selectPatient(event.target.value)}>
-                <option value="">Search or select a patient</option>
-                {patients.map((item) => <option key={item.id} value={item.id}>{item.patient_id} — {item.first_name} {item.last_name}</option>)}
-              </select>
-            </div>
-          </label>
+            <SearchableSelect
+              options={patientOptions}
+              value={selectedPatient}
+              onChange={(val) => selectPatient(val)}
+              placeholder="Search or select a patient"
+              searchPlaceholder="Search patient ID or name..."
+            />
+          </div>
           <button type="button" className="secondary-button" onClick={() => navigate('/patients/new')}><Plus className="h-4 w-4" />New patient</button>
         </div>
 

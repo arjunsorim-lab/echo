@@ -21,6 +21,7 @@ import { referralDoctorService } from '../api/referralDoctorService'
 import { scanService } from '../api/scanService'
 import ImagesModal from '../components/ImagesModal'
 import ReportConfigModal from '../components/ReportConfigModal'
+import SearchableSelect from '../components/SearchableSelect'
 
 const mainTabs = [
   { id: 'scan', label: 'Scan' },
@@ -618,21 +619,19 @@ function AdultEchoReport() {
           </div>
 
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_minmax(240px,1fr)_minmax(180px,0.55fr)_auto]">
-            <label className="field-label">
-              Patient
-              <select
+            <div className="field-label">
+              <span>Patient</span>
+              <SearchableSelect
+                options={patients.map((p) => ({
+                  value: p.id,
+                  label: `${p.patient_id || ''} — ${getPatientName(p)}`.trim(),
+                }))}
                 value={selectedPatientId}
-                onChange={(event) => setSelectedPatientId(event.target.value)}
-                className="field-control"
-              >
-                <option value="">Select patient</option>
-                {patients.map((patient) => (
-                  <option key={patient.id} value={patient.id}>
-                    {patient.patient_id} - {getPatientName(patient)}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(val) => setSelectedPatientId(val)}
+                placeholder="Select patient"
+                searchPlaceholder="Search patient ID or name..."
+              />
+            </div>
 
             <HeaderField
               label="Indication(s)"

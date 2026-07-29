@@ -15,6 +15,7 @@ import { scanService } from '../api/scanService'
 
 import ImagesModal from '../components/ImagesModal'
 import ReportConfigModal from '../components/ReportConfigModal'
+import SearchableSelect from '../components/SearchableSelect'
 
 const mainTabs = [
   { id: 'scan', label: 'Scan' },
@@ -436,6 +437,13 @@ function PediatricEchoReport() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={scatterNormalComments}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                ✓ Fill Normal Scan
+              </button>
               <ToolbarButton icon={Save} label={isSaving ? 'Saving' : 'Save'} onClick={handleSave} />
               <ToolbarButton icon={Trash2} label="Delete" />
               <ToolbarButton icon={RotateCcw} label="Clear" onClick={handleClear} />
@@ -446,21 +454,19 @@ function PediatricEchoReport() {
           </div>
 
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_minmax(240px,1fr)_minmax(180px,0.55fr)_auto]">
-            <label className="field-label">
-              Patient
-              <select
+            <div className="field-label">
+              <span>Patient</span>
+              <SearchableSelect
+                options={patients.map((p) => ({
+                  value: p.id,
+                  label: `${p.patient_id || ''} — ${getPatientName(p)}`.trim(),
+                }))}
                 value={selectedPatientId}
-                onChange={(event) => setSelectedPatientId(event.target.value)}
-                className="field-control"
-              >
-                <option value="">Select patient</option>
-                {patients.map((patient) => (
-                  <option key={patient.id} value={patient.id}>
-                    {patient.patient_id} - {getPatientName(patient)}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(val) => setSelectedPatientId(val)}
+                placeholder="Select patient"
+                searchPlaceholder="Search patient ID or name..."
+              />
+            </div>
 
             <HeaderField
               label="Indication(s)"

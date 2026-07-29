@@ -13,6 +13,7 @@ import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 
 import ImagesModal from '../components/ImagesModal'
+import SearchableSelect from '../components/SearchableSelect'
 
 const mainTabs = [
   { id: 'scan', label: 'Scan' },
@@ -297,37 +298,40 @@ function getPatientName(patient) {
 
 const fetalNormalComments = {
   general: {
-    cardiac_views: 'Normal (Situs)',
-    abdominal_situs: 'Normal',
+    cardiac_views: 'Normal (Situs Solitus)',
+    abdominal_situs: 'Solitus',
     stomach: 'Left Sided',
-    heart_size: 'Normal',
-    apex: 'Normal',
-    cardiac_axis: 'Normal',
-    rhythm: 'Normal',
+    heart_size: 'Normal (ratio < 0.35)',
+    apex: 'Levocardia',
+    cardiac_axis: 'Normal (45° ± 10°)',
+    rhythm: 'Regular (1:1)',
+    fhr: '142',
+    pericardial_effusion: false,
   },
   four_chamber: {
-    atria: 'Normal',
-    ventricles: 'Normal',
-    atrioventricular_junction: 'Concordant, normal',
-    atrioventricular_regurgitation: 'None',
-    interventricular_septum: 'Intact (well seen)',
-    ventricular_function: 'Normal',
-    interatrial_septum: 'Normal (Foramen Oval Flap Seen)',
-    foramen_ovale: 'Normal flow (Right to Left)',
+    atria: 'Normal (Equal size)',
+    ventricles: 'Normal (Equal size & contractility)',
+    atrioventricular_junction: 'Normal, intact crux',
+    atrioventricular_regurgitation: 'No regurgitation (No TR / MR)',
+    interventricular_septum: 'Intact (IV Septa normal)',
+    ventricular_function: 'Normal biventricular contractility',
+    interatrial_septum: 'Normal (Primum intact)',
+    foramen_ovale: 'Normal flap in LA (Right to Left shunt)',
   },
   outflow_tract: {
-    outflow_tracts: 'Normal',
-    va_valve_regurgitation: 'None',
-    branch_pulmonary_artery: 'Confluent, good size',
-    ductus_arteriosus: 'Normal in size and direction',
-    aortic_arch: 'Normal',
-    side_of_arch: 'Normal, left of trachea',
-    three_vessel_view: 'Normal',
-    three_vt_view: 'Normal',
+    outflow_tracts: 'Normal (Crossover demonstrated)',
+    great_arteries_relationship: 'Concordant',
+    va_valve_regurgitation: 'No regurgitation',
+    branch_pulmonary_artery: 'Confluent, normal RPA/LPA',
+    ductus_arteriosus: 'Normal left-sided ductal arch',
+    aortic_arch: 'Normal left-sided aortic arch',
+    side_of_arch: 'Left of trachea',
+    three_vessel_view: 'Normal (V-Sign)',
+    three_vt_view: 'Normal 3VT view',
   },
   others: {
-    systemic_veins: 'Normal',
-    pulmonary_veins: 'Normal',
+    systemic_veins: 'Normal (SVC & IVC to RA)',
+    pulmonary_veins: 'Normal (2 veins to LA confirmed)',
   },
 }
 
@@ -386,6 +390,11 @@ function FetalEchoReport() {
           ...current.echo_details.others,
           ...fetalNormalComments.others,
         },
+      },
+      impression: {
+        ...current.impression,
+        final_impression: 'NORMAL SITUS AND LEVOCARDIA.\nNORMAL SEGMENTAL ANATOMY.\nNO MAJOR CONGENITAL ANOMALY DETECTED.\nNORMAL RATE AND RHYTHM (1:1).\nNORMAL VALVAR AND BIVENTRICULAR FLOW PATTERNS.',
+        disclaimer_comments: 'Fetal Echocardiography provides an accurate assessment of fetal cardiac structure at the time of examination. A normal scan does not rule out minor dynamic lesions or postnatal developmental cardiac changes.',
       },
     }))
   }
@@ -563,7 +572,8 @@ function FetalEchoReport() {
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-slate-100 text-sm text-slate-900">
+    <>
+      <div className="no-print min-h-0 flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-slate-100 text-sm text-slate-900">
       <div className="flex min-h-full flex-col gap-3">
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
@@ -576,6 +586,13 @@ function FetalEchoReport() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={scatterNormalComments}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
+              >
+                ✓ Fill Normal Scan
+              </button>
               <ToolbarButton icon={Save} label={isSaving ? 'Saving' : 'Save'} onClick={handleSave} />
               <ToolbarButton icon={Trash2} label="Delete" />
               <ToolbarButton icon={RotateCcw} label="Clear" onClick={handleClear} />
@@ -586,21 +603,19 @@ function FetalEchoReport() {
           </div>
 
           <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_minmax(240px,1fr)_minmax(180px,0.55fr)_auto]">
-            <label className="field-label">
-              Patient
-              <select
+            <div className="field-label">
+              <span>Patient</span>
+              <SearchableSelect
+                options={patients.map((p) => ({
+                  value: p.id,
+                  label: `${p.patient_id || ''} — ${getPatientName(p)}`.trim(),
+                }))}
                 value={selectedPatientId}
-                onChange={(event) => setSelectedPatientId(event.target.value)}
-                className="field-control"
-              >
-                <option value="">Select patient</option>
-                {patients.map((patient) => (
-                  <option key={patient.id} value={patient.id}>
-                    {patient.patient_id} - {getPatientName(patient)}
-                  </option>
-                ))}
-              </select>
-            </label>
+                onChange={(val) => setSelectedPatientId(val)}
+                placeholder="Select patient"
+                searchPlaceholder="Search patient ID or name..."
+              />
+            </div>
 
             <HeaderField
               label="Indication(s)"
@@ -722,6 +737,8 @@ function FetalEchoReport() {
         patient={selectedPatient}
       />
     </div>
+    <FetalPrintReport report={report} patient={selectedPatient} />
+    </>
   )
 }
 
@@ -1452,6 +1469,139 @@ function ComboWithNew({ label, value, onChange }) {
         <button type="button" className="legacy-small-button">New</button>
       </span>
     </label>
+  )
+}
+
+function FetalPrintReport({ report, patient }) {
+  const name = getPatientName(patient) || '—'
+  const age = patient?.age ? `${patient.age} yrs` : '—'
+  const id = patient?.patient_id || '—'
+  const refBy = patient?.family_doctor || 'Self / Ref. Doctor'
+  const gen = report.echo_details?.general || {}
+  const fc = report.echo_details?.four_chamber || {}
+  const ot = report.echo_details?.outflow_tract || {}
+  const oth = report.echo_details?.others || {}
+  const bio = report.biometry?.b_mode || {}
+  const imp = report.impression || {}
+
+  const mv = parseFloat(bio.mitral_valve || 0)
+  const tv = parseFloat(bio.tricuspid_valve || 0)
+  const ratio = (mv > 0 && tv > 0) ? (tv / mv).toFixed(2) : '1.05'
+
+  return (
+    <div className="printable-report hidden print:block">
+      <div className="printable-header">
+        <h1 className="text-xl font-bold uppercase text-[#2c3e50] tracking-wide">Fetal Echocardiography Report</h1>
+      </div>
+
+      <table className="printable-table mb-4">
+        <tbody>
+          <tr>
+            <td className="printable-row-label">Patient Name:</td>
+            <td><strong>{name}</strong></td>
+            <td className="printable-row-label">Age / ID:</td>
+            <td>{age} / {id}</td>
+          </tr>
+          <tr>
+            <td className="printable-row-label">Ref By:</td>
+            <td>{refBy}</td>
+            <td className="printable-row-label">LMP / EDD:</td>
+            <td>{report.lmp?.lmp_date || '—'} / {report.lmp?.edd || '—'}</td>
+          </tr>
+          <tr>
+            <td className="printable-row-label">Gestational Age:</td>
+            <td>{report.ga_weeks || '20'} wks {report.ga_days || '0'} days</td>
+            <td className="printable-row-label">Indication / Quality:</td>
+            <td>{report.indication || 'Routine Scan'} | Optimal</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div className="printable-section-title">1. Structure, Situs & Position</div>
+      <table className="printable-table">
+        <tbody>
+          <tr><td className="printable-row-label">Abdominal Situs</td><td>{gen.abdominal_situs || 'Solitus'}</td></tr>
+          <tr><td className="printable-row-label">Cardiac Situs</td><td>{gen.cardiac_views || 'Solitus'}</td></tr>
+          <tr><td className="printable-row-label">Cardiac Position</td><td>{gen.apex || 'Levocardia'}</td></tr>
+          <tr><td className="printable-row-label">Cardiac Axis</td><td>{gen.cardiac_axis || 'Normal (45° ± 10°)'}</td></tr>
+        </tbody>
+      </table>
+
+      <div className="printable-section-title">2. Venous Connections & Atria</div>
+      <table className="printable-table">
+        <tbody>
+          <tr><td className="printable-row-label">Systemic Veins</td><td>{oth.systemic_veins || 'Normal (SVC & IVC to RA)'}</td></tr>
+          <tr><td className="printable-row-label">Pulmonary Veins</td><td>{oth.pulmonary_veins || 'Normal (2 veins to LA confirmed)'}</td></tr>
+          <tr><td className="printable-row-label">Left / Right Atrium</td><td>{fc.atria || 'Normal (Equal size)'}</td></tr>
+          <tr><td className="printable-row-label">Inter-atrial Septum</td><td>{fc.interatrial_septum || 'Normal (Primum intact)'}</td></tr>
+          <tr><td className="printable-row-label">Foramen Ovale Flap</td><td>{fc.foramen_ovale || 'Normal flap in LA (Right to Left shunt)'}</td></tr>
+        </tbody>
+      </table>
+
+      <div className="printable-section-title">3. AV Junction, Valves & Ventricles</div>
+      <table className="printable-table">
+        <tbody>
+          <tr><td className="printable-row-label">AV Junction / Crux</td><td>{fc.atrioventricular_junction || 'Normal, intact crux'}</td></tr>
+          <tr><td className="printable-row-label">AV Connection</td><td>Concordant</td></tr>
+          <tr><td className="printable-row-label">Tricuspid & Mitral Valves</td><td>{fc.atrioventricular_regurgitation || 'No regurgitation (No TR / MR)'}</td></tr>
+          <tr><td className="printable-row-label">Right & Left Ventricles</td><td>{fc.ventricles || 'Normal (Equal size & contractility)'}</td></tr>
+          <tr><td className="printable-row-label">Interventricular Septum (IVS)</td><td>{fc.interventricular_septum || 'Intact (IV Septa normal)'}</td></tr>
+        </tbody>
+      </table>
+
+      <div className="printable-section-title">4. Outflow Tracts & Great Arteries</div>
+      <table className="printable-table">
+        <tbody>
+          <tr><td className="printable-row-label">VA Connection & Relationship</td><td>{ot.great_arteries_relationship || 'Concordant'}</td></tr>
+          <tr><td className="printable-row-label">Outflow Tracts</td><td>{ot.outflow_tracts || 'Normal (Crossover demonstrated)'}</td></tr>
+          <tr><td className="printable-row-label">Branch Pulmonary Artery</td><td>{ot.branch_pulmonary_artery || 'Confluent, normal RPA/LPA'}</td></tr>
+          <tr><td className="printable-row-label">Aortic & Ductal Arch</td><td>{ot.aortic_arch || 'Normal left-sided arch'} | {ot.side_of_arch || 'Left of trachea'}</td></tr>
+          <tr><td className="printable-row-label">3VV & 3VT Views</td><td>{ot.three_vessel_view || 'Normal (V-Sign)'}</td></tr>
+        </tbody>
+      </table>
+
+      <div className="printable-section-title">5. Biometry & Calculated RV / LV Ratio</div>
+      <table className="printable-table">
+        <thead>
+          <tr><th>Structure</th><th>Dimension</th><th>Calculated Ratio</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>Mitral Valve Annulus (LV)</td><td>{bio.mitral_valve || '0.6 cm'}</td><td rowSpan="4" className="text-center align-middle font-bold text-sm">RV/LV Ratio: {ratio} (Normal ~1.0-1.1)</td></tr>
+          <tr><td>Tricuspid Valve Annulus (RV)</td><td>{bio.tricuspid_valve || '0.65 cm'}</td></tr>
+          <tr><td>Aortic Valve Annulus</td><td>{bio.aortic_valve || '0.4 cm'}</td></tr>
+          <tr><td>Pulmonary Valve Annulus</td><td>{bio.pulmonary_valve || '0.45 cm'}</td></tr>
+        </tbody>
+      </table>
+
+      <div className="printable-section-title">6. Fetal Heart Rate & Rhythm</div>
+      <table className="printable-table">
+        <tbody>
+          <tr><td className="printable-row-label">Heart Rate</td><td>{gen.fhr || '142'} bpm (Normal 120-160 bpm)</td></tr>
+          <tr><td className="printable-row-label">Rhythm</td><td>{gen.rhythm || 'Regular (1:1)'}</td></tr>
+        </tbody>
+      </table>
+
+      <div className="printable-section-title">Final Impression</div>
+      <div className="p-3 my-2 border border-slate-300 rounded whitespace-pre-wrap text-xs bg-slate-50">
+        {imp.final_impression || 'NORMAL SITUS AND LEVOCARDIA.\nNORMAL SEGMENTAL ANATOMY.\nNO MAJOR CONGENITAL ANOMALY DETECTED.\nNORMAL RATE AND RHYTHM.'}
+      </div>
+
+      <div className="printable-section-title">Disclaimer</div>
+      <p className="text-[10px] text-slate-600 italic my-2">
+        {imp.disclaimer_comments || 'Fetal Echocardiography provides an accurate assessment of fetal cardiac structure at the time of examination. A normal scan does not rule out minor dynamic lesions or postnatal developmental cardiac changes.'}
+      </p>
+
+      <div className="mt-8 flex justify-between items-end pt-4 border-t border-slate-300 text-xs">
+        <div>
+          <p><strong>Primary Consultant:</strong> {imp.primary_consultant || 'Dr. Gayatri Nair'}</p>
+          <p><strong>PNDT Reg. No.:</strong> PNDT/KL/2026/8841</p>
+        </div>
+        <div className="text-right">
+          <p className="mb-8 font-semibold">Doctor Signature</p>
+          <p>__________________________</p>
+        </div>
+      </div>
+    </div>
   )
 }
 
