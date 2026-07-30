@@ -398,6 +398,12 @@ function Home() {
     navigate('/dashboard', { replace: true })
   }, [navigate])
 
+  const useDemoUser = (user = demoUsers[0]) => {
+    setEmail(user.email)
+    setPassword(user.password)
+    setError('')
+  }
+
   const handleLogin = (event) => {
     event.preventDefault()
     const login = email.trim().toLowerCase()
@@ -518,7 +524,11 @@ function Home() {
               <Sparkles className="h-3.5 w-3.5 text-blue-600" />
               <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Founder Access</p>
             </div>
-            <div className="w-full rounded-xl border border-blue-100 bg-white px-3.5 py-3 text-left shadow-xs">
+            <button
+              type="button"
+              onClick={() => useDemoUser()}
+              className="w-full rounded-xl border border-blue-100 bg-white px-3.5 py-3 text-left shadow-xs transition hover:border-blue-300 hover:shadow-md"
+            >
               <div className="flex items-center gap-3">
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
                   DS
@@ -528,7 +538,7 @@ function Home() {
                   <p className="text-[11px] text-slate-500">dr.shanthi@echoai.com</p>
                 </div>
               </div>
-            </div>
+            </button>
           </div>
         </aside>
       </div>
