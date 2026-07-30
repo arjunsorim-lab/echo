@@ -27,6 +27,44 @@ const scanRoutes = {
   'Pediatric Echo': '/pediatric-echo-report',
 }
 
+const asList = (result) => {
+  if (Array.isArray(result?.data)) return result.data
+  if (Array.isArray(result?.patients)) return result.patients
+  if (Array.isArray(result?.scans)) return result.scans
+  return []
+}
+
+const normalizeLookupId = (value) => String(value ?? '').trim()
+
+const addPatientLookup = (map, key, patient) => {
+  const normalized = normalizeLookupId(key)
+  if (normalized) map.set(normalized, patient)
+}
+
+const buildPatientLookup = (patients) => {
+  const map = new Map()
+
+  patients.forEach((patient) => {
+    addPatientLookup(map, patient.id, patient)
+    addPatientLookup(map, patient.patient_id, patient)
+
+    const numericFromDisplayId = String(patient.patient_id || '').match(/\d+$/)?.[0]
+    if (numericFromDisplayId) {
+      addPatientLookup(map, Number(numericFromDisplayId), patient)
+      addPatientLookup(map, numericFromDisplayId, patient)
+    }
+  })
+
+  return map
+}
+
+const findPatientForScan = (scan, patientLookup) => (
+  patientLookup.get(normalizeLookupId(scan.patient_id)) ||
+  patientLookup.get(normalizeLookupId(scan.patient_display_id)) ||
+  patientLookup.get(normalizeLookupId(scan.patientDisplayId)) ||
+  null
+)
+
 const formatPatientName = (patient) => {
   if (!patient) return 'Unknown patient'
   return [patient.salutation, patient.first_name, patient.middle_name, patient.last_name]
@@ -91,9 +129,9 @@ export default function Dashboard() {
           }))
         }
 
-        const patients = patientsResult.data || []
-        const patientById = new Map(patients.map((patient) => [String(patient.id), patient]))
-        const scans = [...(scansResult.data || [])]
+        const patients = asList(patientsResult)
+        const patientLookup = buildPatientLookup(patients)
+        const scans = [...asList(scansResult)]
           .sort((left, right) => {
             const rightDate = new Date(right.scan_date || right.created_at || 0).getTime()
             const leftDate = new Date(left.scan_date || left.created_at || 0).getTime()
@@ -101,7 +139,7 @@ export default function Dashboard() {
           })
           .slice(0, 10)
           .map((scan) => {
-            const patient = patientById.get(String(scan.patient_id))
+            const patient = findPatientForScan(scan, patientLookup)
             const { dateTime, timeStr } = formatScanDate(scan.scan_date || scan.created_at)
             const patientName = formatPatientName(patient)
             const initials = [patient?.first_name, patient?.last_name]
@@ -112,7 +150,7 @@ export default function Dashboard() {
 
             return {
               id: scan.id,
-              patientId: patient?.id || scan.patient_id,
+              patientId: patient?.id || scan.patient_id || scan.patient_display_id,
               visitId: scan.visit_id,
               patientName,
               patientCode: patient?.patient_id || scan.patient_display_id || `Patient ${scan.patient_id}`,
@@ -345,8 +383,14 @@ export default function Dashboard() {
                   <td className="py-3.5 px-4 text-slate-400 font-medium">{idx + 1}</td>
 
                   {/* Patient Info */}
-                  <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-3">
+                  <td
+                    className="py-3.5 px-4"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      if (scan.patientId) navigate(`/visits?patient=${scan.patientId}`)
+                    }}
+                  >
+                    <div className="flex items-center gap-3" title="Open patient visits">
                       <div
                         aria-hidden="true"
                         className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-teal-100 to-blue-100 text-xs font-bold text-teal-800 ring-2 ring-slate-100"

@@ -198,6 +198,22 @@ def init_db():
     for column, definition in scan_columns.items():
         if column not in existing_scan_columns:
             c.execute(f'ALTER TABLE scans ADD COLUMN {column} {definition}')
+
+    c.execute('''
+        UPDATE scans
+        SET patient_display_id = (
+            SELECT patients.patient_id
+            FROM patients
+            WHERE patients.id = scans.patient_id
+        )
+        WHERE (patient_display_id IS NULL OR patient_display_id = '')
+          AND patient_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM patients
+            WHERE patients.id = scans.patient_id
+          )
+    ''')
     
     # 4. Referral doctors table
     c.execute('''

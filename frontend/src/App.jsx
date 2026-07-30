@@ -120,13 +120,13 @@ function App() {
           <ProtectedPage><Measurements /></ProtectedPage>
         } />
         <Route path="/ai-assistant" element={
-          <Navigate to="/settings?tab=AI Assistant" replace />
+          <Navigate to="/dashboard" replace />
         } />
         <Route path="/reports" element={
           <ProtectedPage><Reports /></ProtectedPage>
         } />
         <Route path="/crm" element={
-          <Navigate to="/settings?tab=CRM" replace />
+          <Navigate to="/dashboard" replace />
         } />
         <Route path="/analytics" element={
           <ProtectedPage><Analytics /></ProtectedPage>

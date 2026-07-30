@@ -25,6 +25,7 @@ import {
 } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
+import EchoLogo from '../components/EchoLogo'
 
 const demoUsers = [
   {
@@ -149,42 +150,6 @@ function buildGoogleAuthUrl() {
     state,
   })
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
-}
-
-/* Concentric Ring Logo — matches provided image */
-function EchoLogo({ compact = false }) {
-  const sz = compact ? 32 : 40
-  return (
-    <div className="flex items-center justify-center gap-3">
-      <svg width={sz} height={sz} viewBox="0 0 40 40" fill="none">
-        {/* Outer ring */}
-        <circle cx="20" cy="20" r="18" stroke="url(#r1)" strokeWidth="2.5" fill="none" />
-        {/* Mid ring */}
-        <circle cx="20" cy="20" r="12" stroke="url(#r2)" strokeWidth="2.5" fill="none" />
-        {/* Inner ring */}
-        <circle cx="20" cy="20" r="6.5" stroke="url(#r3)" strokeWidth="2.5" fill="none" />
-        {/* Center dot */}
-        <circle cx="20" cy="20" r="2" fill="#3b82f6" />
-        <defs>
-          <linearGradient id="r1" x1="2" y1="2" x2="38" y2="38" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#38bdf8" />
-            <stop offset="1" stopColor="#818cf8" />
-          </linearGradient>
-          <linearGradient id="r2" x1="8" y1="8" x2="32" y2="32" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#6366f1" />
-            <stop offset="1" stopColor="#a78bfa" />
-          </linearGradient>
-          <linearGradient id="r3" x1="13" y1="13" x2="27" y2="27" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#3b82f6" />
-            <stop offset="1" stopColor="#7c3aed" />
-          </linearGradient>
-        </defs>
-      </svg>
-      <span className={`font-black tracking-tight text-[#08145f] ${compact ? 'text-[1.5rem]' : 'text-[1.9rem]'}`}>
-        Echo<span className="text-blue-600"> AI</span>
-      </span>
-    </div>
-  )
 }
 
 /* Animated scrolling echo waveform — live monitor effect */

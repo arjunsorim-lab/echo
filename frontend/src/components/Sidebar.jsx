@@ -5,13 +5,12 @@ import {
   Activity,
   ImageIcon,
   Ruler,
-  Brain,
   FileText,
-  Building2,
   BarChart3,
   Cog,
   Power,
 } from 'lucide-react'
+import EchoLogo from './EchoLogo'
 
 function Sidebar() {
   const navItems = [
@@ -24,27 +23,10 @@ function Sidebar() {
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/settings', icon: Cog, label: 'Settings' },
   ]
-  const disabledItems = [
-    { path: '/ai-assistant', icon: Brain, label: 'AI Assistant', disabled: true },
-    { path: '/crm', icon: Building2, label: 'CRM', disabled: true },
-  ]
-
   return (
     <div className="relative min-h-screen w-64 shrink-0 overflow-y-auto bg-gradient-to-b from-[#449087] to-[#32635e] pb-24 text-white">
       <div className="border-b border-white/20 p-6">
-        <div className="flex items-center space-x-3">
-          <div className="relative h-10 w-10 shrink-0">
-            <div className="absolute inset-0 rounded-full border-[3.5px] border-cyan-300 border-r-white" />
-            <div className="absolute inset-1.5 rounded-full border-[3px] border-white border-l-cyan-300" />
-            <div className="absolute inset-[0.8rem] rounded-full bg-white shadow-xs" />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight text-white">
-              echo<span className="text-cyan-200">AI</span>
-            </h1>
-            <p className="text-[11px] text-slate-200">Reporting System</p>
-          </div>
-        </div>
+        <EchoLogo compact light />
       </div>
 
       <nav className="p-4 space-y-2">
@@ -93,22 +75,6 @@ function Sidebar() {
             <span className="font-medium">Sign out</span>
           </button>
         </form>
-
-        {disabledItems.map((item) => {
-          const Icon = item.icon
-          return (
-            <button
-              key={item.path}
-              type="button"
-              disabled
-              title={`${item.label} is currently disabled`}
-              className="flex w-full cursor-not-allowed items-center space-x-3 rounded-lg px-4 py-3 text-left text-white/45"
-            >
-              <Icon className="h-5 w-5" />
-              <span className="font-medium">{item.label}</span>
-            </button>
-          )
-        })}
       </nav>
 
       <div className="absolute bottom-0 left-0 right-0 border-t border-white/20 p-4">
