@@ -198,6 +198,43 @@ def init_db():
     for column, definition in scan_columns.items():
         if column not in existing_scan_columns:
             c.execute(f'ALTER TABLE scans ADD COLUMN {column} {definition}')
+
+    placeholder_scan_count = c.execute(
+        "SELECT COUNT(*) FROM scans WHERE patient_id = 'patient_id'"
+    ).fetchone()[0]
+    total_scan_count = c.execute('SELECT COUNT(*) FROM scans').fetchone()[0]
+    if placeholder_scan_count == 136 and total_scan_count == 136:
+        seeded_scan_patient_ids = [
+            1, 2, 2, 3, 4, 5, 6, 6, 7, 7, 8, 8, 9, 10, 11, 11, 12, 12,
+            13, 14, 15, 15, 16, 17, 17, 18, 18, 19, 20, 21, 21, 22, 23,
+            24, 24, 25, 25, 26, 27, 28, 29, 29, 30, 30, 31, 32, 32, 33,
+            34, 35, 36, 37, 38, 39, 39, 40, 41, 42, 43, 43, 44, 45, 45,
+            46, 47, 48, 49, 50, 51, 52, 53, 54, 54, 55, 55, 56, 57, 57,
+            58, 59, 60, 61, 62, 62, 63, 64, 65, 65, 66, 67, 68, 68, 69,
+            70, 70, 71, 72, 73, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82,
+            83, 84, 84, 85, 86, 86, 87, 87, 88, 88, 89, 89, 90, 91, 91,
+            92, 93, 93, 94, 94, 95, 96, 97, 98, 98, 99, 99, 100,
+        ]
+        c.executemany(
+            'UPDATE scans SET patient_id = ? WHERE id = ?',
+            [(patient_id, index) for index, patient_id in enumerate(seeded_scan_patient_ids, start=1)],
+        )
+
+    c.execute('''
+        UPDATE scans
+        SET patient_display_id = (
+            SELECT patients.patient_id
+            FROM patients
+            WHERE patients.id = scans.patient_id
+        )
+        WHERE (patient_display_id IS NULL OR patient_display_id = '' OR patient_display_id = 'patient_display_id')
+          AND patient_id IS NOT NULL
+          AND EXISTS (
+            SELECT 1
+            FROM patients
+            WHERE patients.id = scans.patient_id
+          )
+    ''')
     
     # 4. Referral doctors table
     c.execute('''

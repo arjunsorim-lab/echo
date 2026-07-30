@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Brain, Building2, Eye, Plus, Save, Trash2, Upload } from 'lucide-react'
+import { Eye, Plus, Save, Trash2, Upload } from 'lucide-react'
 import { Field, FieldGrid, Section, Tabs, Workspace } from '../components/WorkspaceUI'
 import { workspaceService } from '../api/workspaceService'
 
 const tabs = [
   'Company',
-  'AI Assistant',
-  'CRM',
   'Sonographers',
   'Patient ID',
   'Preferences',
@@ -46,19 +44,6 @@ const defaults = {
   reportType: 'Report only',
   normalComments: '',
 
-  // AI Assistant defaults
-  aiEnabled: true,
-  aiConfidenceThreshold: 85,
-  aiAutoFindings: true,
-  aiAutoMeasurements: true,
-  aiModelVersion: 'CardioEcho-v2.4-Pro',
-
-  // CRM defaults
-  crmEnabled: true,
-  crmSmsGateway: 'Twilio SMS',
-  crmWhatsappEnabled: true,
-  crmFollowupDays: 3,
-  crmAutoReportSharing: true,
 }
 
 const f = (key, label, type = 'text', options, addable = false) => ({ key, label, type, options, addable })
@@ -67,7 +52,7 @@ export default function Settings() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tabParam = searchParams.get('tab')
 
-  const [tab, setTab] = useState(tabParam || 'Company')
+  const [tab, setTab] = useState(tabParam && tabs.includes(tabParam) ? tabParam : 'Company')
   const [data, setData] = useState(defaults)
   const [users, setUsers] = useState([])
   const [templates, setTemplates] = useState([])
@@ -105,7 +90,7 @@ export default function Settings() {
   return (
     <Workspace
       title="Settings & administration"
-      description="Company, AI Assistant, CRM, users, identifiers, preferences, report styles, and templates."
+      description="Company, users, identifiers, preferences, report styles, and templates."
       actions={
         <>
           <button className="primary-button" onClick={save}>
@@ -118,8 +103,6 @@ export default function Settings() {
       <Tabs items={tabs} value={tab} onChange={handleTabChange} />
 
       {tab === 'Company' && <Company data={data} setData={setData} />}
-      {tab === 'AI Assistant' && <AiAssistantSettings data={data} setData={setData} />}
-      {tab === 'CRM' && <CrmSettings data={data} setData={setData} />}
       {tab === 'Sonographers' && <Sonographers users={users} setUsers={setUsers} />}
       {tab === 'Patient ID' && <PatientId data={data} setData={setData} />}
       {tab === 'Preferences' && <Preferences data={data} setData={setData} />}
@@ -164,81 +147,6 @@ function Company({ data, setData }) {
             {[data.city, data.state, data.country].filter(Boolean).join(', ') || 'Address not entered'}
           </p>
           <p className="mt-4 text-xs text-primary-700">Registration: {data.registrationNo || '—'}</p>
-        </div>
-      </Section>
-    </div>
-  )
-}
-
-function AiAssistantSettings({ data, setData }) {
-  return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-      <Section title="AI Clinical Assistant Settings" description="Configure automated echo interpretation models and confidence parameters.">
-        <FieldGrid
-          fields={[
-            f('aiEnabled', 'Enable AI Assistant', 'checkbox'),
-            f('aiAutoFindings', 'Auto-generate AI findings summary', 'checkbox'),
-            f('aiAutoMeasurements', 'Auto-populate echo measurements from DICOM', 'checkbox'),
-            f(
-              'aiModelVersion',
-              'AI Model Version',
-              'select',
-              ['CardioEcho-v2.4-Pro (Recommended)', 'CardioEcho-v2.2-Standard', 'CardioEcho-v1.8-Legacy']
-            ),
-            f('aiConfidenceThreshold', 'Minimum AI Confidence Threshold (%)', 'number'),
-          ]}
-          data={data}
-          setData={setData}
-        />
-      </Section>
-
-      <Section title="AI Assistant Overview">
-        <div className="rounded-xl border border-teal-200 bg-teal-50 p-5 space-y-3">
-          <div className="flex items-center gap-2.5 text-teal-900 font-bold">
-            <Brain className="h-5 w-5 text-teal-700" />
-            <span>AI Echocardiography Engine</span>
-          </div>
-          <p className="text-xs text-teal-800 leading-relaxed">
-            The CardioEcho AI assistant analyzes DICOM loops to auto-detect valvular lesions, wall motion abnormalities, and ejection fraction metrics.
-          </p>
-          <div className="border-t border-teal-200 pt-3 text-xs text-teal-900 font-medium">
-            Status: <span className="text-emerald-700 font-bold">Active & Calibrated</span>
-          </div>
-        </div>
-      </Section>
-    </div>
-  )
-}
-
-function CrmSettings({ data, setData }) {
-  return (
-    <div className="grid gap-4 xl:grid-cols-[1fr_360px]">
-      <Section title="CRM & Patient Communication Settings" description="Manage patient follow-ups, SMS alerts, and referral doctor notifications.">
-        <FieldGrid
-          fields={[
-            f('crmEnabled', 'Enable Patient CRM Module', 'checkbox'),
-            f('crmWhatsappEnabled', 'Send Automated WhatsApp Visit Reminders', 'checkbox'),
-            f('crmAutoReportSharing', 'Auto-share PDF reports with Referring Doctors', 'checkbox'),
-            f('crmSmsGateway', 'SMS Gateway Provider', 'select', ['Twilio SMS', 'Msg91', 'AWS SNS', 'Custom Gateway']),
-            f('crmFollowupDays', 'Default Visit Follow-up Reminder (Days)', 'number'),
-          ]}
-          data={data}
-          setData={setData}
-        />
-      </Section>
-
-      <Section title="CRM Integration Status">
-        <div className="rounded-xl border border-blue-200 bg-blue-50 p-5 space-y-3">
-          <div className="flex items-center gap-2.5 text-blue-900 font-bold">
-            <Building2 className="h-5 w-5 text-blue-700" />
-            <span>Clinic CRM & Patient Hub</span>
-          </div>
-          <p className="text-xs text-blue-800 leading-relaxed">
-            Automatically dispatches echo study reports, visit reminders, and follow-up alerts to patients and referral physicians.
-          </p>
-          <div className="border-t border-blue-200 pt-3 text-xs text-blue-900 font-medium">
-            Gateway Connection: <span className="text-emerald-700 font-bold">Connected</span>
-          </div>
         </div>
       </Section>
     </div>

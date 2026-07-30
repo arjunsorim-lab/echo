@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { ChevronLeft, ChevronRight, Edit, Filter, Plus, Search, Trash2, UserPlus } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
@@ -19,6 +19,7 @@ function patientDisciplines(patient, disciplineMap) {
 }
 
 function Patients() {
+  const navigate = useNavigate()
   const [patients, setPatients] = useState([])
   const [scans, setScans] = useState([])
   const [loading, setLoading] = useState(true)
@@ -187,7 +188,12 @@ function Patients() {
                     const disciplines = patientDisciplines(patient, disciplineMap)
 
                     return (
-                      <tr key={patient.id} className="hover:bg-gray-50">
+                      <tr
+                        key={patient.id}
+                        onClick={() => navigate(`/visits?patient=${patient.id}`)}
+                        className="cursor-pointer hover:bg-teal-50/60"
+                        title="Open patient visits"
+                      >
                         <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{patient.patient_id || 'N/A'}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
                           {patient.salutation} {patient.first_name} {patient.last_name}
@@ -207,10 +213,22 @@ function Patients() {
                         <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{patient.email || 'N/A'}</td>
                         <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
                           <div className="flex items-center justify-end space-x-2">
-                            <Link to={`/patients/${patient.id}/edit`} className="p-1 text-primary-600 hover:text-primary-900" aria-label={`Edit ${patient.first_name} ${patient.last_name}`}>
+                            <Link
+                              to={`/patients/${patient.id}/edit`}
+                              onClick={(event) => event.stopPropagation()}
+                              className="p-1 text-primary-600 hover:text-primary-900"
+                              aria-label={`Edit ${patient.first_name} ${patient.last_name}`}
+                            >
                               <Edit className="h-4 w-4" />
                             </Link>
-                            <button onClick={() => handleDelete(patient.id)} className="p-1 text-red-600 hover:text-red-900" aria-label={`Delete ${patient.first_name} ${patient.last_name}`}>
+                            <button
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                handleDelete(patient.id)
+                              }}
+                              className="p-1 text-red-600 hover:text-red-900"
+                              aria-label={`Delete ${patient.first_name} ${patient.last_name}`}
+                            >
                               <Trash2 className="h-4 w-4" />
                             </button>
                           </div>

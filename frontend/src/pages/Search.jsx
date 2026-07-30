@@ -613,8 +613,9 @@ function SearchPage() {
                         return (
                           <tr
                             key={patient.id}
+                            onClick={() => navigate(`/visits?patient=${patient.id}`)}
                             title="Click to go to Visits page for this patient"
-                            className={isSelected ? 'selected-row' : undefined}
+                            className={`${isSelected ? 'selected-row ' : ''}cursor-pointer`}
                           >
                             <td>
                               <form action="/visits" method="get">
@@ -707,7 +708,7 @@ function SearchPage() {
                     detail={
                       isDetailsLoading
                         ? 'Loading scans...'
-                        : `${scans.length} scan${scans.length === 1 ? '' : 's'} for patient · ${allScans.length} total in CRM`
+                        : `${scans.length} scan${scans.length === 1 ? '' : 's'} for patient · ${allScans.length} total records`
                     }
                   />
                   <div className="min-h-0 flex-1 overflow-auto">

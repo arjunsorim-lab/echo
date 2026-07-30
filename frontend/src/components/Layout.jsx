@@ -7,6 +7,7 @@ import {
   Search as SearchIcon,
   UserPlus,
 } from 'lucide-react'
+import EchoLogo from './EchoLogo'
 
 function Layout({ children }) {
   const navigate = useNavigate()
@@ -30,15 +31,13 @@ function Layout({ children }) {
     '/analytics': 'Queries & Analytics',
     '/settings': 'Settings',
     '/administration': 'Administration',
-    '/crm': 'CRM',
-    '/ai-assistant': 'AI Assistant',
   }
 
   const pageTitle = /^\/patients\/[^/]+\/edit$/.test(location.pathname)
     ? 'Edit Patient'
     : Object.entries(pageTitles).sort(([left], [right]) => right.length - left.length).find(
         ([path]) => location.pathname === path || location.pathname.startsWith(`${path}/`),
-      )?.[1] || 'CardioEcho AI'
+      )?.[1] || 'echoAI'
 
   const handleSearch = (e) => {
     e?.preventDefault()
@@ -55,16 +54,7 @@ function Layout({ children }) {
       <Sidebar />
       <div className="flex h-full min-w-0 flex-1 flex-col px-1 py-1 sm:px-2 lg:px-3">
         <header className="no-print mb-3 flex shrink-0 flex-col gap-3 border-b border-slate-200 pb-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-3" aria-label="Echo AI">
-            <div className="relative h-11 w-11 shrink-0">
-              <div className="absolute inset-0 rounded-full border-[3.5px] border-blue-400 border-r-violet-500" />
-              <div className="absolute inset-1.5 rounded-full border-[3px] border-indigo-500 border-l-cyan-400" />
-              <div className="absolute inset-[0.85rem] rounded-full bg-gradient-to-br from-cyan-400 to-violet-500 shadow-xs" />
-            </div>
-            <p className="text-2xl font-black tracking-tight text-[#08145f]">
-              Echo <span className="bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">AI</span>
-            </p>
-          </div>
+          <EchoLogo compact />
 
           <div className="flex flex-wrap items-center gap-2">
             <button
