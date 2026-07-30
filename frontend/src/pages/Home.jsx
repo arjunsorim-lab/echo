@@ -511,6 +511,25 @@ function Home() {
             </svg>
             Sign in with Google
           </button>
+
+          {/* ── FOUNDER ACCESS CARD ── */}
+          <div className="mt-4 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5">
+            <div className="mb-2.5 flex items-center gap-2">
+              <Sparkles className="h-3.5 w-3.5 text-blue-600" />
+              <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Founder Access</p>
+            </div>
+            <div className="w-full rounded-xl border border-blue-100 bg-white px-3.5 py-3 text-left shadow-xs">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
+                  DS
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-[#08145f]">Dr Shanthi · Founder</p>
+                  <p className="text-[11px] text-slate-500">dr.shanthi@echoai.com</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </aside>
       </div>
     </main>
