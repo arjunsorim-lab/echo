@@ -398,12 +398,6 @@ function Home() {
     navigate('/dashboard', { replace: true })
   }, [navigate])
 
-  const useDemoUser = (user = demoUsers[0]) => {
-    setEmail(user.email)
-    setPassword(user.password)
-    setError('')
-  }
-
   const handleLogin = (event) => {
     event.preventDefault()
     const login = email.trim().toLowerCase()
@@ -439,15 +433,6 @@ function Home() {
             <h2 className="text-2xl font-black text-[#08145f]">Welcome Back</h2>
             <p className="mt-1 text-sm text-slate-500">Access scan reports and AI insights.</p>
           </div>
-
-          <button
-            type="button"
-            onClick={() => useDemoUser()}
-            className="mt-5 flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-sm font-semibold text-white shadow-md shadow-blue-300/50 transition hover:from-blue-700 hover:to-indigo-700 active:scale-[0.98]"
-          >
-            <ArrowRight className="h-4 w-4" />
-            Use Dr Shanthi Account
-          </button>
 
           <form className="mt-4 space-y-3" onSubmit={handleLogin}>
             <label className="block">
@@ -526,29 +511,6 @@ function Home() {
             </svg>
             Sign in with Google
           </button>
-
-          {/* ── FOUNDER ACCESS CARD ── */}
-          <div className="mt-4 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5">
-            <div className="flex items-center gap-2 mb-2.5">
-              <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Founder Access</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => useDemoUser()}
-              className="w-full rounded-xl border border-blue-100 bg-white px-3.5 py-3 text-left shadow-xs transition hover:border-blue-300 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
-                  DS
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-[#08145f]">Dr Shanthi · Founder</p>
-                  <p className="text-[11px] text-slate-500">dr.shanthi@echoai.com</p>
-                </div>
-              </div>
-            </button>
-          </div>
         </aside>
       </div>
     </main>

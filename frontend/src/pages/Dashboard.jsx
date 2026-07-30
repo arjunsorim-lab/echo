@@ -471,24 +471,28 @@ export default function Dashboard() {
                     <div className="flex items-center justify-center gap-1">
                       <button
                         type="button"
-                        onClick={() => navigate(`${scan.scanRoute}/${scan.id}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-teal-700 transition"
-                        title="View Report"
+                        disabled
+                        className="cursor-not-allowed rounded-lg p-1.5 text-slate-300 opacity-60"
+                        title="View Report disabled"
+                        aria-label="View Report disabled"
                       >
                         <Eye className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`${scan.scanRoute}/${scan.id}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-teal-700 transition"
-                        title="View Document"
+                        disabled
+                        className="cursor-not-allowed rounded-lg p-1.5 text-slate-300 opacity-60"
+                        title="View Document disabled"
+                        aria-label="View Document disabled"
                       >
                         <FileText className="h-4 w-4" />
                       </button>
                       <button
                         type="button"
-                        className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
-                        title="Options"
+                        disabled
+                        className="cursor-not-allowed rounded-lg p-1.5 text-slate-300 opacity-60"
+                        title="Options disabled"
+                        aria-label="Options disabled"
                       >
                         <MoreHorizontal className="h-4 w-4" />
                       </button>
