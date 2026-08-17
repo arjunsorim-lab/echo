@@ -37,14 +37,60 @@ def prepare_runtime_storage():
     if DB_PATH != DEFAULT_DB_PATH and not os.path.exists(DB_PATH):
         shutil.copy2(DEFAULT_DB_PATH, DB_PATH)
 
+class SQLiteConn:
+    def __init__(self, path, timeout=60.0):
+        self._conn = sqlite3.connect(path, timeout=timeout)
+        self._conn.row_factory = sqlite3.Row
+        self._conn.execute('PRAGMA busy_timeout=30000')
+
+    def cursor(self):
+        return self._conn.cursor()
+
+    def execute(self, sql, parameters=()):
+        return self._conn.execute(sql, parameters)
+
+    def executemany(self, sql, seq_of_parameters):
+        return self._conn.executemany(sql, seq_of_parameters)
+
+    def commit(self):
+        self._conn.commit()
+
+    def rollback(self):
+        try:
+            self._conn.rollback()
+        except Exception:
+            pass
+
+    def close(self):
+        try:
+            self._conn.close()
+        except Exception:
+            pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        if exc_type is not None:
+            self.rollback()
+        self.close()
+
+    def __del__(self):
+        self.close()
+
+    def __getattr__(self, name):
+        return getattr(self._conn, name)
+
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
+    return SQLiteConn(DB_PATH, timeout=60.0)
 
 # Unified Database Initialization
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = SQLiteConn(DB_PATH, timeout=60.0)
+    try:
+        conn.execute('PRAGMA journal_mode=WAL')
+    except Exception:
+        pass
     c = conn.cursor()
     
     # 1. Patients table
@@ -451,12 +497,14 @@ def get_dashboard_stats():
     
     total_patients = c.execute('SELECT COUNT(*) FROM patients').fetchone()[0]
     total_scans = c.execute('SELECT COUNT(*) FROM scans').fetchone()[0]
+    total_visits = c.execute('SELECT COUNT(*) FROM visits').fetchone()[0]
     adult_echo = c.execute('SELECT COUNT(*) FROM scans WHERE scan_type = "Adult Echo"').fetchone()[0]
     fetal_echo = c.execute('SELECT COUNT(*) FROM scans WHERE scan_type = "Fetal Echo"').fetchone()[0]
     pediatric_echo = c.execute('SELECT COUNT(*) FROM scans WHERE scan_type = "Pediatric Echo"').fetchone()[0]
     
     today_str = date.today().isoformat()
     todays_visits = c.execute('SELECT COUNT(*) FROM visits WHERE visit_date LIKE ?', (f"{today_str}%",)).fetchone()[0]
+    upcoming_visits = c.execute('SELECT COUNT(*) FROM visits WHERE date(visit_date) > date("now")', ()).fetchone()[0]
     
     conn.close()
     
@@ -465,12 +513,15 @@ def get_dashboard_stats():
         "data": {
             "total_patients": total_patients,
             "total_scans": total_scans,
+            "total_visits": total_visits,
             "adult_echo": adult_echo,
             "fetal_echo": fetal_echo,
             "pediatric_echo": pediatric_echo,
-            "todays_visits": todays_visits
+            "todays_visits": todays_visits,
+            "upcoming_visits": upcoming_visits,
         }
     }
+
 
 # Patient Endpoints
 @app.get('/api/patients')

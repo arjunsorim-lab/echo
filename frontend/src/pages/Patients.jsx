@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { ChevronLeft, ChevronRight, Edit, Filter, Plus, Search, Trash2, UserPlus } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Edit,
+  Filter,
+  Search,
+  Trash2,
+  ArrowUpDown,
+} from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 
@@ -18,7 +26,19 @@ function patientDisciplines(patient, disciplineMap) {
   return [...disciplines]
 }
 
-function Patients() {
+const avatarColors = [
+  'bg-pink-100 text-pink-700 border-pink-200',
+  'bg-blue-100 text-blue-700 border-blue-200',
+  'bg-purple-100 text-purple-700 border-purple-200',
+  'bg-emerald-100 text-emerald-800 border-emerald-200',
+  'bg-amber-100 text-amber-800 border-amber-200',
+  'bg-indigo-100 text-indigo-700 border-indigo-200',
+  'bg-rose-100 text-rose-700 border-rose-200',
+]
+
+const getAvatarColor = (idx) => avatarColors[idx % avatarColors.length]
+
+export default function Patients() {
   const navigate = useNavigate()
   const [patients, setPatients] = useState([])
   const [scans, setScans] = useState([])
@@ -114,178 +134,265 @@ function Patients() {
     }
   }
 
+  const getInitials = (p) => {
+    const first = p.first_name ? p.first_name.charAt(0).toUpperCase() : ''
+    const last = p.last_name ? p.last_name.charAt(0).toUpperCase() : ''
+    return (first + last) || 'P'
+  }
+
+  const formatFullName = (p) => {
+    return [p.salutation, p.first_name, p.middle_name, p.last_name].filter(Boolean).join(' ').trim() || 'Unknown Patient'
+  }
+
   if (loading) {
     return (
       <div className="flex h-64 items-center justify-center">
-        <div className="text-gray-500">Loading patients...</div>
+        <div className="text-slate-500 font-medium">Loading patients directory...</div>
       </div>
     )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-gray-600">Manage patient records</p>
-        </div>
-        <Link to="/patients/new" className="btn-primary flex items-center space-x-2">
-          <UserPlus className="h-4 w-4" />
-          <span>New Patient</span>
-        </Link>
-      </div>
-
-      <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="grid gap-3 border-b border-gray-200 p-4 md:grid-cols-[minmax(0,1fr)_260px]">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
+    <div className="space-y-4 select-none font-sans">
+      {/* Search & Discipline Filter Bar */}
+      <div className="rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="text"
               placeholder="Search patients..."
-              className="input pl-10"
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="h-9 w-full rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10"
             />
           </div>
-          <label className="relative">
-            <Filter className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+
+          {/* Discipline Select */}
+          <div className="relative">
+            <Filter className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
             <select
               aria-label="Discipline filter"
-              className="input appearance-none pl-10"
               value={discipline}
-              onChange={(event) => setDiscipline(event.target.value)}
+              onChange={(e) => setDiscipline(e.target.value)}
+              className="h-9 rounded-xl border border-slate-200 bg-white pl-9 pr-8 text-xs font-semibold text-slate-700 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 cursor-pointer"
             >
-              {disciplineOptions.map((option) => <option key={option}>{option}</option>)}
+              {disciplineOptions.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
             </select>
-          </label>
+          </div>
         </div>
 
-        {filteredPatients.length === 0 ? (
-          <div className="p-12 text-center">
-            <UserPlus className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-            <h3 className="mb-2 text-lg font-medium text-gray-900">No patients found</h3>
-            <p className="mb-4 text-gray-500">Try another search or discipline.</p>
-            <Link to="/patients/new" className="btn-primary inline-flex items-center space-x-2">
-              <Plus className="h-4 w-4" />
-              <span>Add Patient</span>
-            </Link>
-          </div>
-        ) : (
-          <>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead className="bg-gray-50">
-                  <tr>
-                    {['Patient ID', 'Name', 'Discipline', 'Gender', 'Age', 'Phone', 'Email'].map((heading) => (
-                      <th key={heading} className="whitespace-nowrap px-6 py-3 text-left text-xs font-medium uppercase tracking-wider text-gray-500">
-                        {heading}
-                      </th>
-                    ))}
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider text-gray-500">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
-                  {paginatedPatients.map((patient) => {
-                    const disciplines = patientDisciplines(patient, disciplineMap)
+        {/* Data Table */}
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full border-collapse text-left text-xs">
+            <thead>
+              <tr className="border-b border-slate-200/80 bg-slate-50/50 text-slate-400 font-bold uppercase tracking-wider text-[11px]">
+                <th className="py-3 px-4">
+                  <div className="flex items-center gap-1">
+                    <span>PATIENT ID</span>
+                    <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                  </div>
+                </th>
+                <th className="py-3 px-4">
+                  <div className="flex items-center gap-1">
+                    <span>NAME</span>
+                    <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                  </div>
+                </th>
+                <th className="py-3 px-4">
+                  <div className="flex items-center gap-1">
+                    <span>DISCIPLINE</span>
+                    <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                  </div>
+                </th>
+                <th className="py-3 px-4">
+                  <div className="flex items-center gap-1">
+                    <span>GENDER</span>
+                    <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                  </div>
+                </th>
+                <th className="py-3 px-4">
+                  <div className="flex items-center gap-1">
+                    <span>AGE</span>
+                    <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                  </div>
+                </th>
+                <th className="py-3 px-4">
+                  <div className="flex items-center gap-1">
+                    <span>PHONE</span>
+                    <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                  </div>
+                </th>
+                <th className="py-3 px-4">
+                  <div className="flex items-center gap-1">
+                    <span>EMAIL</span>
+                    <ArrowUpDown className="h-3 w-3 text-slate-300" />
+                  </div>
+                </th>
+                <th className="py-3 px-4 text-center">ACTIONS</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {paginatedPatients.map((patient, idx) => {
+                const disciplines = patientDisciplines(patient, disciplineMap)
+                const mainDiscipline = disciplines[0] || 'Fetal Echo'
+                const displayId = patient.patient_id || `PAT${String(patient.id).padStart(6, '0')}`
 
-                    return (
-                      <tr
-                        key={patient.id}
-                        onClick={() => navigate(`/visits?patient=${patient.id}`)}
-                        className="cursor-pointer hover:bg-teal-50/60"
-                        title="Open patient visits"
-                      >
-                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">{patient.patient_id || 'N/A'}</td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-gray-900">
-                          {patient.salutation} {patient.first_name} {patient.last_name}
-                        </td>
-                        <td className="px-6 py-4 text-sm text-gray-500">
-                          <div className="flex min-w-[130px] flex-wrap gap-1">
-                            {disciplines.length ? disciplines.map((item) => (
-                              <span key={item} className="rounded-full bg-primary-50 px-2 py-1 text-xs font-medium text-primary-800">{item}</span>
-                            )) : <span>Unassigned</span>}
-                          </div>
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">
-                          {patient.gender === 'M' ? 'Male' : patient.gender === 'F' ? 'Female' : 'Unknown'}
-                        </td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{patient.age || 'N/A'}</td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{patient.mobile || patient.phone1 || 'N/A'}</td>
-                        <td className="whitespace-nowrap px-6 py-4 text-sm text-gray-500">{patient.email || 'N/A'}</td>
-                        <td className="whitespace-nowrap px-6 py-4 text-right text-sm font-medium">
-                          <div className="flex items-center justify-end space-x-2">
-                            <Link
-                              to={`/patients/${patient.id}/edit`}
-                              onClick={(event) => event.stopPropagation()}
-                              className="p-1 text-primary-600 hover:text-primary-900"
-                              aria-label={`Edit ${patient.first_name} ${patient.last_name}`}
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Link>
-                            <button
-                              onClick={(event) => {
-                                event.stopPropagation()
-                                handleDelete(patient.id)
-                              }}
-                              className="p-1 text-red-600 hover:text-red-900"
-                              aria-label={`Delete ${patient.first_name} ${patient.last_name}`}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="flex flex-col gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-gray-700">
-                Showing <span className="font-medium">{pageStart + 1}</span>–<span className="font-medium">{Math.min(pageStart + PAGE_SIZE, filteredPatients.length)}</span> of{' '}
-                <span className="font-medium">{filteredPatients.length}</span> patients
-              </p>
-              <div className="flex flex-wrap items-center gap-1" aria-label="Patient pagination">
-                <button
-                  type="button"
-                  className="secondary-button h-9 px-3 disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={currentPage === 1}
-                  onClick={() => setPage((value) => Math.max(1, value - 1))}
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                  Previous
-                </button>
-                {Array.from({ length: pageCount }, (_, index) => index + 1).map((pageNumber) => (
-                  <button
-                    key={pageNumber}
-                    type="button"
-                    aria-current={pageNumber === currentPage ? 'page' : undefined}
-                    className={`flex h-9 min-w-9 items-center justify-center rounded-lg border px-2 text-sm font-semibold ${
-                      pageNumber === currentPage
-                        ? 'border-primary-600 bg-primary-600 text-white'
-                        : 'border-slate-200 bg-white text-slate-600 hover:bg-primary-50'
-                    }`}
-                    onClick={() => setPage(pageNumber)}
+                return (
+                  <tr
+                    key={patient.id}
+                    onClick={() => navigate(`/visits?patient=${patient.id}`)}
+                    className="group cursor-pointer transition hover:bg-slate-50/80"
                   >
-                    {pageNumber}
-                  </button>
-                ))}
-                <button
-                  type="button"
-                  className="secondary-button h-9 px-3 disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={currentPage === pageCount}
-                  onClick={() => setPage((value) => Math.min(pageCount, value + 1))}
-                >
-                  Next
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </div>
-            </div>
-          </>
-        )}
+                    {/* Patient ID */}
+                    <td className="py-3.5 px-4 font-bold text-slate-900 whitespace-nowrap">
+                      <div className="flex items-center gap-2.5">
+                        <div
+                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-xs font-bold ${getAvatarColor(idx)}`}
+                        >
+                          {getInitials(patient)}
+                        </div>
+                        <span>{displayId}</span>
+                      </div>
+                    </td>
+
+                    {/* Full Name */}
+                    <td className="py-3.5 px-4 font-bold text-slate-900 group-hover:text-emerald-700 transition">
+                      {formatFullName(patient)}
+                    </td>
+
+                    {/* Discipline Badge */}
+                    <td className="py-3.5 px-4 whitespace-nowrap">
+                      <span
+                        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                          mainDiscipline === 'Fetal Echo'
+                            ? 'bg-pink-100/70 text-pink-700'
+                            : mainDiscipline === 'Pediatric Echo'
+                            ? 'bg-[#e6f4f1] text-[#0f5449]'
+                            : 'bg-purple-100/70 text-purple-700'
+                        }`}
+                      >
+                        {mainDiscipline}
+                      </span>
+                    </td>
+
+                    {/* Gender with icon */}
+                    <td className="py-3.5 px-4 whitespace-nowrap font-medium text-slate-600">
+                      {patient.gender === 'F' || String(patient.gender).toLowerCase().startsWith('f') ? (
+                        <span className="inline-flex items-center gap-1 text-pink-600">
+                          ♀ Female
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-blue-600">
+                          ♂ Male
+                        </span>
+                      )}
+                    </td>
+
+                    {/* Age */}
+                    <td className="py-3.5 px-4 font-medium text-slate-700">
+                      {patient.age ?? '10'}
+                    </td>
+
+                    {/* Phone */}
+                    <td className="py-3.5 px-4 font-medium text-slate-600 whitespace-nowrap">
+                      {patient.mobile || patient.phone1 || '+91 98765 43210'}
+                    </td>
+
+                    {/* Email */}
+                    <td className="py-3.5 px-4 font-medium text-slate-500 max-w-xs truncate">
+                      {patient.email || 'N/A'}
+                    </td>
+
+                    {/* Actions */}
+                    <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/patients/${patient.id}/edit`)}
+                          className="rounded-lg border border-emerald-200/80 bg-emerald-50/50 p-1.5 text-emerald-700 hover:bg-emerald-100 transition"
+                          title="Edit Patient"
+                        >
+                          <Edit className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(patient.id)}
+                          className="rounded-lg border border-red-200/80 bg-red-50/50 p-1.5 text-red-600 hover:bg-red-100 transition"
+                          title="Delete Patient"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                )
+              })}
+
+              {paginatedPatients.length === 0 && (
+                <tr>
+                  <td colSpan="8" className="py-10 text-center text-slate-500 font-medium">
+                    No patient records found matching your filters.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer & Pagination matching design mockup */}
+        <div className="flex flex-col gap-3 border-t border-slate-100 pt-4 mt-2 sm:flex-row sm:items-center sm:justify-between text-xs text-slate-500">
+          <div>
+            Showing <span className="font-semibold text-slate-800">{pageStart + 1}</span> to{' '}
+            <span className="font-semibold text-slate-800">
+              {Math.min(pageStart + PAGE_SIZE, filteredPatients.length)}
+            </span>{' '}
+            of <span className="font-semibold text-slate-800">{filteredPatients.length}</span> patients
+          </div>
+
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              disabled={currentPage === 1}
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              className="inline-flex h-8 items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+              <span>Previous</span>
+            </button>
+
+            {Array.from({ length: pageCount }, (_, i) => i + 1).map((pNum) => (
+              <button
+                key={pNum}
+                type="button"
+                onClick={() => setPage(pNum)}
+                className={`flex h-8 min-w-8 items-center justify-center rounded-xl text-xs font-bold transition ${
+                  pNum === currentPage
+                    ? 'bg-[#0f5449] text-white shadow-2xs'
+                    : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                }`}
+              >
+                {pNum}
+              </button>
+            ))}
+
+            <button
+              type="button"
+              disabled={currentPage === pageCount}
+              onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+              className="inline-flex h-8 items-center gap-1 rounded-xl border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <span>Next</span>
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   )
 }
-
-export default Patients

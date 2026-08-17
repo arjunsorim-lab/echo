@@ -283,6 +283,22 @@ function PediatricEchoReport() {
     return Boolean(echo?.situs || echo?.mitral_valve || echo?.aortic_valve || echo?.right_ventricle)
   }, [report.echo_details])
 
+  const scatterNormalComments = () => {
+    setReport((current) => ({
+      ...current,
+      echo_details: {
+        ...current.echo_details,
+        ...pediatricNormalComments,
+      },
+      impression: {
+        ...current.impression,
+        final_impression:
+          current.impression.final_impression ||
+          'NORMAL CARDIAC STRUCTURES AND CHAMBER DIMENSIONS FOR AGE.\nNORMAL BIVENTRICULAR CONTRACTILITY AND VALVULAR DYNAMICS.\nNO SHUNT OR OBSTRUCTION DEMONSTRATED.',
+      },
+    }))
+  }
+
   const toggleNormalComments = () => {
     if (isNormalCommentsPopulated) {
       setReport((current) => ({
@@ -312,15 +328,15 @@ function PediatricEchoReport() {
         },
       }))
     } else {
-      setReport((current) => ({
-        ...current,
-        echo_details: {
-          ...current.echo_details,
-          ...pediatricNormalComments,
-        },
-      }))
+      scatterNormalComments()
     }
   }
+
+  useEffect(() => {
+    if (searchParams.get('scatter') === 'true' || searchParams.get('autoScatter') === 'true') {
+      scatterNormalComments()
+    }
+  }, [searchParams])
 
   useEffect(() => {
     const fetchPatients = async () => {
