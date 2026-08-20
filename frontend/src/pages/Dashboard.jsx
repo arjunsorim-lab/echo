@@ -67,11 +67,11 @@ const findPatientForScan = (scan, patientLookup) => (
 )
 
 const formatPatientName = (patient) => {
-  if (!patient) return 'Unknown patient'
+  if (!patient) return ''
   return [patient.salutation, patient.first_name, patient.middle_name, patient.last_name]
     .filter(Boolean)
     .join(' ')
-    .trim() || patient.patient_id || 'Unknown patient'
+    .trim() || patient.patient_id || 'Patient record'
 }
 
 const formatDemographics = (patient) => {
@@ -93,8 +93,14 @@ const formatScanDate = (value) => {
 
 const getClinicalImportance = (scan) => {
   if (scan.abnormal) return 'High'
-  if (scan.ambiguity || scan.growthAbnormality || scan.normalVariant) return 'Medium'
+  if (scan.ambiguity || scan.normalVariant) return 'Medium'
   return 'Low'
+}
+
+const getReportDetails = (scan, visit) => {
+  const report = scan?.fetal_echo_report || scan?.adult_echo_report || scan?.pediatric_echo_report || scan?.report_data || {}
+  const impression = report?.impression?.final_impression || report?.final_impression
+  return scan?.findings || scan?.conclusion || scan?.diagnosis || impression || visit?.diagnosis || visit?.visit_type || 'Visit recorded. Open the visit to complete the report.'
 }
 
 export default function Dashboard() {
@@ -124,8 +130,9 @@ export default function Dashboard() {
       scanService.getDashboardStats(),
       patientService.getAllVisits(),
       patientService.getPatients(),
+      scanService.getScans(),
     ])
-      .then(([statsResult, visitsResult, patientsResult]) => {
+      .then(([statsResult, visitsResult, patientsResult, scansResult]) => {
         if (statsResult.success && statsResult.data) {
           setStats((prev) => ({
             ...prev,
@@ -142,52 +149,72 @@ export default function Dashboard() {
 
         const patients = asList(patientsResult)
         const patientLookup = buildPatientLookup(patients)
-        const visits = [...asList(visitsResult)]
-          .sort((left, right) => {
-            const rightDate = new Date(right.visit_date || right.created_at || 0).getTime()
-            const leftDate = new Date(left.visit_date || left.created_at || 0).getTime()
-            return (rightDate - leftDate) || (right.id - left.id)
-          })
-          .map((visit) => {
-            const patient = findPatientForScan(visit, patientLookup)
-            const { dateTime, timeStr, rawDate } = formatScanDate(visit.visit_date || visit.created_at)
+        const scans = asList(scansResult)
+        const visitsById = new Map(asList(visitsResult).map((visit) => [normalizeLookupId(visit.id), visit]))
+        const scannedVisitIds = new Set(scans.map((scan) => normalizeLookupId(scan.visit_id)).filter(Boolean))
+
+        const toDashboardRow = (scan, visit) => {
+            const patient = findPatientForScan(scan || visit, patientLookup) || findPatientForScan(visit || scan, patientLookup)
+            // Never show a placeholder/unknown patient: records without a valid patient link are omitted.
+            if (!patient) return null
+            const { dateTime, timeStr, rawDate } = formatScanDate(scan?.scan_date || visit?.visit_date || scan?.created_at || visit?.created_at)
             const patientName = formatPatientName(patient)
             const initials = [patient?.first_name, patient?.last_name]
               .filter(Boolean)
               .map((part) => part.charAt(0).toUpperCase())
               .join('')
               .slice(0, 2) || 'AB'
+            const scanType = scan?.scan_type || visit?.scan_type || 'Fetal Echo'
 
             return {
-              id: visit.id,
-              patientId: patient?.id || visit.patient_id,
-              visitId: visit.id,
+              id: scan ? `scan-${scan.id}` : `visit-${visit.id}`,
+              patientId: patient.id,
+              visitId: scan?.visit_id || visit?.id || '',
               patientName,
-              patientCode: patient?.patient_id || `PAT${visit.patient_id}`,
+              patientCode: patient.patient_id || `PAT${patient.id}`,
               demographics: formatDemographics(patient),
               initials,
-              scanType: visit.scan_type || 'Fetal Echo',
-              scanRoute: scanRoutes[visit.scan_type] || '/fetal-echo-report',
+              scanType,
+              scanRoute: scanRoutes[scanType] || '/fetal-echo-report',
               dateTime,
               timeStr,
               rawDate,
-              aiSummary: visit.diagnosis || visit.visit_type || 'Visit recorded. Open the visit to complete the report.',
-              importance: 'Low',
-              confidence: 'Not recorded',
-              referralDoctor: visit.referral_doctor || '—',
+              aiSummary: getReportDetails(scan, visit),
+              importance: getClinicalImportance(scan || {}),
+              confidence: scan?.ai_confidence || scan?.confidence || 'Not recorded',
+              referralDoctor: scan?.referralDoctor || visit?.referral_doctor || '—',
               searchText: [
                 patient?.dob,
                 patient?.mobile,
                 patient?.phone1,
                 patient?.phone2,
                 patient?.email,
-                visit.referral_doctor,
-                visit.visit_type,
+                visit?.referral_doctor,
+                visit?.visit_type,
+                scan?.scan_type,
+                scan?.findings,
+                scan?.conclusion,
+                scan?.diagnosis,
               ].filter(Boolean).join(' '),
             }
-          })
+        }
 
-        setRecentScans(visits)
+        // Most historic data has a scan but no visit_id. Start with scans so the
+        // grid retains adult, fetal and pediatric report details, then include
+        // only unscanned visits as a fallback.
+        const dashboardRows = [
+          ...scans.map((scan) => toDashboardRow(scan, visitsById.get(normalizeLookupId(scan.visit_id)))).filter(Boolean),
+          ...asList(visitsResult)
+            .filter((visit) => !scannedVisitIds.has(normalizeLookupId(visit.id)))
+            .map((visit) => toDashboardRow(null, visit))
+            .filter(Boolean),
+        ].sort((left, right) => {
+          const rightDate = right.rawDate?.getTime() || 0
+          const leftDate = left.rawDate?.getTime() || 0
+          return rightDate - leftDate
+        })
+
+        setRecentScans(dashboardRows)
       })
       .catch(() => setRecentScans([]))
       .finally(() => setIsLoadingScans(false))
@@ -615,7 +642,7 @@ export default function Dashboard() {
                 <th className="py-3 px-4">PATIENT DETAILS</th>
                 <th className="py-3 px-4">SCAN TYPE</th>
                 <th className="py-3 px-4">DATE & TIME</th>
-                <th className="py-3 px-4">AI FINDINGS (SUMMARY)</th>
+                <th className="py-3 px-4">REPORT DETAILS</th>
                 <th className="py-3 px-4">CLINICAL IMPORTANCE</th>
                 <th className="py-3 px-4">AI CONFIDENCE</th>
                 <th className="py-3 px-4 text-center">ACTIONS</th>

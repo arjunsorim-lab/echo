@@ -19,6 +19,7 @@ import ImagesModal from '../components/ImagesModal'
 import ReportConfigModal from '../components/ReportConfigModal'
 import SearchableSelect from '../components/SearchableSelect'
 import ConfiguredFields from '../components/ConfiguredFields'
+import { ConfiguredSignatureMark, ConfiguredSignatureSelect } from '../components/ConfiguredSignature'
 
 const mainTabs = [
   { id: 'scan', label: 'Scan' },
@@ -180,7 +181,6 @@ const initialReport = {
     investigation_status: {
       abnormal: false,
       ambiguity: false,
-      growth_abnormality: false,
     },
     primary_consultant: '',
     second_consultant: '',
@@ -294,12 +294,6 @@ function PediatricEchoReport() {
       echo_details: {
         ...current.echo_details,
         ...pediatricNormalComments,
-      },
-      impression: {
-        ...current.impression,
-        final_impression:
-          current.impression.final_impression ||
-          'NORMAL CARDIAC STRUCTURES AND CHAMBER DIMENSIONS FOR AGE.\nNORMAL BIVENTRICULAR CONTRACTILITY AND VALVULAR DYNAMICS.\nNO SHUNT OR OBSTRUCTION DEMONSTRATED.',
       },
     }))
   }
@@ -582,6 +576,7 @@ function PediatricEchoReport() {
         open={isImagesModalOpen}
         onClose={() => setIsImagesModalOpen(false)}
         patient={selectedPatient}
+        imageConfig={reportSettings}
       />
     </div>
   )
@@ -868,13 +863,12 @@ function ImpressionPanel({ report, updateReport }) {
       </div>
 
       <aside className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <ComboWithNew label="Report signed by (L)" value={impression.report_signed_by_l} onChange={(value) => updateReport(['impression', 'report_signed_by_l'], value)} />
-        <ComboWithNew label="Report signed by (R)" value={impression.report_signed_by_r} onChange={(value) => updateReport(['impression', 'report_signed_by_r'], value)} />
+        <ConfiguredSignatureSelect label="Report signed by (L)" value={impression.report_signed_by_l} onChange={(value) => updateReport(['impression', 'report_signed_by_l'], value)} />
+        <ConfiguredSignatureSelect label="Report signed by (R)" value={impression.report_signed_by_r} onChange={(value) => updateReport(['impression', 'report_signed_by_r'], value)} />
         <Fieldset title="Investigation status">
           {[
             ['Abnormal', 'abnormal'],
             ['Ambiguity', 'ambiguity'],
-            ['Growth Abnormality', 'growth_abnormality'],
           ].map(([label, key]) => (
             <label key={key} className="block">
               <input type="checkbox" checked={impression.investigation_status[key]} onChange={(event) => updateReport(['impression', 'investigation_status', key], event.target.checked)} /> {label}
@@ -1090,7 +1084,8 @@ function ReportPreviewModal({ report, updateReport, patient, settings = {}, onCl
           </div>
           <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-6">
             <div className="mx-auto min-h-[980px] max-w-3xl bg-white p-10 shadow-sm">
-              <h2 className="mb-5 text-center text-xl font-bold">{report.impression.report_title || settings.reportHeaderText || 'Pediatric Echo Report'}</h2>
+              {settings.reportHeaderText && <p className="mb-1 text-sm text-slate-600" style={{ textAlign: String(settings.reportHeaderPlacement || 'Center').toLowerCase() }}>{settings.reportHeaderText}</p>}
+              <h2 className="mb-5 text-center text-xl font-bold">{report.impression.report_title || 'Pediatric Echo Report'}</h2>
               <table className="mb-4 w-full border border-slate-400 text-sm">
                 <tbody>
                   <tr>
@@ -1122,8 +1117,8 @@ function ReportPreviewModal({ report, updateReport, patient, settings = {}, onCl
                   </div>
                 ))}
               </div>
-              {(settings.leftDoctorName || settings.rightDoctorName) && <div className="mt-10 flex justify-between border-t pt-5 text-sm"><span>{settings.leftDoctorName || 'Primary consultant'}<br /><span className="text-xs text-slate-500">Doctor signature</span></span><span className="text-right">{settings.rightDoctorName || 'Reporting doctor'}<br /><span className="text-xs text-slate-500">Doctor signature</span></span></div>}
-              {settings.reportFooterText && <p className="mt-8 border-t pt-3 text-center text-xs text-slate-500">{settings.reportFooterText}</p>}
+              {(report.impression.report_signed_by_l || report.impression.report_signed_by_r || settings.leftDoctorName || settings.rightDoctorName) && <div className="mt-10 flex justify-between border-t pt-5 text-sm"><ConfiguredSignatureMark name={report.impression.report_signed_by_l || settings.leftDoctorName} settings={settings} /><ConfiguredSignatureMark name={report.impression.report_signed_by_r || settings.rightDoctorName} settings={settings} align="right" /></div>}
+              {settings.reportFooterText && <p className="mt-8 border-t pt-3 text-xs text-slate-500" style={{ textAlign: String(settings.reportFooterPlacement || 'Center').toLowerCase() }}>{settings.reportFooterText}</p>}
             </div>
           </div>
         </div>

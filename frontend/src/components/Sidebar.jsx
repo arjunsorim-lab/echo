@@ -42,6 +42,7 @@ function Sidebar() {
               <NavLink
                 key={item.path}
                 to={item.path}
+                end={item.path === '/patients'}
                 className={({ isActive }) =>
                   `flex items-center space-x-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-150 ${
                     isActive

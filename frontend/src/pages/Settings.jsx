@@ -63,8 +63,11 @@ const defaults = {
   rightDoctorName: '',
   doctorSignatureMode: 'Typed name',
   signatureUploadName: '',
+  signatures: [],
   reportHeaderText: '',
   reportFooterText: '',
+  reportHeaderPlacement: 'Center',
+  reportFooterPlacement: 'Center',
   outputImageWidth: '600',
   outputImageHeight: '450',
   outputImageColumns: '4',
@@ -643,6 +646,16 @@ function ReportConfig({ data, setData }) {
 }
 
 function DeviceConnections({ data, setData }) {
+  const [status, setStatus] = useState('')
+  const [testing, setTesting] = useState(false)
+  const testConnection = async () => {
+    setTesting(true); setStatus('')
+    try {
+      const result = await workspaceService.testDeviceConnection(data)
+      setStatus(result.message || 'Connection successful.')
+    } catch (error) { setStatus(error.response?.data?.detail || 'Connection failed.') }
+    finally { setTesting(false) }
+  }
   return (
     <Section title="Device connections" description="Connection settings for echo machines, medical devices, and related integrations.">
       <FieldGrid
@@ -656,6 +669,7 @@ function DeviceConnections({ data, setData }) {
         data={data}
         setData={setData}
       />
+      <div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" onClick={testConnection} disabled={!data.deviceEndpoint || !data.devicePort || testing} className="secondary-button disabled:opacity-40">{testing ? 'Testing…' : 'Test device connection'}</button>{status && <span className={`text-sm font-medium ${status.startsWith('Connected') ? 'text-emerald-700' : 'text-rose-700'}`}>{status}</span>}</div>
     </Section>
   )
 }
@@ -705,7 +719,29 @@ function CustomFields({ data, setData }) {
 }
 
 function Signatures({ data, setData }) {
+  const [name, setName] = useState('')
+  const [role, setRole] = useState('Reporting doctor')
+  const [file, setFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const signatures = data.signatures || []
+  const saveSignature = async () => {
+    if (!name.trim()) return
+    setUploading(true)
+    try {
+      let path = ''
+      if (file) {
+        const body = new FormData()
+        body.append('file', file)
+        const result = await workspaceService.uploadMedia(body)
+        path = result.data?.url || result.data?.path || ''
+      }
+      const entry = { id: `${Date.now()}-${name.trim()}`, name: name.trim(), role, path }
+      setData({ ...data, signatures: [...signatures, entry], leftDoctorName: data.leftDoctorName || entry.name })
+      setName(''); setRole('Reporting doctor'); setFile(null)
+    } finally { setUploading(false) }
+  }
   return (
+    <div className="space-y-4">
     <Section title="Doctor signatures and report headers/footers" description="Configure doctor names, signature mode, and report header/footer text.">
       <FieldGrid
         fields={[
@@ -714,12 +750,24 @@ function Signatures({ data, setData }) {
           f('doctorSignatureMode', 'Signature display', 'select', ['Typed name', 'Uploaded image', 'Typed name and image']),
           f('signatureUploadName', 'Signature image filename'),
           f('reportHeaderText', 'Report header text', 'textarea'),
+          f('reportHeaderPlacement', 'Header placement', 'select', ['Left', 'Center', 'Right']),
           f('reportFooterText', 'Report footer text', 'textarea'),
+          f('reportFooterPlacement', 'Footer placement', 'select', ['Left', 'Center', 'Right']),
         ]}
         data={data}
         setData={setData}
       />
     </Section>
+    <Section title="Configured doctor signatures" description="Upload, update, assign, and display signature records in reports.">
+      <div className="grid gap-3 md:grid-cols-4">
+        <label className="field-label"><span>Doctor name</span><input className="field-control" value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label className="field-label"><span>Role</span><select className="field-control" value={role} onChange={(event) => setRole(event.target.value)}><option>Reporting doctor</option><option>Primary consultant</option><option>Second consultant</option></select></label>
+        <label className="field-label"><span>Signature image</span><input className="field-control" type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label>
+        <button type="button" disabled={!name.trim() || uploading} onClick={saveSignature} className="primary-button self-end justify-center disabled:opacity-40"><Upload className="h-4 w-4" />{uploading ? 'Uploading…' : 'Add signature'}</button>
+      </div>
+      {signatures.length ? <div className="mt-4 overflow-x-auto"><table className="data-table"><thead><tr><th>Doctor</th><th>Role</th><th>Signature</th><th /></tr></thead><tbody>{signatures.map((signature) => <tr key={signature.id}><td><input className="field-control" value={signature.name} onChange={(event) => setData({ ...data, signatures: signatures.map((entry) => entry.id === signature.id ? { ...entry, name: event.target.value } : entry) })} /></td><td><select className="field-control" value={signature.role || 'Reporting doctor'} onChange={(event) => setData({ ...data, signatures: signatures.map((entry) => entry.id === signature.id ? { ...entry, role: event.target.value } : entry) })}><option>Reporting doctor</option><option>Primary consultant</option><option>Second consultant</option></select></td><td>{signature.path ? <img src={signature.path} alt={`${signature.name} signature`} className="h-10 max-w-28 object-contain" /> : 'Typed name'}</td><td><button type="button" className="text-red-700 hover:underline" onClick={() => setData({ ...data, signatures: signatures.filter((entry) => entry.id !== signature.id) })}>Remove</button></td></tr>)}</tbody></table></div> : <p className="mt-3 text-sm text-slate-500">No signatures configured yet.</p>}
+    </Section>
+    </div>
   )
 }
 

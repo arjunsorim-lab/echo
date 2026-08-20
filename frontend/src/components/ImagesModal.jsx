@@ -1,10 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { X, RefreshCw, Upload, Download, Trash2, Printer, Send, FileSpreadsheet, Tv, Settings, HardDrive, FileText, Check, Plus, Search } from 'lucide-react'
 import ImageCompareModal from './ImageCompareModal'
 import OrganEditingModal from './OrganEditingModal'
 import TiffaTemplateModal from './TiffaTemplateModal'
 
-export default function ImagesModal({ open, onClose, patient, visitDate = '02/09/2025 10:42:46 AM' }) {
+export default function ImagesModal({ open, onClose, patient, visitDate = '02/09/2025 10:42:46 AM', imageConfig = {} }) {
   const [activeTab, setActiveTab] = useState('images')
   const [isCompareOpen, setIsCompareOpen] = useState(false)
   const [isOrganEditingOpen, setIsOrganEditingOpen] = useState(false)
@@ -24,6 +24,14 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
   const [ipAddress, setIpAddress] = useState('')
   const [port, setPort] = useState('')
   const [description, setDescription] = useState('')
+
+  useEffect(() => {
+    if (!open) return
+    if (imageConfig.outputImageWidth) setWidth(String(imageConfig.outputImageWidth))
+    if (imageConfig.outputImageHeight) setHeight(String(imageConfig.outputImageHeight))
+    if (imageConfig.outputImageColumns) setColumns(String(imageConfig.outputImageColumns))
+    if (imageConfig.outputImageRows) setRowsCols(`${imageConfig.outputImageRows}X${imageConfig.outputImageColumns || 1}`)
+  }, [open, imageConfig.outputImageWidth, imageConfig.outputImageHeight, imageConfig.outputImageColumns, imageConfig.outputImageRows])
 
   const [dicomConfigs, setDicomConfigs] = useState([
     { aeTitle: 'ECHO_SCU', ipAddress: '192.168.1.100', port: '104', description: 'PACS Server' }

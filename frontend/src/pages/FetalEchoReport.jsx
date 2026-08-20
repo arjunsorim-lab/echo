@@ -17,6 +17,7 @@ import { workspaceService } from '../api/workspaceService'
 import ImagesModal from '../components/ImagesModal'
 import SearchableSelect from '../components/SearchableSelect'
 import ConfiguredFields from '../components/ConfiguredFields'
+import { ConfiguredSignatureMark, ConfiguredSignatureSelect } from '../components/ConfiguredSignature'
 
 const mainTabs = [
   { id: 'scan', label: 'Scan' },
@@ -398,11 +399,6 @@ function FetalEchoReport() {
           ...fetalNormalComments.others,
         },
       },
-      impression: {
-        ...current.impression,
-        final_impression: 'NORMAL SITUS AND LEVOCARDIA.\nNORMAL SEGMENTAL ANATOMY.\nNO MAJOR CONGENITAL ANOMALY DETECTED.\nNORMAL RATE AND RHYTHM (1:1).\nNORMAL VALVAR AND BIVENTRICULAR FLOW PATTERNS.',
-        disclaimer_comments: 'Fetal Echocardiography provides an accurate assessment of fetal cardiac structure at the time of examination. A normal scan does not rule out minor dynamic lesions or postnatal developmental cardiac changes.',
-      },
     }))
   }
 
@@ -734,6 +730,7 @@ function FetalEchoReport() {
         open={isImagesModalOpen}
         onClose={() => setIsImagesModalOpen(false)}
         patient={selectedPatient}
+        imageConfig={reportSettings}
       />
       {isPrintOptionsOpen && <FetalPrintOptions report={report} updateReport={updateReport} onClose={() => setIsPrintOptionsOpen(false)} />}
     </div>
@@ -1131,8 +1128,8 @@ function ImpressionPanel({ report, updateReport }) {
       </div>
 
       <aside className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <ComboWithNew label="Report signed by (L)" value={impression.report_signed_by_l} onChange={(value) => updateReport(['impression', 'report_signed_by_l'], value)} />
-        <ComboWithNew label="Report signed by (R)" value={impression.report_signed_by_r} onChange={(value) => updateReport(['impression', 'report_signed_by_r'], value)} />
+        <ConfiguredSignatureSelect label="Report signed by (L)" value={impression.report_signed_by_l} onChange={(value) => updateReport(['impression', 'report_signed_by_l'], value)} />
+        <ConfiguredSignatureSelect label="Report signed by (R)" value={impression.report_signed_by_r} onChange={(value) => updateReport(['impression', 'report_signed_by_r'], value)} />
         <Fieldset title="Investigation status">
           {[
             ['Abnormal', 'abnormal'],
@@ -1543,7 +1540,8 @@ function FetalPrintReport({ report, patient, settings }) {
   return (
     <div className="printable-report hidden print:block">
       <div className="printable-header">
-        <h1 className="text-xl font-bold uppercase text-[#2c3e50] tracking-wide">{imp.report_title || settings.reportHeaderText || 'Fetal Echocardiography Report'}</h1>
+        {settings.reportHeaderText && <p className="mb-1 text-xs text-slate-600" style={{ textAlign: String(settings.reportHeaderPlacement || 'Center').toLowerCase() }}>{settings.reportHeaderText}</p>}
+        <h1 className="text-xl font-bold uppercase text-[#2c3e50] tracking-wide">{imp.report_title || 'Fetal Echocardiography Report'}</h1>
       </div>
 
       <table className="printable-table mb-4">
@@ -1635,7 +1633,7 @@ function FetalPrintReport({ report, patient, settings }) {
 
       <div className="printable-section-title">Final Impression</div>
       <div className="p-3 my-2 border border-slate-300 rounded whitespace-pre-wrap text-xs bg-slate-50">
-        {imp.final_impression || 'NORMAL SITUS AND LEVOCARDIA.\nNORMAL SEGMENTAL ANATOMY.\nNO MAJOR CONGENITAL ANOMALY DETECTED.\nNORMAL RATE AND RHYTHM.'}
+        {imp.final_impression || 'No final impression entered.'}
       </div>
 
       {report.miscellaneous && <><div className="printable-section-title">Miscellaneous</div><p className="whitespace-pre-wrap text-xs">{report.miscellaneous}</p></>}
@@ -1647,15 +1645,14 @@ function FetalPrintReport({ report, patient, settings }) {
 
       <div className="mt-8 flex justify-between items-end pt-4 border-t border-slate-300 text-xs">
         <div>
-          <p><strong>Primary Consultant:</strong> {imp.primary_consultant || settings.leftDoctorName || 'Dr. Gayatri Nair'}</p>
+          <ConfiguredSignatureMark name={imp.report_signed_by_l || imp.primary_consultant || settings.leftDoctorName} settings={settings} />
           <p><strong>PNDT Reg. No.:</strong> PNDT/KL/2026/8841</p>
         </div>
         <div className="text-right">
-          <p className="mb-8 font-semibold">{settings.rightDoctorName || 'Doctor'} Signature</p>
-          <p>__________________________</p>
+          <ConfiguredSignatureMark name={imp.report_signed_by_r || settings.rightDoctorName} settings={settings} align="right" />
         </div>
       </div>
-      {settings.reportFooterText && <p className="mt-4 border-t pt-2 text-center text-[10px] text-slate-500">{settings.reportFooterText}</p>}
+      {settings.reportFooterText && <p className="mt-4 border-t pt-2 text-[10px] text-slate-500" style={{ textAlign: String(settings.reportFooterPlacement || 'Center').toLowerCase() }}>{settings.reportFooterText}</p>}
     </div>
   )
 }

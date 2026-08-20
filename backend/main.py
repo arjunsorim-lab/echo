@@ -11,6 +11,7 @@ import os
 import shutil
 import uuid
 import smtplib
+import socket
 from email.message import EmailMessage
 
 app = FastAPI(title="Echo AI Backend", version="1.0.0")
@@ -1454,6 +1455,23 @@ def deliver_report_email(data: dict):
         raise HTTPException(status_code=502, detail=f'Email delivery failed: {str(error)}')
 
     return {"success": True, "message": f"Report sent to {recipient}"}
+
+@app.post('/api/device-connection-test')
+def test_device_connection(data: dict):
+    """Validate that a configured echo/medical device endpoint is reachable by TCP."""
+    host = (data.get('host') or data.get('deviceEndpoint') or '').strip()
+    try:
+        port = int(data.get('port') or data.get('devicePort') or 0)
+    except (TypeError, ValueError):
+        port = 0
+    if not host or not (1 <= port <= 65535):
+        raise HTTPException(status_code=400, detail='Enter a valid device endpoint and port before testing.')
+    try:
+        with socket.create_connection((host, port), timeout=5):
+            pass
+    except OSError as error:
+        raise HTTPException(status_code=502, detail=f'Device connection failed: {error}')
+    return {"success": True, "message": f"Connected to {host}:{port}"}
 
 app.mount('/uploads', StaticFiles(directory=UPLOADS_DIR, check_dir=False), name='uploads')
 
