@@ -53,6 +53,11 @@ export const patientService = {
     return response.data;
   },
 
+  getAllVisits: async () => {
+    const response = await api.get('/visits');
+    return response.data;
+  },
+
   addVisit: async (patientId, visitData) => {
     const response = await api.post(`/patients/${patientId}/visits`, visitData);
     return response.data;

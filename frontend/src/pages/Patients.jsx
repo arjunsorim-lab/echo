@@ -42,6 +42,7 @@ export default function Patients() {
   const navigate = useNavigate()
   const [patients, setPatients] = useState([])
   const [scans, setScans] = useState([])
+  const [visits, setVisits] = useState([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [discipline, setDiscipline] = useState('All disciplines')
@@ -57,9 +58,10 @@ export default function Patients() {
 
   const fetchPatients = async () => {
     try {
-      const [patientResult, scanResult] = await Promise.allSettled([
+      const [patientResult, scanResult, visitResult] = await Promise.allSettled([
         patientService.getPatients(),
         scanService.getScans(),
+        patientService.getAllVisits(),
       ])
 
       if (patientResult.status === 'fulfilled' && patientResult.value.success) {
@@ -67,6 +69,9 @@ export default function Patients() {
       }
       if (scanResult.status === 'fulfilled' && scanResult.value.success) {
         setScans(scanResult.value.data)
+      }
+      if (visitResult.status === 'fulfilled' && visitResult.value.success) {
+        setVisits(visitResult.value.data)
       }
     } catch (error) {
       console.error('Error fetching patients:', error)
@@ -90,6 +95,19 @@ export default function Patients() {
 
     return map
   }, [scans])
+
+  const visitCountMap = useMemo(() => {
+    const counts = new Map()
+    visits.forEach((visit) => {
+      const key = normalizeId(visit.patient_id)
+      if (key) counts.set(key, (counts.get(key) || 0) + 1)
+    })
+    return counts
+  }, [visits])
+
+  const visitCountForPatient = (patient) => (
+    visitCountMap.get(normalizeId(patient.id)) || visitCountMap.get(normalizeId(patient.patient_id)) || 0
+  )
 
   const disciplineOptions = useMemo(() => {
     const found = new Set(standardDisciplines)
@@ -234,6 +252,7 @@ export default function Patients() {
                     <ArrowUpDown className="h-3 w-3 text-slate-300" />
                   </div>
                 </th>
+                <th className="py-3 px-4 text-center">VISITS</th>
                 <th className="py-3 px-4 text-center">ACTIONS</th>
               </tr>
             </thead>
@@ -246,7 +265,7 @@ export default function Patients() {
                 return (
                   <tr
                     key={patient.id}
-                    onClick={() => navigate(`/visits?patient=${patient.id}`)}
+                    onClick={() => navigate(`/patients/${patient.id}/records`)}
                     className="group cursor-pointer transition hover:bg-slate-50/80"
                   >
                     {/* Patient ID */}
@@ -309,6 +328,17 @@ export default function Patients() {
                       {patient.email || 'N/A'}
                     </td>
 
+                    <td className="py-3.5 px-4 text-center">
+                      <button
+                        type="button"
+                        onClick={(event) => { event.stopPropagation(); navigate(`/patients/${patient.id}/records`) }}
+                        className="rounded-full bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-700 hover:bg-teal-100"
+                        title="Open this patient's visit history"
+                      >
+                        {visitCountForPatient(patient)} visit{visitCountForPatient(patient) === 1 ? '' : 's'}
+                      </button>
+                    </td>
+
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-center gap-2">
@@ -336,7 +366,7 @@ export default function Patients() {
 
               {paginatedPatients.length === 0 && (
                 <tr>
-                  <td colSpan="8" className="py-10 text-center text-slate-500 font-medium">
+                  <td colSpan="9" className="py-10 text-center text-slate-500 font-medium">
                     No patient records found matching your filters.
                   </td>
                 </tr>

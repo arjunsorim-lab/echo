@@ -39,6 +39,26 @@ export default function Measurements() {
     })
   }, [scans, patientMap, searchQuery, selectedScanType])
 
+  const exportMModeToExcel = () => {
+    const rows = filteredScans.flatMap((scan) => {
+      const patient = patientMap.get(scan.patient_id) || {}
+      const report = scan.fetal_echo_report || scan.pediatric_echo_report || scan.adult_echo_report || {}
+      const mMode = report.biometry?.m_mode || report.m_mode || report.measurements?.m_mode || {}
+      const values = Object.entries(mMode).filter(([, value]) => value !== '' && value != null)
+      return values.length
+        ? values.map(([measurement, value]) => [patient.patient_id || scan.patient_display_id || '', `${patient.first_name || ''} ${patient.last_name || ''}`.trim(), scan.scan_type || '', measurement.replace(/_/g, ' '), value])
+        : [[patient.patient_id || scan.patient_display_id || '', `${patient.first_name || ''} ${patient.last_name || ''}`.trim(), scan.scan_type || '', 'No recorded M-Mode values', '']]
+    })
+    const html = `<table><tr><th>Patient ID</th><th>Patient</th><th>Scan type</th><th>Measurement</th><th>Value</th></tr>${rows.map((row) => `<tr>${row.map((cell) => `<td>${String(cell).replace(/[&<>]/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[character]))}</td>`).join('')}</tr>`).join('')}</table>`
+    const blob = new Blob([html], { type: 'application/vnd.ms-excel;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `m-mode-measurements-${new Date().toISOString().slice(0, 10)}.xls`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="space-y-6 p-4">
       {/* Header card */}
@@ -54,6 +74,7 @@ export default function Measurements() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
+          {activeCategory === 'M-Mode & Functional' && <button type="button" onClick={exportMModeToExcel} className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-700"><Download className="h-4 w-4" />Export M-Mode to Excel</button>}
           <select
             className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 outline-none focus:ring-2 focus:ring-teal-500"
             value={selectedScanType}
@@ -69,7 +90,7 @@ export default function Measurements() {
 
       {/* Category Tabs */}
       <div className="flex flex-wrap gap-2 border-b border-slate-200 pb-2">
-        {['2D Measurements', 'M-Mode & Functional', 'Z-Scores', 'Doppler Analysis'].map((cat) => (
+        {['Biometry', '2D Measurements', 'M-Mode & Functional', 'Z-Scores', 'Doppler Analysis'].map((cat) => (
           <button
             key={cat}
             type="button"

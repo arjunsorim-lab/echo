@@ -5,11 +5,11 @@ import Search from './pages/Search'
 import NewPatient from './pages/NewPatient'
 import Patients from './pages/Patients'
 import EditPatient from './pages/EditPatient'
+import PatientRecords from './pages/PatientRecords'
 import Visits from './pages/Visits'
 import ReferralDoctors from './pages/ReferralDoctors'
 import NewReferralDoctor from './pages/NewReferralDoctor'
 import EditReferralDoctor from './pages/EditReferralDoctor'
-import ClinicalWorkspace from './pages/ClinicalWorkspace'
 import ImagesViewer from './pages/ImagesViewer'
 import Measurements from './pages/Measurements'
 import Reports from './pages/Reports'
@@ -20,7 +20,6 @@ import Home from './pages/Home'
 import FetalEchoReport from './pages/FetalEchoReport'
 import AdultEchoReport from './pages/AdultEchoReport'
 import PediatricEchoReport from './pages/PediatricEchoReport'
-import EchoScan from './pages/EchoScan'
 
 function isSignedIn() {
   return Boolean(
@@ -74,6 +73,9 @@ function App() {
         <Route path="/patients/:id/edit" element={
           <ProtectedPage><EditPatient /></ProtectedPage>
         } />
+        <Route path="/patients/:id/records" element={
+          <ProtectedPage><PatientRecords /></ProtectedPage>
+        } />
         <Route path="/visits" element={
           <ProtectedPage><Visits /></ProtectedPage>
         } />
@@ -87,7 +89,7 @@ function App() {
           <ProtectedPage><EditReferralDoctor /></ProtectedPage>
         } />
         <Route path="/echo-studies" element={
-          <ProtectedPage><ClinicalWorkspace initialType="Adult Echo" /></ProtectedPage>
+          <Navigate to="/reports" replace />
         } />
         <Route path="/fetal-echo-report" element={
           <ProtectedPage><FetalEchoReport /></ProtectedPage>
@@ -108,10 +110,10 @@ function App() {
           <ProtectedPage><PediatricEchoReport /></ProtectedPage>
         } />
         <Route path="/echo-scan" element={
-          <ProtectedPage><EchoScan /></ProtectedPage>
+          <Navigate to="/reports" replace />
         } />
         <Route path="/echo-scan/:scanId" element={
-          <ProtectedPage><EchoScan /></ProtectedPage>
+          <Navigate to="/reports" replace />
         } />
         <Route path="/images" element={
           <ProtectedPage><ImagesViewer /></ProtectedPage>

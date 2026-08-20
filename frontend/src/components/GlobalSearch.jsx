@@ -67,7 +67,7 @@ export default function GlobalSearch() {
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Perform search filtering across Patient ID, First Name, Last Name, Mobile / Phone
+  // Perform search filtering across Patient ID, DOB, First Name, Last Name, Mobile / Phone
   useEffect(() => {
     const q = query.trim().toLowerCase()
     if (!q) {
@@ -82,13 +82,15 @@ export default function GlobalSearch() {
       const firstName = String(patient.first_name || '').toLowerCase()
       const lastName = String(patient.last_name || '').toLowerCase()
       const fullName = `${patient.salutation || ''} ${firstName} ${patient.middle_name || ''} ${lastName}`.toLowerCase()
-      const mobile = String(patient.mobile || patient.phone1 || patient.phone2 || '').toLowerCase()
+      const dob = String(patient.dob || '').toLowerCase()
+      const mobile = [patient.mobile, patient.phone1, patient.phone2].filter(Boolean).join(' ').toLowerCase()
 
       return (
         pid.includes(q) ||
         firstName.includes(q) ||
         lastName.includes(q) ||
         fullName.includes(q) ||
+        dob.includes(q) ||
         mobile.includes(q)
       )
     })
@@ -151,7 +153,7 @@ export default function GlobalSearch() {
             if (query.trim()) setIsOpen(true)
           }}
           onKeyDown={handleKeyDown}
-          placeholder="Search patient, ID, scan type..."
+          placeholder="Search patient, ID, DOB, mobile..."
           className="h-9 w-full rounded-xl border border-slate-200/90 bg-white pl-9 pr-14 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition-all duration-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 shadow-2xs"
         />
 
@@ -183,7 +185,7 @@ export default function GlobalSearch() {
               <Sparkles className="h-3.5 w-3.5" />
               Patient Matches ({results.length})
             </span>
-            <span className="text-[11px] text-slate-400">Search by ID, Name, or Mobile</span>
+            <span className="text-[11px] text-slate-400">Search by ID, name, DOB, or mobile</span>
           </div>
 
           {results.length > 0 ? (
@@ -230,6 +232,12 @@ export default function GlobalSearch() {
                               {patient.gender} {patient.age ? `(${patient.age}y)` : ''}
                             </span>
                           )}
+                          {patient.dob && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3 text-slate-400" />
+                              {patient.dob}
+                            </span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -259,7 +267,7 @@ export default function GlobalSearch() {
               <User className="mx-auto h-8 w-8 text-slate-300" />
               <p className="mt-2 text-xs font-semibold text-slate-700">No patients found for "{query}"</p>
               <p className="mt-1 text-[11px] text-slate-400">
-                Try searching by Patient ID, First Name, Last Name, or Mobile Number.
+                Try searching by Patient ID, DOB, First Name, Last Name, or Mobile Number.
               </p>
               <div className="mt-4 flex justify-center gap-2">
                 <button

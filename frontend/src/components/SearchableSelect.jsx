@@ -38,6 +38,7 @@ export default function SearchableSelect({
     return options.filter(
       (opt) =>
         opt.label.toLowerCase().includes(q) ||
+        String(opt.searchText || '').toLowerCase().includes(q) ||
         String(opt.value).toLowerCase().includes(q)
     )
   }, [options, searchQuery])

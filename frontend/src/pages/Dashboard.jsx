@@ -122,10 +122,10 @@ export default function Dashboard() {
   useEffect(() => {
     Promise.all([
       scanService.getDashboardStats(),
-      scanService.getScans(),
+      patientService.getAllVisits(),
       patientService.getPatients(),
     ])
-      .then(([statsResult, scansResult, patientsResult]) => {
+      .then(([statsResult, visitsResult, patientsResult]) => {
         if (statsResult.success && statsResult.data) {
           setStats((prev) => ({
             ...prev,
@@ -142,15 +142,15 @@ export default function Dashboard() {
 
         const patients = asList(patientsResult)
         const patientLookup = buildPatientLookup(patients)
-        const scans = [...asList(scansResult)]
+        const visits = [...asList(visitsResult)]
           .sort((left, right) => {
-            const rightDate = new Date(right.scan_date || right.created_at || 0).getTime()
-            const leftDate = new Date(left.scan_date || left.created_at || 0).getTime()
+            const rightDate = new Date(right.visit_date || right.created_at || 0).getTime()
+            const leftDate = new Date(left.visit_date || left.created_at || 0).getTime()
             return (rightDate - leftDate) || (right.id - left.id)
           })
-          .map((scan) => {
-            const patient = findPatientForScan(scan, patientLookup)
-            const { dateTime, timeStr, rawDate } = formatScanDate(scan.scan_date || scan.created_at)
+          .map((visit) => {
+            const patient = findPatientForScan(visit, patientLookup)
+            const { dateTime, timeStr, rawDate } = formatScanDate(visit.visit_date || visit.created_at)
             const patientName = formatPatientName(patient)
             const initials = [patient?.first_name, patient?.last_name]
               .filter(Boolean)
@@ -159,25 +159,35 @@ export default function Dashboard() {
               .slice(0, 2) || 'AB'
 
             return {
-              id: scan.id,
-              patientId: patient?.id || scan.patient_id || scan.patient_display_id,
-              visitId: scan.visit_id,
+              id: visit.id,
+              patientId: patient?.id || visit.patient_id,
+              visitId: visit.id,
               patientName,
-              patientCode: patient?.patient_id || scan.patient_display_id || `PAT${scan.patient_id}`,
+              patientCode: patient?.patient_id || `PAT${visit.patient_id}`,
               demographics: formatDemographics(patient),
               initials,
-              scanType: scan.scan_type || 'Echo',
-              scanRoute: scanRoutes[scan.scan_type] || '/echo-studies',
+              scanType: visit.scan_type || 'Fetal Echo',
+              scanRoute: scanRoutes[visit.scan_type] || '/fetal-echo-report',
               dateTime,
               timeStr,
               rawDate,
-              aiSummary: scan.conclusion || scan.findings || 'No findings recorded.',
-              importance: getClinicalImportance(scan),
-              confidence: scan.ai_confidence ?? 92,
+              aiSummary: visit.diagnosis || visit.visit_type || 'Visit recorded. Open the visit to complete the report.',
+              importance: 'Low',
+              confidence: 'Not recorded',
+              referralDoctor: visit.referral_doctor || '—',
+              searchText: [
+                patient?.dob,
+                patient?.mobile,
+                patient?.phone1,
+                patient?.phone2,
+                patient?.email,
+                visit.referral_doctor,
+                visit.visit_type,
+              ].filter(Boolean).join(' '),
             }
           })
 
-        setRecentScans(scans)
+        setRecentScans(visits)
       })
       .catch(() => setRecentScans([]))
       .finally(() => setIsLoadingScans(false))
@@ -205,7 +215,7 @@ export default function Dashboard() {
       iconBg: 'bg-[#3b82f6]', // blue
       strokeColor: '#3b82f6',
       path: 'M0,24 Q15,20 30,22 T60,14 T90,16 T120,5',
-      link: '/echo-studies',
+      link: '/reports',
     },
     {
       title: 'TOTAL VISITS',
@@ -286,7 +296,8 @@ export default function Dashboard() {
         const matchName = scan.patientName.toLowerCase().includes(q)
         const matchCode = scan.patientCode.toLowerCase().includes(q)
         const matchSummary = scan.aiSummary.toLowerCase().includes(q)
-        if (!matchName && !matchCode && !matchSummary) return false
+        const matchExtra = scan.searchText.toLowerCase().includes(q)
+        if (!matchName && !matchCode && !matchSummary && !matchExtra) return false
       }
 
       // 3. Date Filter
@@ -346,12 +357,12 @@ export default function Dashboard() {
     })
   }, [recentScans, selectedScanType, searchQuery, dateFilter, customStartDate, customEndDate])
 
-  // Limit to Top 10 Recent Scans
+  // Limit to Top 10 Recent Visits
   const top10Scans = useMemo(() => dateFilteredScans.slice(0, 10), [dateFilteredScans])
 
-  // Export Filtered Scans as CSV
+  // Export Filtered Visits as CSV
   const handleExport = () => {
-    const headers = ['#', 'Patient Name', 'Patient ID', 'Scan Type', 'Date', 'Time', 'AI Findings', 'Importance']
+    const headers = ['#', 'Patient Name', 'Patient ID', 'Scan Type', 'Date', 'Time', 'Visit Summary', 'Importance']
     const rows = top10Scans.map((s, idx) => [
       idx + 1,
       `"${s.patientName}"`,
@@ -368,7 +379,7 @@ export default function Dashboard() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
-    link.setAttribute('download', `recent_scans_${new Date().toISOString().slice(0, 10)}.csv`)
+    link.setAttribute('download', `recent_visits_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -435,19 +446,19 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Top 10 Recent Scans Main Section */}
+      {/* Top 10 Recent Visits Main Section */}
       <div className="rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
         {/* Section Header & Toolbar */}
         <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 lg:flex-row lg:items-center lg:justify-between bg-white">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900">Top 10 Recent Scans</h3>
+              <h3 className="text-base font-bold text-slate-900">Top 10 Recent Visits</h3>
               <span className="rounded-full bg-[#e6f4f1] px-2 py-0.5 text-xs font-semibold text-[#0f5449]">
-                {top10Scans.length} Scans
+                {top10Scans.length} Visits
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Latest echo scans with AI analysis, clinical importance and detailed findings
+              Latest patient visits across Adult, Fetal and Pediatric Echo workflows
             </p>
           </div>
 
@@ -458,7 +469,7 @@ export default function Dashboard() {
               <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search patient, ID, findings..."
+                placeholder="Search patient, ID, DOB, mobile..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-8 w-52 rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20"
@@ -614,7 +625,7 @@ export default function Dashboard() {
               {top10Scans.map((scan, idx) => (
                 <tr
                   key={scan.id}
-                  onClick={() => navigate(`${scan.scanRoute}/${scan.id}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
+                  onClick={() => navigate(`${scan.scanRoute}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
                   className="group cursor-pointer transition hover:bg-slate-50/80"
                 >
                   {/* Row # */}
@@ -625,7 +636,7 @@ export default function Dashboard() {
                     className="py-3.5 px-4"
                     onClick={(event) => {
                       event.stopPropagation()
-                      if (scan.patientId) navigate(`/visits?patient=${scan.patientId}`)
+                      if (scan.patientId) navigate(`/patients/${scan.patientId}/records`)
                     }}
                   >
                     <div className="flex items-center gap-3">
@@ -681,7 +692,7 @@ export default function Dashboard() {
 
                   {/* AI Confidence */}
                   <td className="py-3.5 px-4 text-slate-400 font-medium">
-                    {scan.confidence}% (Estimated)
+                    {scan.confidence}
                   </td>
 
                   {/* Action Icon Buttons */}
@@ -689,7 +700,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => navigate(`${scan.scanRoute}/${scan.id}?patientId=${scan.patientId}`)}
+                        onClick={() => navigate(`${scan.scanRoute}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
                         className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
                         title="View Echo Report"
                       >
@@ -697,7 +708,7 @@ export default function Dashboard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`/visits?patient=${scan.patientId}`)}
+                        onClick={() => navigate(`/patients/${scan.patientId}/records`)}
                         className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
                         title="View Patient Details"
                       >
@@ -711,7 +722,7 @@ export default function Dashboard() {
               {!isLoadingScans && top10Scans.length === 0 && (
                 <tr>
                   <td colSpan="8" className="px-4 py-10 text-center text-xs text-slate-500">
-                    No scans match the selected filters.
+                    No visits match the selected filters.
                   </td>
                 </tr>
               )}

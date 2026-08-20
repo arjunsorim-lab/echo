@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Save, X } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import AddableSelect from '../components/AddableSelect'
+import ConfiguredFields from '../components/ConfiguredFields'
 import {
   getStatesForCountry,
   getCitiesForState,
@@ -41,6 +42,7 @@ function EditPatient() {
     taluk: '',
     area: '',
     area_po: '',
+    custom_fields: {},
   })
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -257,6 +259,8 @@ function EditPatient() {
               </div>
             </div>
           </div>
+
+          <ConfiguredFields module="Patients" values={formData.custom_fields} onChange={(custom_fields) => setFormData({ ...formData, custom_fields })} />
 
           {/* Action Buttons */}
           {submitError && (

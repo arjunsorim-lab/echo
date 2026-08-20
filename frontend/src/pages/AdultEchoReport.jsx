@@ -19,9 +19,12 @@ import {
 import { patientService } from '../api/patientService'
 import { referralDoctorService } from '../api/referralDoctorService'
 import { scanService } from '../api/scanService'
+import { deliverReportIfEnabled } from '../api/reportDelivery'
+import { workspaceService } from '../api/workspaceService'
 import ImagesModal from '../components/ImagesModal'
 import ReportConfigModal from '../components/ReportConfigModal'
 import SearchableSelect from '../components/SearchableSelect'
+import ConfiguredFields from '../components/ConfiguredFields'
 
 const mainTabs = [
   { id: 'scan', label: 'Scan' },
@@ -67,10 +70,11 @@ const defaultReferralLetter = [
 
 const initialReport = {
   indication: '',
+  custom_fields: {},
   tag: '',
   add_new_tag: false,
   print_options: {
-    echo_details_custom_report: true,
+    echo_details_custom_report: false,
   },
   echo_details: {
     situs: 'Normal',
@@ -309,6 +313,7 @@ const initialReport = {
     internal_comments: '',
     report_signed_by_l: '',
     report_signed_by_r: '',
+    icd_code: '',
     investigation_status: {
       abnormal: false,
       ambiguity: false,
@@ -420,6 +425,7 @@ function AdultEchoReport() {
   const [statusMessage, setStatusMessage] = useState('')
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
+  const [reportSettings, setReportSettings] = useState({})
 
   const selectedPatient = useMemo(
     () => patients.find((patient) => patient.id === selectedPatientId),
@@ -487,6 +493,8 @@ function AdultEchoReport() {
     loadReferenceData()
   }, [])
 
+  useEffect(() => { workspaceService.getSettings().then((result) => setReportSettings(result.data || {})).catch(() => {}) }, [])
+
   useEffect(() => {
     if (!scanId) return
 
@@ -534,6 +542,7 @@ function AdultEchoReport() {
       report_title: reportToSave.impression.report_title,
       indicator: reportToSave.indication,
       tag: reportToSave.tag,
+      icdCode: reportToSave.impression.icd_code,
       status: reportToSave.impression.report_completed ? 'Completed' : 'In Progress',
       adult_echo_report: reportToSave,
     }
@@ -547,6 +556,9 @@ function AdultEchoReport() {
         const nextScanId = result.data.id
         setSavedScanId(nextScanId)
         setStatusMessage(successMessage)
+        deliverReportIfEnabled({ title: reportToSave.impression.report_title || 'Adult Echo Report', patient: selectedPatient, visitId: selectedVisitId, report: reportToSave })
+          .then((delivery) => delivery.sent && setStatusMessage(`${successMessage} Emailed to ${delivery.recipient}.`))
+          .catch((error) => setStatusMessage(`${successMessage} Email delivery failed: ${error.response?.data?.detail || 'check SMTP settings'}.`))
 
         if (!savedScanId) {
           const query = new URLSearchParams()
@@ -667,19 +679,6 @@ function AdultEchoReport() {
 
             {statusMessage && <span className="font-semibold text-blue-800">{statusMessage}</span>}
           </div>
-
-          <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50/50 p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-teal-700">Options to print</div>
-            <label className="inline-flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm">
-              <input
-                type="checkbox"
-                checked={report.print_options.echo_details_custom_report}
-                onChange={(event) => updateReport(['print_options', 'echo_details_custom_report'], event.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-              />
-              Echo details custom report
-            </label>
-          </div>
         </section>
 
         {activeMainTab === 'referral-letter' ? (
@@ -733,6 +732,7 @@ function AdultEchoReport() {
           report={report}
           updateReport={updateReport}
           patient={selectedPatient}
+          settings={reportSettings}
           onClose={() => setIsPreviewOpen(false)}
         />
       )}
@@ -1148,7 +1148,9 @@ function ImpressionPanel({ report, updateReport }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0 space-y-3">
+        <ConfiguredFields module="Adult Echo Report" values={report.custom_fields} onChange={(custom_fields) => updateReport(['custom_fields'], custom_fields)} />
         <TextInput label="Report title" value={impression.report_title} onChange={(value) => updateReport(['impression', 'report_title'], value)} />
+        <TextInput label="ICD-10 code (cardiology)" value={impression.icd_code} onChange={(value) => updateReport(['impression', 'icd_code'], value)} />
         <TextInput label="First line of report" value={impression.first_line} onChange={(value) => updateReport(['impression', 'first_line'], value)} />
         <TextArea label="Header comments - (F11 - Show previous header comments)" value={impression.header_comments} onChange={(value) => updateReport(['impression', 'header_comments'], value)} rows={3} />
         <TextArea label="Footer comments - (F11 - Show previous footer comments)" value={impression.footer_comments} onChange={(value) => updateReport(['impression', 'footer_comments'], value)} rows={3} />
@@ -1419,7 +1421,7 @@ function ImagePanel({ activeImageTab, setActiveImageTab, report, updateReport })
   )
 }
 
-function ReportPreviewModal({ report, updateReport, patient, onClose }) {
+function ReportPreviewModal({ report, updateReport, patient, settings = {}, onClose }) {
   const [isConfigOpen, setIsConfigOpen] = useState(false)
   const detailRows = [
     ['Situs', report.echo_details.situs],
@@ -1461,6 +1463,7 @@ function ReportPreviewModal({ report, updateReport, patient, onClose }) {
           </div>
           <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-6">
             <div className="mx-auto min-h-[980px] max-w-3xl bg-white p-10 shadow-sm">
+              <h2 className="mb-5 text-center text-xl font-bold">{report.impression.report_title || settings.reportHeaderText || 'Adult Echo Report'}</h2>
               <table className="mb-4 w-full border border-slate-400 text-sm">
                 <tbody>
                   <tr>
@@ -1483,7 +1486,6 @@ function ReportPreviewModal({ report, updateReport, patient, onClose }) {
                   </tr>
                 </tbody>
               </table>
-              <h2 className="mb-6 text-center text-xl font-bold">{report.impression.report_title}</h2>
               <h3 className="mb-3 font-bold">Adult Echo details</h3>
               <div className="space-y-3">
                 {detailRows.map(([label, value]) => (
@@ -1499,6 +1501,8 @@ function ReportPreviewModal({ report, updateReport, patient, onClose }) {
                   <div className="whitespace-pre-line font-semibold">{report.impression.final_impression}</div>
                 </>
               )}
+              {(settings.leftDoctorName || settings.rightDoctorName) && <div className="mt-10 flex justify-between border-t pt-5 text-sm"><span>{settings.leftDoctorName || 'Primary consultant'}<br /><span className="text-xs text-slate-500">Doctor signature</span></span><span className="text-right">{settings.rightDoctorName || 'Reporting doctor'}<br /><span className="text-xs text-slate-500">Doctor signature</span></span></div>}
+              {settings.reportFooterText && <p className="mt-8 border-t pt-3 text-center text-xs text-slate-500">{settings.reportFooterText}</p>}
             </div>
           </div>
         </div>

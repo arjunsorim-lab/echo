@@ -11,12 +11,11 @@ import {
   Plus,
   Trash2,
   Printer,
-  Activity,
 } from 'lucide-react'
 import { patientService } from '../api/patientService'
-import { scanService } from '../api/scanService'
 import AddableSelect from '../components/AddableSelect'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
+import ConfiguredFields from '../components/ConfiguredFields'
 import { workspaceService } from '../api/workspaceService'
 import {
   getStatesForCountry,
@@ -55,10 +54,10 @@ function NewPatient() {
     taluk: '',
     area: '',
     area_po: '',
+    custom_fields: {},
   })
 
   const [visits, setVisits] = useState([])
-  const [selectedScans, setSelectedScans] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false)
@@ -104,7 +103,6 @@ function NewPatient() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const shouldGoToReport = e.nativeEvent.submitter?.value === 'reporting'
     setSubmitError('')
     setIsSubmitting(true)
     try {
@@ -116,11 +114,7 @@ function NewPatient() {
         const result = await patientService.addVisit(patient.id, visitPayload)
         createdVisits.push(result.data)
       }
-      for (const scanType of selectedScans) {
-        await scanService.createScan({ patient_id: patient.id, patient_display_id: patient.patient_id, visit_id: createdVisits[0]?.id || '', scan_type: scanType, status: 'draft' })
-      }
-      if (shouldGoToReport && selectedScans.length) navigate(`/echo-studies?patient=${patient.id}&visit=${createdVisits[0]?.id || ''}&type=${encodeURIComponent(selectedScans[0])}`)
-      else navigate('/search')
+      navigate(`/patients/${patient.id}/records`)
     } catch (error) {
       console.error('Error creating patient:', error)
       setSubmitError(error.response?.data?.detail || 'Unable to create the patient. Please check the required fields and try again.')
@@ -134,7 +128,6 @@ function NewPatient() {
   }
   const handleUpdateVisit = (id, field, value) => setVisits(visits.map(v => v.id === id ? { ...v, [field]: value } : v))
   const handleDeleteVisit = (id) => setVisits(visits.filter(v => v.id !== id))
-  const toggleScan = (scanType) => setSelectedScans(prev => prev.includes(scanType) ? prev.filter(s => s !== scanType) : [...prev, scanType])
 
   const inputClass = "w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
   const selectClass = "w-full px-3 py-2 pr-8 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition appearance-none bg-white"
@@ -350,45 +343,16 @@ function NewPatient() {
                   </table>
                 </div>
               </div>
+              <ConfiguredFields module="Patients" values={formData.custom_fields} onChange={(custom_fields) => setFormData({ ...formData, custom_fields })} />
             </div>
 
             {/* Right Sidebar */}
             <div className="space-y-4">
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-rose-50 to-white">
-                  <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-rose-600" /> List of Scans
-                  </h2>
-                </div>
-                <div className="p-3 space-y-2">
-                  {['Adult Echo', 'Fetal Echo', 'Pediatric Echo'].map(scanType => (
-                    <div key={scanType} role="button" tabIndex={0}
-                      onDoubleClick={(event) => { event.preventDefault(); navigate(`/echo-studies?type=${encodeURIComponent(scanType)}`) }}
-                      onKeyDown={(event) => { if (event.key === 'Enter') navigate(`/echo-studies?type=${encodeURIComponent(scanType)}`) }}
-                      title={`Double-click to open ${scanType}`}
-                      className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-teal-300 hover:bg-teal-50 group">
-                      <input type="checkbox" checked={selectedScans.includes(scanType)} onChange={() => toggleScan(scanType)} className="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm text-slate-700 group-hover:text-teal-700">{scanType}</span>
-                        <span className="block text-[11px] text-slate-400">Double-click to open</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
               <div className="space-y-3">
-                <button type="button" onClick={handleAddVisit} className="w-full px-4 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition flex items-center justify-center gap-2 font-medium shadow-sm">
-                  <Plus className="w-4 h-4" /> Add New Visit
-                </button>
                 <button type="button" onDoubleClick={() => setIsReferralModalOpen(true)} title="Double-click to manage referral doctors and hospitals" className="w-full px-4 py-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg transition flex items-center justify-center gap-2 font-medium">
                   <User className="w-4 h-4" /> New Referral Doctor
                 </button>
-                <div className="pt-4 border-t border-slate-200">
-                  <button type="submit" value="reporting" className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg transition flex items-center justify-center gap-2 font-medium shadow-sm">
-                    <Activity className="w-4 h-4" /> Go to Scan
-                  </button>
-                </div>
+                <p className="rounded-lg border border-teal-100 bg-teal-50 p-3 text-sm text-teal-900">Save the patient, then use the patient record to add and open visits and reports.</p>
               </div>
             </div>
           </div>
