@@ -12,10 +12,14 @@ import {
 } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
+import { deliverReportIfEnabled } from '../api/reportDelivery'
+import { workspaceService } from '../api/workspaceService'
 
 import ImagesModal from '../components/ImagesModal'
 import ReportConfigModal from '../components/ReportConfigModal'
 import SearchableSelect from '../components/SearchableSelect'
+import ConfiguredFields from '../components/ConfiguredFields'
+import { ConfiguredSignatureMark, ConfiguredSignatureSelect } from '../components/ConfiguredSignature'
 
 const mainTabs = [
   { id: 'scan', label: 'Scan' },
@@ -35,13 +39,14 @@ const imageTabs = [
 
 const initialReport = {
   indication: '',
+  custom_fields: {},
   tag: '',
   add_new_tag: false,
   patient_tags: [],
   print_options: {
-    biometry: true,
+    biometry: false,
     doppler: false,
-    echo_details_custom_report: true,
+    echo_details_custom_report: false,
   },
   echo_details: {
     heart_rate: '',
@@ -176,7 +181,6 @@ const initialReport = {
     investigation_status: {
       abnormal: false,
       ambiguity: false,
-      growth_abnormality: false,
     },
     primary_consultant: '',
     second_consultant: '',
@@ -272,6 +276,7 @@ function PediatricEchoReport() {
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
+  const [reportSettings, setReportSettings] = useState({})
 
   const selectedPatient = useMemo(
     () => patients.find((patient) => patient.id === selectedPatientId),
@@ -282,6 +287,16 @@ function PediatricEchoReport() {
     const echo = report.echo_details
     return Boolean(echo?.situs || echo?.mitral_valve || echo?.aortic_valve || echo?.right_ventricle)
   }, [report.echo_details])
+
+  const scatterNormalComments = () => {
+    setReport((current) => ({
+      ...current,
+      echo_details: {
+        ...current.echo_details,
+        ...pediatricNormalComments,
+      },
+    }))
+  }
 
   const toggleNormalComments = () => {
     if (isNormalCommentsPopulated) {
@@ -312,15 +327,15 @@ function PediatricEchoReport() {
         },
       }))
     } else {
-      setReport((current) => ({
-        ...current,
-        echo_details: {
-          ...current.echo_details,
-          ...pediatricNormalComments,
-        },
-      }))
+      scatterNormalComments()
     }
   }
+
+  useEffect(() => {
+    if (searchParams.get('scatter') === 'true' || searchParams.get('autoScatter') === 'true') {
+      scatterNormalComments()
+    }
+  }, [searchParams])
 
   useEffect(() => {
     const fetchPatients = async () => {
@@ -336,6 +351,8 @@ function PediatricEchoReport() {
 
     fetchPatients()
   }, [])
+
+  useEffect(() => { workspaceService.getSettings().then((result) => setReportSettings(result.data || {})).catch(() => {}) }, [])
 
   useEffect(() => {
     if (!scanId) return
@@ -397,6 +414,9 @@ function PediatricEchoReport() {
         const nextScanId = result.data.id
         setSavedScanId(nextScanId)
         setStatusMessage('Pediatric echo report saved.')
+        deliverReportIfEnabled({ title: report.impression.report_title || 'Pediatric Echo Report', patient: selectedPatient, visitId: selectedVisitId, report })
+          .then((delivery) => delivery.sent && setStatusMessage(`Pediatric echo report saved and emailed to ${delivery.recipient}.`))
+          .catch((error) => setStatusMessage(`Pediatric echo report saved, but email delivery failed: ${error.response?.data?.detail || 'check SMTP settings'}.`))
 
         if (!savedScanId) {
           const query = new URLSearchParams()
@@ -503,27 +523,6 @@ function PediatricEchoReport() {
 
             {statusMessage && <span className="font-semibold text-blue-800">{statusMessage}</span>}
           </div>
-
-          <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50/50 p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-teal-700">Options to print</div>
-            <div className="flex flex-wrap gap-3">
-              {Object.entries({
-                biometry: 'Biometry',
-                doppler: 'Doppler',
-                echo_details_custom_report: 'Echo details custom report',
-              }).map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm">
-                  <input
-                    type="checkbox"
-                    checked={report.print_options[key]}
-                    onChange={(event) => updateReport(['print_options', key], event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </div>
         </section>
 
         <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
@@ -569,6 +568,7 @@ function PediatricEchoReport() {
           report={report}
           updateReport={updateReport}
           patient={selectedPatient}
+          settings={reportSettings}
           onClose={() => setIsPreviewOpen(false)}
         />
       )}
@@ -576,6 +576,7 @@ function PediatricEchoReport() {
         open={isImagesModalOpen}
         onClose={() => setIsImagesModalOpen(false)}
         patient={selectedPatient}
+        imageConfig={reportSettings}
       />
     </div>
   )
@@ -829,6 +830,7 @@ function ImpressionPanel({ report, updateReport }) {
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
       <div className="min-w-0 space-y-3">
+        <ConfiguredFields module="Pediatric Echo Report" values={report.custom_fields} onChange={(custom_fields) => updateReport(['custom_fields'], custom_fields)} />
         <TextInput label="Report title" value={impression.report_title} onChange={(value) => updateReport(['impression', 'report_title'], value)} />
         <TextInput label="First line of report" value={impression.first_line} onChange={(value) => updateReport(['impression', 'first_line'], value)} />
         <TextArea label="Header comments - (F11 - Show previous header comments)" value={impression.header_comments} onChange={(value) => updateReport(['impression', 'header_comments'], value)} rows={3} />
@@ -861,13 +863,12 @@ function ImpressionPanel({ report, updateReport }) {
       </div>
 
       <aside className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <ComboWithNew label="Report signed by (L)" value={impression.report_signed_by_l} onChange={(value) => updateReport(['impression', 'report_signed_by_l'], value)} />
-        <ComboWithNew label="Report signed by (R)" value={impression.report_signed_by_r} onChange={(value) => updateReport(['impression', 'report_signed_by_r'], value)} />
+        <ConfiguredSignatureSelect label="Report signed by (L)" value={impression.report_signed_by_l} onChange={(value) => updateReport(['impression', 'report_signed_by_l'], value)} />
+        <ConfiguredSignatureSelect label="Report signed by (R)" value={impression.report_signed_by_r} onChange={(value) => updateReport(['impression', 'report_signed_by_r'], value)} />
         <Fieldset title="Investigation status">
           {[
             ['Abnormal', 'abnormal'],
             ['Ambiguity', 'ambiguity'],
-            ['Growth Abnormality', 'growth_abnormality'],
           ].map(([label, key]) => (
             <label key={key} className="block">
               <input type="checkbox" checked={impression.investigation_status[key]} onChange={(event) => updateReport(['impression', 'investigation_status', key], event.target.checked)} /> {label}
@@ -1037,7 +1038,7 @@ function PatientTagModal({ report, updateReport, onClose, onStatus }) {
   )
 }
 
-function ReportPreviewModal({ report, updateReport, patient, onClose }) {
+function ReportPreviewModal({ report, updateReport, patient, settings = {}, onClose }) {
   const [isConfigOpen, setIsConfigOpen] = useState(false)
   const detailRows = [
     ['Atrial situs', report.echo_details.atrial_situs || 'Normal'],
@@ -1083,6 +1084,8 @@ function ReportPreviewModal({ report, updateReport, patient, onClose }) {
           </div>
           <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-6">
             <div className="mx-auto min-h-[980px] max-w-3xl bg-white p-10 shadow-sm">
+              {settings.reportHeaderText && <p className="mb-1 text-sm text-slate-600" style={{ textAlign: String(settings.reportHeaderPlacement || 'Center').toLowerCase() }}>{settings.reportHeaderText}</p>}
+              <h2 className="mb-5 text-center text-xl font-bold">{report.impression.report_title || 'Pediatric Echo Report'}</h2>
               <table className="mb-4 w-full border border-slate-400 text-sm">
                 <tbody>
                   <tr>
@@ -1105,7 +1108,6 @@ function ReportPreviewModal({ report, updateReport, patient, onClose }) {
                   </tr>
                 </tbody>
               </table>
-              <h2 className="mb-6 text-center text-xl font-bold">{report.impression.report_title}</h2>
               <h3 className="mb-3 font-bold">Pediatric Echo details</h3>
               <div className="space-y-3">
                 {detailRows.map(([label, value]) => (
@@ -1115,6 +1117,8 @@ function ReportPreviewModal({ report, updateReport, patient, onClose }) {
                   </div>
                 ))}
               </div>
+              {(report.impression.report_signed_by_l || report.impression.report_signed_by_r || settings.leftDoctorName || settings.rightDoctorName) && <div className="mt-10 flex justify-between border-t pt-5 text-sm"><ConfiguredSignatureMark name={report.impression.report_signed_by_l || settings.leftDoctorName} settings={settings} /><ConfiguredSignatureMark name={report.impression.report_signed_by_r || settings.rightDoctorName} settings={settings} align="right" /></div>}
+              {settings.reportFooterText && <p className="mt-8 border-t pt-3 text-xs text-slate-500" style={{ textAlign: String(settings.reportFooterPlacement || 'Center').toLowerCase() }}>{settings.reportFooterText}</p>}
             </div>
           </div>
         </div>

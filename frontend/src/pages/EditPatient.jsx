@@ -3,13 +3,17 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Save, X } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import AddableSelect from '../components/AddableSelect'
+import ConfiguredFields from '../components/ConfiguredFields'
+import PatientDocumentUpload from '../components/PatientDocumentUpload'
 import {
   getStatesForCountry,
   getCitiesForState,
   getDialCode,
   lookupPincode,
-  calculateAge,
+  calculateAgeDetails,
   COUNTRY_DIAL_CODES,
+  postalCodeLength,
+  phoneNumberLength,
 } from '../data/locationData'
 
 function EditPatient() {
@@ -41,6 +45,7 @@ function EditPatient() {
     taluk: '',
     area: '',
     area_po: '',
+    custom_fields: {},
   })
   const [loading, setLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -51,6 +56,9 @@ function EditPatient() {
   const availableStates = getStatesForCountry(formData.country)
   const availableCities = getCitiesForState(formData.state)
   const dialCode = getDialCode(formData.country)
+  const ageDetails = calculateAgeDetails(formData.dob)
+  const zipLength = postalCodeLength(formData.country)
+  const phoneLength = phoneNumberLength(formData.country)
 
   useEffect(() => { fetchPatient() }, [id])
 
@@ -66,12 +74,12 @@ function EditPatient() {
   }
 
   const handleDobChange = useCallback((dob) => {
-    setFormData(prev => ({ ...prev, dob, age: calculateAge(dob) }))
+    const details = calculateAgeDetails(dob)
+    setFormData(prev => ({ ...prev, dob, age: details.years }))
   }, [])
 
   const handleCountryChange = useCallback((country) => {
-    const code = getDialCode(country)
-    setFormData(prev => ({ ...prev, country, state: '', district_city: '', mobile: code ? code + ' ' : '' }))
+    setFormData(prev => ({ ...prev, country, state: '', district_city: '', mobile: '' }))
     setZipLookupStatus('')
   }, [])
 
@@ -81,14 +89,14 @@ function EditPatient() {
 
   const handleZipChange = useCallback((zip) => {
     setFormData(prev => ({ ...prev, zip_code: zip }))
-    if (zip.trim().length === 6) {
+    if (zip.trim().length === 6 && formData.country === 'India') {
       const info = lookupPincode(zip.trim())
       if (info) {
         setFormData(prev => ({ ...prev, zip_code: zip, taluk: info.taluk, area_po: info.post, district_city: info.district || prev.district_city }))
         setZipLookupStatus('found')
       } else { setZipLookupStatus('notfound') }
     } else { setZipLookupStatus('') }
-  }, [])
+  }, [formData.country])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -144,13 +152,12 @@ function EditPatient() {
                 <input type="text" className="input" value={formData.middle_name} onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })} />
               </div>
               <div>
-                <label className="label">Age</label>
-                <input type="number" className="input" value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} />
+                <label className="label">Date of Birth *</label>
+                <input required type="date" className="input" value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} />
               </div>
               <div>
-                <label className="label">Date of Birth</label>
-                <input type="date" className="input" value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} />
-                {formData.dob && formData.age && <p className="mt-1 text-xs text-teal-600 font-medium">Age: {formData.age} years</p>}
+                <label className="label">Age</label>
+                <output className="input block bg-slate-50 text-slate-700">{ageDetails.label || 'Calculated from date of birth'}</output>
               </div>
               <div>
                 <label className="label">Gender *</label>
@@ -193,7 +200,7 @@ function EditPatient() {
               </div>
               <div>
                 <label className="label">Zip Code</label>
-                <input type="text" className="input" value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value)} maxLength={10} placeholder="Enter zip / pincode" />
+                <input type="text" inputMode="numeric" className="input" value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value.replace(/\D/g, '').slice(0, zipLength))} maxLength={zipLength} placeholder={`Enter ${zipLength}-digit postal code`} />
                 {zipLookupStatus === 'found' && <p className="mt-1 text-xs text-teal-600 font-medium">Taluk and Post auto-filled</p>}
                 {zipLookupStatus === 'notfound' && <p className="mt-1 text-xs text-amber-500 font-medium">Pincode not in database - fill manually</p>}
               </div>
@@ -219,17 +226,17 @@ function EditPatient() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div>
                 <label className="label">Phone #1</label>
-                <input type="tel" className="input" value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} />
+                <input type="tel" inputMode="numeric" maxLength={phoneLength} className="input" value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value.replace(/\D/g, '').slice(0, phoneLength) })} placeholder={`${phoneLength}-digit phone number`} />
               </div>
               <div>
                 <label className="label">Phone #2</label>
-                <input type="tel" className="input" value={formData.phone2} onChange={(e) => setFormData({ ...formData, phone2: e.target.value })} />
+                <input type="tel" inputMode="numeric" maxLength={phoneLength} className="input" value={formData.phone2} onChange={(e) => setFormData({ ...formData, phone2: e.target.value.replace(/\D/g, '').slice(0, phoneLength) })} placeholder={`${phoneLength}-digit phone number`} />
               </div>
               <div>
                 <label className="label">Mobile #</label>
                 <div className="flex gap-1">
                   {dialCode && <span className="flex items-center px-2.5 py-2 rounded-lg border border-gray-300 bg-gray-50 text-sm font-semibold text-gray-700 whitespace-nowrap select-none">{dialCode}</span>}
-                  <input type="tel" className="input flex-1" value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} placeholder="Mobile number" />
+                  <input type="tel" inputMode="numeric" maxLength={phoneLength} className="input flex-1" value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, phoneLength) })} placeholder={`${phoneLength}-digit mobile number`} />
                 </div>
               </div>
               <div>
@@ -251,12 +258,17 @@ function EditPatient() {
                 <label className="label">Aadhaar No</label>
                 <input type="text" className="input" value={formData.aadhaar_no} onChange={(e) => setFormData({ ...formData, aadhaar_no: e.target.value })} />
               </div>
+              <div className="md:col-span-2">
+                <PatientDocumentUpload customFields={formData.custom_fields} onChange={(custom_fields) => setFormData({ ...formData, custom_fields })} />
+              </div>
               <div>
                 <label className="label">Family Doctor</label>
                 <input type="text" className="input" value={formData.family_doctor} onChange={(e) => setFormData({ ...formData, family_doctor: e.target.value })} />
               </div>
             </div>
           </div>
+
+          <ConfiguredFields module="Patients" values={formData.custom_fields} onChange={(custom_fields) => setFormData({ ...formData, custom_fields })} />
 
           {/* Action Buttons */}
           {submitError && (

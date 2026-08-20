@@ -10,6 +10,11 @@ const tabs = [
   'Patient ID',
   'Preferences',
   'Report configuration',
+  'Device connections',
+  'Custom fields',
+  'Signatures',
+  'Image configuration',
+  'General configuration',
   'Rule of Three',
 ]
 
@@ -43,6 +48,34 @@ const defaults = {
   fontSize: '10',
   reportType: 'Report only',
   normalComments: '',
+  deviceVendor: '',
+  deviceEndpoint: '',
+  devicePort: '',
+  deviceAETitle: '',
+  deviceEnabled: false,
+  customFieldName: '',
+  customFieldType: 'Text',
+  customFieldModule: 'Patients',
+  customFieldOptions: '',
+  customFieldRequired: false,
+  customFields: [],
+  leftDoctorName: '',
+  rightDoctorName: '',
+  doctorSignatureMode: 'Typed name',
+  signatureUploadName: '',
+  signatures: [],
+  reportHeaderText: '',
+  reportFooterText: '',
+  reportHeaderPlacement: 'Center',
+  reportFooterPlacement: 'Center',
+  outputImageWidth: '600',
+  outputImageHeight: '450',
+  outputImageColumns: '4',
+  outputImageRows: '2',
+  defaultReportRecipient: '',
+  autoEmailReports: false,
+  disclaimerText: '',
+  icdEnabledCardiologyOnly: true,
 
 }
 
@@ -107,6 +140,11 @@ export default function Settings() {
       {tab === 'Patient ID' && <PatientId data={data} setData={setData} />}
       {tab === 'Preferences' && <Preferences data={data} setData={setData} />}
       {tab === 'Report configuration' && <ReportConfig data={data} setData={setData} />}
+      {tab === 'Device connections' && <DeviceConnections data={data} setData={setData} />}
+      {tab === 'Custom fields' && <CustomFields data={data} setData={setData} />}
+      {tab === 'Signatures' && <Signatures data={data} setData={setData} />}
+      {tab === 'Image configuration' && <ImageConfiguration data={data} setData={setData} />}
+      {tab === 'General configuration' && <GeneralConfiguration data={data} setData={setData} />}
       {tab === 'Rule of Three' && <RuleOfThree templates={templates} setTemplates={setTemplates} />}
     </Workspace>
   )
@@ -604,6 +642,168 @@ function ReportConfig({ data, setData }) {
         </div>
       </Section>
     </div>
+  )
+}
+
+function DeviceConnections({ data, setData }) {
+  const [status, setStatus] = useState('')
+  const [testing, setTesting] = useState(false)
+  const testConnection = async () => {
+    setTesting(true); setStatus('')
+    try {
+      const result = await workspaceService.testDeviceConnection(data)
+      setStatus(result.message || 'Connection successful.')
+    } catch (error) { setStatus(error.response?.data?.detail || 'Connection failed.') }
+    finally { setTesting(false) }
+  }
+  return (
+    <Section title="Device connections" description="Connection settings for echo machines, medical devices, and related integrations.">
+      <FieldGrid
+        fields={[
+          f('deviceEnabled', 'Enable device connection', 'checkbox'),
+          f('deviceVendor', 'Device vendor / model'),
+          f('deviceEndpoint', 'Connection endpoint / IP'),
+          f('devicePort', 'Port', 'number'),
+          f('deviceAETitle', 'AE title / device identifier'),
+        ]}
+        data={data}
+        setData={setData}
+      />
+      <div className="mt-4 flex flex-wrap items-center gap-3"><button type="button" onClick={testConnection} disabled={!data.deviceEndpoint || !data.devicePort || testing} className="secondary-button disabled:opacity-40">{testing ? 'Testing…' : 'Test device connection'}</button>{status && <span className={`text-sm font-medium ${status.startsWith('Connected') ? 'text-emerald-700' : 'text-rose-700'}`}>{status}</span>}</div>
+    </Section>
+  )
+}
+
+function CustomFields({ data, setData }) {
+  const entries = data.customFields || []
+  const addField = () => {
+    const name = data.customFieldName?.trim()
+    if (!name) return
+    setData({
+      ...data,
+      customFields: [...entries, {
+        id: `${Date.now()}-${name}`,
+        name,
+        type: data.customFieldType,
+        module: data.customFieldModule,
+        required: Boolean(data.customFieldRequired),
+        options: data.customFieldOptions || '',
+      }],
+      customFieldName: '',
+      customFieldRequired: false,
+      customFieldOptions: '',
+    })
+  }
+
+  return (
+    <div className="space-y-4">
+      <Section title="Create custom field" description="Create a reusable field, choose its type, require it if needed, and assign it to a module.">
+        <FieldGrid
+          fields={[
+            f('customFieldName', 'Field name'),
+            f('customFieldType', 'Field type', 'select', ['Text', 'Number', 'Date', 'Dropdown', 'Checkbox', 'Textarea']),
+            f('customFieldOptions', 'Dropdown options (comma separated)'),
+            f('customFieldModule', 'Assign to module', 'select', ['Patients', 'Visits', 'Fetal Echo Report', 'Adult Echo Report', 'Pediatric Echo Report', 'Cardiology', 'Reports']),
+            f('customFieldRequired', 'Required field', 'checkbox'),
+          ]}
+          data={data}
+          setData={setData}
+        />
+        <button type="button" onClick={addField} className="primary-button mt-4"><Plus className="h-4 w-4" />Add custom field</button>
+      </Section>
+      <Section title="Configured fields" description="These fields are stored with your settings and remain assigned to their selected module.">
+        {entries.length ? <div className="overflow-x-auto"><table className="data-table"><thead><tr><th>Field</th><th>Type</th><th>Module</th><th>Options</th><th>Required</th><th /></tr></thead><tbody>{entries.map((field) => <tr key={field.id}><td>{field.name}</td><td>{field.type}</td><td>{field.module}</td><td>{field.options || '—'}</td><td>{field.required ? 'Yes' : 'No'}</td><td><button type="button" className="text-red-700 hover:underline" onClick={() => setData({ ...data, customFields: entries.filter((entry) => entry.id !== field.id) })}>Remove</button></td></tr>)}</tbody></table></div> : <p className="text-sm text-slate-500">No custom fields configured.</p>}
+      </Section>
+    </div>
+  )
+}
+
+function Signatures({ data, setData }) {
+  const [name, setName] = useState('')
+  const [role, setRole] = useState('Reporting doctor')
+  const [file, setFile] = useState(null)
+  const [uploading, setUploading] = useState(false)
+  const signatures = data.signatures || []
+  const saveSignature = async () => {
+    if (!name.trim()) return
+    setUploading(true)
+    try {
+      let path = ''
+      if (file) {
+        const body = new FormData()
+        body.append('file', file)
+        const result = await workspaceService.uploadMedia(body)
+        path = result.data?.url || result.data?.path || ''
+      }
+      const entry = { id: `${Date.now()}-${name.trim()}`, name: name.trim(), role, path }
+      setData({ ...data, signatures: [...signatures, entry], leftDoctorName: data.leftDoctorName || entry.name })
+      setName(''); setRole('Reporting doctor'); setFile(null)
+    } finally { setUploading(false) }
+  }
+  return (
+    <div className="space-y-4">
+    <Section title="Doctor signatures and report headers/footers" description="Configure doctor names, signature mode, and report header/footer text.">
+      <FieldGrid
+        fields={[
+          f('leftDoctorName', 'Doctor signature left'),
+          f('rightDoctorName', 'Doctor signature right'),
+          f('doctorSignatureMode', 'Signature display', 'select', ['Typed name', 'Uploaded image', 'Typed name and image']),
+          f('signatureUploadName', 'Signature image filename'),
+          f('reportHeaderText', 'Report header text', 'textarea'),
+          f('reportHeaderPlacement', 'Header placement', 'select', ['Left', 'Center', 'Right']),
+          f('reportFooterText', 'Report footer text', 'textarea'),
+          f('reportFooterPlacement', 'Footer placement', 'select', ['Left', 'Center', 'Right']),
+        ]}
+        data={data}
+        setData={setData}
+      />
+    </Section>
+    <Section title="Configured doctor signatures" description="Upload, update, assign, and display signature records in reports.">
+      <div className="grid gap-3 md:grid-cols-4">
+        <label className="field-label"><span>Doctor name</span><input className="field-control" value={name} onChange={(event) => setName(event.target.value)} /></label>
+        <label className="field-label"><span>Role</span><select className="field-control" value={role} onChange={(event) => setRole(event.target.value)}><option>Reporting doctor</option><option>Primary consultant</option><option>Second consultant</option></select></label>
+        <label className="field-label"><span>Signature image</span><input className="field-control" type="file" accept="image/*" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label>
+        <button type="button" disabled={!name.trim() || uploading} onClick={saveSignature} className="primary-button self-end justify-center disabled:opacity-40"><Upload className="h-4 w-4" />{uploading ? 'Uploading…' : 'Add signature'}</button>
+      </div>
+      {signatures.length ? <div className="mt-4 overflow-x-auto"><table className="data-table"><thead><tr><th>Doctor</th><th>Role</th><th>Signature</th><th /></tr></thead><tbody>{signatures.map((signature) => <tr key={signature.id}><td><input className="field-control" value={signature.name} onChange={(event) => setData({ ...data, signatures: signatures.map((entry) => entry.id === signature.id ? { ...entry, name: event.target.value } : entry) })} /></td><td><select className="field-control" value={signature.role || 'Reporting doctor'} onChange={(event) => setData({ ...data, signatures: signatures.map((entry) => entry.id === signature.id ? { ...entry, role: event.target.value } : entry) })}><option>Reporting doctor</option><option>Primary consultant</option><option>Second consultant</option></select></td><td>{signature.path ? <img src={signature.path} alt={`${signature.name} signature`} className="h-10 max-w-28 object-contain" /> : 'Typed name'}</td><td><button type="button" className="text-red-700 hover:underline" onClick={() => setData({ ...data, signatures: signatures.filter((entry) => entry.id !== signature.id) })}>Remove</button></td></tr>)}</tbody></table></div> : <p className="mt-3 text-sm text-slate-500">No signatures configured yet.</p>}
+    </Section>
+    </div>
+  )
+}
+
+function ImageConfiguration({ data, setData }) {
+  return (
+    <Section title="Image output configuration" description="Configure report image dimensions and grid layout.">
+      <FieldGrid
+        fields={[
+          f('outputImageWidth', 'Image width', 'number'),
+          f('outputImageHeight', 'Image height', 'number'),
+          f('outputImageColumns', 'Columns', 'number'),
+          f('outputImageRows', 'Rows', 'number'),
+        ]}
+        data={data}
+        setData={setData}
+      />
+    </Section>
+  )
+}
+
+function GeneralConfiguration({ data, setData }) {
+  return (
+    <Section title="General report/application configuration" description="Central settings for report delivery, disclaimers, ICD behavior, and module options.">
+      <FieldGrid
+        fields={[
+          f('defaultReportRecipient', 'Default report recipient email', 'email'),
+          f('autoEmailReports', 'Email reports automatically after saving', 'checkbox'),
+          f('disclaimerText', 'Limitation / disclaimer text', 'textarea'),
+          f('icdEnabledCardiologyOnly', 'Enable ICD codes only for cardiology', 'checkbox'),
+          f('defaultScanType', 'Default scan type', 'select', ['Adult Echo', 'Fetal Echo', 'Pediatric Echo']),
+          f('defaultReportType', 'Default report output', 'select', ['Report only', 'Report with images', 'With biometry graphs']),
+        ]}
+        data={data}
+        setData={setData}
+      />
+    </Section>
   )
 }
 

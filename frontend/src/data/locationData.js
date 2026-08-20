@@ -403,3 +403,38 @@ export function calculateAge(dob) {
   return age >= 0 ? String(age) : ''
 }
 
+/** Calculate a human-readable age including years, months, and days. */
+export function calculateAgeDetails(dob) {
+  if (!dob) return { years: '', label: '' }
+  const birth = new Date(`${dob}T00:00:00`)
+  const today = new Date()
+  if (Number.isNaN(birth.getTime()) || birth > today) return { years: '', label: '' }
+  let years = today.getFullYear() - birth.getFullYear()
+  let months = today.getMonth() - birth.getMonth()
+  let days = today.getDate() - birth.getDate()
+  if (days < 0) {
+    months -= 1
+    days += new Date(today.getFullYear(), today.getMonth(), 0).getDate()
+  }
+  if (months < 0) { years -= 1; months += 12 }
+  return { years: String(Math.max(0, years)), label: `${Math.max(0, years)} years ${months} months ${days} days` }
+}
+
+export function postalCodeLength(country) {
+  return ({
+    India: 6, USA: 5, UK: 7, Canada: 6, Australia: 4, Germany: 5, France: 5,
+    UAE: 5, 'Saudi Arabia': 5, Singapore: 6, 'Sri Lanka': 5, Nepal: 5,
+    Bangladesh: 4, Pakistan: 5, China: 6, Japan: 7, 'South Korea': 5,
+    Brazil: 8, 'South Africa': 4, Nigeria: 6, Kenya: 5,
+  })[country] || 10
+}
+
+/** Expected local phone digits; the country calling code is displayed separately. */
+export function phoneNumberLength(country) {
+  return ({
+    India: 10, USA: 10, UK: 10, Canada: 10, Australia: 9, Germany: 11, France: 9,
+    UAE: 9, 'Saudi Arabia': 9, Singapore: 8, 'Sri Lanka': 9, Nepal: 10,
+    Bangladesh: 10, Pakistan: 10, China: 11, Japan: 10, 'South Korea': 10,
+    Brazil: 11, 'South Africa': 9, Nigeria: 10, Kenya: 9,
+  })[country] || 15
+}

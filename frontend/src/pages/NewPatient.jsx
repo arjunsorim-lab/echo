@@ -11,20 +11,23 @@ import {
   Plus,
   Trash2,
   Printer,
-  Activity,
 } from 'lucide-react'
 import { patientService } from '../api/patientService'
-import { scanService } from '../api/scanService'
 import AddableSelect from '../components/AddableSelect'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
+import ConfiguredFields from '../components/ConfiguredFields'
+import PatientDocumentUpload from '../components/PatientDocumentUpload'
 import { workspaceService } from '../api/workspaceService'
+import { referralDoctorService } from '../api/referralDoctorService'
 import {
   getStatesForCountry,
   getCitiesForState,
   getDialCode,
   lookupPincode,
-  calculateAge,
+  calculateAgeDetails,
   COUNTRY_DIAL_CODES,
+  postalCodeLength,
+  phoneNumberLength,
 } from '../data/locationData'
 
 function NewPatient() {
@@ -55,13 +58,15 @@ function NewPatient() {
     taluk: '',
     area: '',
     area_po: '',
+    custom_fields: {},
   })
 
   const [visits, setVisits] = useState([])
-  const [selectedScans, setSelectedScans] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false)
+  const [referralDoctors, setReferralDoctors] = useState([])
+  const [activeReferralVisitId, setActiveReferralVisitId] = useState(null)
   const [zipLookupStatus, setZipLookupStatus] = useState('')
 
   const countries = Object.keys(COUNTRY_DIAL_CODES)
@@ -77,13 +82,15 @@ function NewPatient() {
     }).catch(() => {})
   }, [])
 
+  useEffect(() => { referralDoctorService.getReferralDoctors().then((result) => setReferralDoctors(result.data || [])).catch(() => setReferralDoctors([])) }, [])
+
   const handleDobChange = useCallback((dob) => {
-    setFormData(prev => ({ ...prev, dob, age: calculateAge(dob) }))
+    const details = calculateAgeDetails(dob)
+    setFormData(prev => ({ ...prev, dob, age: details.years }))
   }, [])
 
   const handleCountryChange = useCallback((country) => {
-    const code = getDialCode(country)
-    setFormData(prev => ({ ...prev, country, state: '', district_city: '', mobile: code ? code + ' ' : '' }))
+    setFormData(prev => ({ ...prev, country, state: '', district_city: '', mobile: '' }))
     setZipLookupStatus('')
   }, [])
 
@@ -93,18 +100,17 @@ function NewPatient() {
 
   const handleZipChange = useCallback((zip) => {
     setFormData(prev => ({ ...prev, zip_code: zip }))
-    if (zip.trim().length === 6) {
+    if (zip.trim().length === 6 && formData.country === 'India') {
       const info = lookupPincode(zip.trim())
       if (info) {
         setFormData(prev => ({ ...prev, zip_code: zip, taluk: info.taluk, area_po: info.post, district_city: info.district || prev.district_city }))
         setZipLookupStatus('found')
       } else { setZipLookupStatus('notfound') }
     } else { setZipLookupStatus('') }
-  }, [])
+  }, [formData.country])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const shouldGoToReport = e.nativeEvent.submitter?.value === 'reporting'
     setSubmitError('')
     setIsSubmitting(true)
     try {
@@ -116,11 +122,7 @@ function NewPatient() {
         const result = await patientService.addVisit(patient.id, visitPayload)
         createdVisits.push(result.data)
       }
-      for (const scanType of selectedScans) {
-        await scanService.createScan({ patient_id: patient.id, patient_display_id: patient.patient_id, visit_id: createdVisits[0]?.id || '', scan_type: scanType, status: 'draft' })
-      }
-      if (shouldGoToReport && selectedScans.length) navigate(`/echo-studies?patient=${patient.id}&visit=${createdVisits[0]?.id || ''}&type=${encodeURIComponent(selectedScans[0])}`)
-      else navigate('/search')
+      navigate(`/patients/${patient.id}/records`)
     } catch (error) {
       console.error('Error creating patient:', error)
       setSubmitError(error.response?.data?.detail || 'Unable to create the patient. Please check the required fields and try again.')
@@ -134,20 +136,21 @@ function NewPatient() {
   }
   const handleUpdateVisit = (id, field, value) => setVisits(visits.map(v => v.id === id ? { ...v, [field]: value } : v))
   const handleDeleteVisit = (id) => setVisits(visits.filter(v => v.id !== id))
-  const toggleScan = (scanType) => setSelectedScans(prev => prev.includes(scanType) ? prev.filter(s => s !== scanType) : [...prev, scanType])
+  const referralDoctorLabel = (doctor) => doctor.doctor_type === 'hospital' ? (doctor.institution_name || doctor.name || 'Hospital') : `${doctor.salutation || ''} ${doctor.first_name || ''} ${doctor.last_name || ''}`.trim() || doctor.name || 'Referral doctor'
 
   const inputClass = "w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
   const selectClass = "w-full px-3 py-2 pr-8 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition appearance-none bg-white"
   const labelClass = "block text-xs font-medium text-slate-700 mb-1.5"
   const dialCode = getDialCode(formData.country)
+  const ageDetails = calculateAgeDetails(formData.dob)
+  const zipLength = postalCodeLength(formData.country)
+  const phoneLength = phoneNumberLength(formData.country)
 
   return (
     <>
       <form onSubmit={handleSubmit} className="h-full overflow-auto bg-gradient-to-br from-slate-50 to-slate-100 p-2 lg:p-3">
         <div className="w-full">
-          <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-            {/* Main Form */}
-            <div className="xl:col-span-3 space-y-6">
+          <div className="space-y-6">
               {/* Basic Information */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-teal-50 to-white">
@@ -177,23 +180,16 @@ function NewPatient() {
                       <label className={labelClass}>Middle Name</label>
                       <input type="text" className={inputClass} value={formData.middle_name} onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })} />
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className={labelClass}>Age</label>
-                        <input type="number" className={inputClass} value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="Age" />
-                      </div>
-                      <div>
-                        <label className={labelClass}>Unit</label>
-                        <select className={inputClass}><option>Years</option><option>Months</option><option>Days</option></select>
+                    <div>
+                      <label className={labelClass}>Date of Birth *</label>
+                      <div className="relative">
+                        <input required type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} />
+                        <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                       </div>
                     </div>
                     <div>
-                      <label className={labelClass}>Date of Birth</label>
-                      <div className="relative">
-                        <input type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} />
-                        <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                      </div>
-                      {formData.dob && formData.age && <p className="mt-1 text-xs text-teal-600 font-medium">Age: {formData.age} years</p>}
+                      <label className={labelClass}>Age</label>
+                      <output className={`${inputClass} block bg-slate-50 text-slate-700`}>{ageDetails.label || 'Calculated from date of birth'}</output>
                     </div>
                     <div>
                       <label className={labelClass}>Gender</label>
@@ -248,7 +244,7 @@ function NewPatient() {
                     </div>
                     <div>
                       <label className={labelClass}>Zip Code</label>
-                      <input type="text" className={inputClass} value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value)} maxLength={10} placeholder="Enter zip / pincode" />
+                      <input type="text" inputMode="numeric" className={inputClass} value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value.replace(/\D/g, '').slice(0, zipLength))} maxLength={zipLength} placeholder={`Enter ${zipLength}-digit postal code`} />
                       {zipLookupStatus === 'found' && <p className="mt-1 text-xs text-teal-600 font-medium">✓ Taluk &amp; Post auto-filled</p>}
                       {zipLookupStatus === 'notfound' && <p className="mt-1 text-xs text-amber-500 font-medium">Pincode not in database — fill manually</p>}
                     </div>
@@ -280,17 +276,17 @@ function NewPatient() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
                       <label className={labelClass}>Phone #1</label>
-                      <input type="tel" className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} />
+                      <input type="tel" inputMode="numeric" maxLength={phoneLength} className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value.replace(/\D/g, '').slice(0, phoneLength) })} placeholder={`${phoneLength}-digit phone number`} />
                     </div>
                     <div>
                       <label className={labelClass}>Phone #2</label>
-                      <input type="tel" className={inputClass} value={formData.phone2} onChange={(e) => setFormData({ ...formData, phone2: e.target.value })} />
+                      <input type="tel" inputMode="numeric" maxLength={phoneLength} className={inputClass} value={formData.phone2} onChange={(e) => setFormData({ ...formData, phone2: e.target.value.replace(/\D/g, '').slice(0, phoneLength) })} placeholder={`${phoneLength}-digit phone number`} />
                     </div>
                     <div>
                       <label className={labelClass}>Mobile #</label>
                       <div className="flex gap-1">
                         {dialCode && <span className="flex items-center px-2.5 py-2 rounded-lg border border-slate-300 bg-slate-50 text-sm font-semibold text-slate-700 whitespace-nowrap select-none">{dialCode}</span>}
-                        <input type="tel" className={`${inputClass} flex-1`} value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} placeholder="Mobile number" />
+                        <input type="tel" inputMode="numeric" maxLength={phoneLength} className={`${inputClass} flex-1`} value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value.replace(/\D/g, '').slice(0, phoneLength) })} placeholder={`${phoneLength}-digit mobile number`} />
                       </div>
                     </div>
                     <div>
@@ -334,7 +330,7 @@ function NewPatient() {
                         <tr key={visit.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 text-sm text-slate-900">{index + 1}</td>
                           <td className="px-4 py-3"><input type="datetime-local" className="input text-sm" value={visit.visit_date?.slice(0, 16)} onChange={(e) => handleUpdateVisit(visit.id, 'visit_date', e.target.value)} /></td>
-                          <td className="px-4 py-3"><input type="text" className="input text-sm" value={visit.referral_doctor} onChange={(e) => handleUpdateVisit(visit.id, 'referral_doctor', e.target.value)} placeholder="Referral doctor" /></td>
+                          <td className="px-4 py-3"><div className="flex min-w-52 gap-1"><select className="input text-sm" value={visit.referral_doctor} onChange={(e) => handleUpdateVisit(visit.id, 'referral_doctor', e.target.value)}><option value="">Select referral doctor</option>{referralDoctors.map((doctor) => { const label = referralDoctorLabel(doctor); return <option key={doctor.id} value={label}>{label}</option> })}</select><button type="button" onClick={() => { setActiveReferralVisitId(visit.id); setIsReferralModalOpen(true) }} className="rounded border border-teal-300 px-2 text-lg font-bold text-teal-700 hover:bg-teal-50" title="Add referral doctor">+</button></div></td>
                           <td className="px-4 py-3"><input type="text" className="input text-sm w-20" value={visit.image_count} onChange={(e) => handleUpdateVisit(visit.id, 'image_count', e.target.value)} /></td>
                           <td className="px-4 py-3"><input type="text" className="input text-sm w-20" value={visit.avi} onChange={(e) => handleUpdateVisit(visit.id, 'avi', e.target.value)} /></td>
                           <td className="px-4 py-3"><input type="text" className="input text-sm w-20" value={visit.pregnancy} onChange={(e) => handleUpdateVisit(visit.id, 'pregnancy', e.target.value)} /></td>
@@ -350,47 +346,8 @@ function NewPatient() {
                   </table>
                 </div>
               </div>
-            </div>
-
-            {/* Right Sidebar */}
-            <div className="space-y-4">
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-rose-50 to-white">
-                  <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-rose-600" /> List of Scans
-                  </h2>
-                </div>
-                <div className="p-3 space-y-2">
-                  {['Adult Echo', 'Fetal Echo', 'Pediatric Echo'].map(scanType => (
-                    <div key={scanType} role="button" tabIndex={0}
-                      onDoubleClick={(event) => { event.preventDefault(); navigate(`/echo-studies?type=${encodeURIComponent(scanType)}`) }}
-                      onKeyDown={(event) => { if (event.key === 'Enter') navigate(`/echo-studies?type=${encodeURIComponent(scanType)}`) }}
-                      title={`Double-click to open ${scanType}`}
-                      className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-teal-300 hover:bg-teal-50 group">
-                      <input type="checkbox" checked={selectedScans.includes(scanType)} onChange={() => toggleScan(scanType)} className="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500" />
-                      <span className="min-w-0 flex-1">
-                        <span className="block text-sm text-slate-700 group-hover:text-teal-700">{scanType}</span>
-                        <span className="block text-[11px] text-slate-400">Double-click to open</span>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <button type="button" onClick={handleAddVisit} className="w-full px-4 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition flex items-center justify-center gap-2 font-medium shadow-sm">
-                  <Plus className="w-4 h-4" /> Add New Visit
-                </button>
-                <button type="button" onDoubleClick={() => setIsReferralModalOpen(true)} title="Double-click to manage referral doctors and hospitals" className="w-full px-4 py-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg transition flex items-center justify-center gap-2 font-medium">
-                  <User className="w-4 h-4" /> New Referral Doctor
-                </button>
-                <div className="pt-4 border-t border-slate-200">
-                  <button type="submit" value="reporting" className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg transition flex items-center justify-center gap-2 font-medium shadow-sm">
-                    <Activity className="w-4 h-4" /> Go to Scan
-                  </button>
-                </div>
-              </div>
-            </div>
+              <PatientDocumentUpload customFields={formData.custom_fields} onChange={(custom_fields) => setFormData({ ...formData, custom_fields })} />
+              <ConfiguredFields module="Patients" values={formData.custom_fields} onChange={(custom_fields) => setFormData({ ...formData, custom_fields })} />
           </div>
 
           {/* Bottom Action Buttons */}
@@ -398,16 +355,12 @@ function NewPatient() {
             {submitError && (
               <p role="alert" className="mb-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700">{submitError}</p>
             )}
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => navigate('/search')} className="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition flex items-center gap-2 text-sm font-medium">
-                  <X className="w-4 h-4" /> Cancel
-                </button>
-              </div>
+            <div className="flex items-center justify-end">
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => window.print()} className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg transition flex items-center gap-2 text-sm font-medium">
                   <Printer className="w-4 h-4" /> Preview
                 </button>
+                <button type="button" onClick={() => navigate('/search')} className="px-4 py-2 rounded-lg border border-red-200 bg-red-50 text-red-700 transition hover:bg-red-100 flex items-center gap-2 text-sm font-medium"><X className="w-4 h-4" /> Cancel</button>
                 <button type="submit" disabled={isSubmitting} className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition flex items-center gap-2 text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
                   <Save className="w-4 h-4" /> {isSubmitting ? 'Saving...' : 'Save Patient'}
                 </button>
@@ -418,8 +371,17 @@ function NewPatient() {
       </form>
       <ReferralDoctorModal
         open={isReferralModalOpen}
-        onClose={() => setIsReferralModalOpen(false)}
-        onSelect={(record) => setFormData({ ...formData, family_doctor: record.doctor_type === 'hospital' ? record.institution_name : `${record.first_name || ''} ${record.last_name || ''}`.trim() })}
+        onClose={() => { setIsReferralModalOpen(false); setActiveReferralVisitId(null) }}
+        onSelect={(record) => {
+          const doctor = referralDoctorLabel(record)
+          if (activeReferralVisitId) {
+            handleUpdateVisit(activeReferralVisitId, 'referral_doctor', doctor)
+            setActiveReferralVisitId(null)
+          } else {
+            setFormData((current) => ({ ...current, family_doctor: doctor }))
+          }
+          referralDoctorService.getReferralDoctors().then((result) => setReferralDoctors(result.data || [])).catch(() => {})
+        }}
       />
     </>
   )
