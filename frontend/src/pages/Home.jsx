@@ -26,16 +26,7 @@ import {
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 import EchoLogo from '../components/EchoLogo'
-
-const demoUsers = [
-  {
-    name: 'Dr Shanthi',
-    role: 'Founder',
-    email: 'dr.shanthi@echoai.com',
-    userName: 'dr.shanthi',
-    password: 'password123',
-  },
-]
+import api from '../api/axios'
 
 const pipelineSteps = [
   {
@@ -398,27 +389,24 @@ function Home() {
     navigate('/dashboard', { replace: true })
   }, [navigate])
 
-  const useDemoUser = (user = demoUsers[0]) => {
-    setEmail(user.email)
-    setPassword(user.password)
+  const useDemoUser = () => {
+    setEmail('dr.shanthi@echoai.com')
+    setPassword('')
     setError('')
   }
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault()
-    const login = email.trim().toLowerCase()
-    const matchedUser = demoUsers.find(
-      (u) => (u.email.toLowerCase() === login || u.userName.toLowerCase() === login) && u.password === password,
-    )
-    if (!matchedUser) {
-      setError('Incorrect credentials. Use the founder login below.')
-      return
+    try {
+      const result = (await api.post('/auth/login', { username: email.trim(), password })).data
+      const storage = remember ? localStorage : sessionStorage
+      const other = remember ? sessionStorage : localStorage
+      other.removeItem('echoai_user'); other.removeItem('echoai_token')
+      storage.setItem('echoai_user', JSON.stringify(result.user)); storage.setItem('echoai_token', result.token)
+      navigate('/dashboard', { replace: true })
+    } catch (loginError) {
+      setError(loginError.response?.data?.detail || 'Unable to sign in')
     }
-    const storage = remember ? localStorage : sessionStorage
-    const other = remember ? sessionStorage : localStorage
-    other.removeItem('echoai_user')
-    storage.setItem('echoai_user', JSON.stringify({ name: matchedUser.name, role: matchedUser.role, email: matchedUser.email }))
-    navigate('/dashboard', { replace: true })
   }
 
   const handleGoogleSignIn = () => {
@@ -495,28 +483,6 @@ function Home() {
               Login
             </button>
           </form>
-
-          <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
-            <div className="h-px flex-1 bg-slate-200" />
-            <span>or</span>
-            <div className="h-px flex-1 bg-slate-200" />
-          </div>
-
-          {/* ── GOOGLE BUTTON (proper icon) ── */}
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:shadow-md active:scale-[0.98]"
-          >
-            {/* Official Google coloured G */}
-            <svg width="18" height="18" viewBox="0 0 48 48" className="shrink-0">
-              <path fill="#EA4335" d="M24 9.5c3.2 0 5.9 1.1 8.1 2.9l6-6C34.5 3.2 29.6 1 24 1 14.8 1 7 6.7 3.7 14.5l7 5.4C12.4 13.8 17.7 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.4 5.7c4.3-4 6.8-9.9 6.8-16.9z"/>
-              <path fill="#FBBC05" d="M10.7 28.6A14.9 14.9 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7-5.4A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.5 10.8l8.2-6.2z"/>
-              <path fill="#34A853" d="M24 47c5.9 0 10.9-1.9 14.5-5.2l-7.4-5.7c-2 1.3-4.5 2.1-7.1 2.1-6.3 0-11.6-4.2-13.5-10l-8.2 6.2C6.6 41.6 14.8 47 24 47z"/>
-            </svg>
-            Sign in with Google
-          </button>
 
           {/* ── FOUNDER ACCESS CARD ── */}
           <div className="mt-4 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5">

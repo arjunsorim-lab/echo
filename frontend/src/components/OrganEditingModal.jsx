@@ -48,6 +48,26 @@ export default function OrganEditingModal({ open, onClose }) {
     setIsDrawing(false)
   }
 
+  const clearCanvas = () => {
+    const canvas = canvasRef.current
+    canvas?.getContext('2d').clearRect(0, 0, canvas.width, canvas.height)
+  }
+
+  const importMaster = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    const image = new Image()
+    image.onload = () => {
+      const canvas = canvasRef.current
+      const context = canvas?.getContext('2d')
+      if (!canvas || !context) return
+      clearCanvas()
+      context.drawImage(image, 0, 0, canvas.width, canvas.height)
+      URL.revokeObjectURL(image.src)
+    }
+    image.src = URL.createObjectURL(file)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 backdrop-blur-2xs">
       <div className="flex h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-slate-300 bg-[#387aa4] shadow-2xl">
@@ -89,10 +109,10 @@ export default function OrganEditingModal({ open, onClose }) {
 
             <div className="h-4 w-px bg-slate-400 mx-1" />
 
-            <button type="button" className="flex items-center gap-1 rounded bg-[#295c7e] px-2 py-1 hover:bg-[#204762]">
+            <button type="button" onClick={clearCanvas} className="flex items-center gap-1 rounded bg-[#295c7e] px-2 py-1 hover:bg-[#204762]">
               <RotateCcw className="h-3.5 w-3.5" /> Undo
             </button>
-            <button type="button" className="flex items-center gap-1 rounded bg-[#295c7e] px-2 py-1 hover:bg-[#204762]">
+            <button type="button" disabled title="Draw again after clearing" className="flex cursor-not-allowed items-center gap-1 rounded bg-[#295c7e] px-2 py-1 opacity-50">
               <Redo2 className="h-3.5 w-3.5" /> Redo
             </button>
           </div>
@@ -168,9 +188,10 @@ export default function OrganEditingModal({ open, onClose }) {
           <div className="flex flex-col gap-3 rounded-lg border border-slate-300 bg-white p-3 shadow-2xs">
             <div className="flex items-center justify-between border-b border-slate-200 pb-2">
               <span className="text-xs font-bold text-slate-800">Organ list</span>
-              <button type="button" className="legacy-small-button text-[11px]">
+              <label className="legacy-small-button cursor-pointer text-[11px]">
                 <Upload className="mr-1 h-3 w-3" /> Import master
-              </button>
+                <input type="file" accept="image/*" onChange={importMaster} className="hidden" />
+              </label>
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto rounded border border-slate-200 bg-slate-50 p-2 text-xs text-slate-400">

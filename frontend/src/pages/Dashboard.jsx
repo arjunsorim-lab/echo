@@ -123,6 +123,7 @@ export default function Dashboard() {
   const [customEndDate, setCustomEndDate] = useState('')
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false)
   const [recentScans, setRecentScans] = useState([])
+  const [currentPage, setCurrentPage] = useState(1)
   const [isLoadingScans, setIsLoadingScans] = useState(true)
 
   useEffect(() => {
@@ -384,8 +385,10 @@ export default function Dashboard() {
     })
   }, [recentScans, selectedScanType, searchQuery, dateFilter, customStartDate, customEndDate])
 
-  // Limit to Top 10 Recent Visits
-  const top10Scans = useMemo(() => dateFilteredScans.slice(0, 10), [dateFilteredScans])
+  const pageCount = Math.max(1, Math.ceil(dateFilteredScans.length / 10))
+  const top10Scans = useMemo(() => dateFilteredScans.slice((currentPage - 1) * 10, currentPage * 10), [dateFilteredScans, currentPage])
+  useEffect(() => { setCurrentPage(1) }, [selectedScanType, searchQuery, dateFilter, customStartDate, customEndDate])
+  useEffect(() => { if (currentPage > pageCount) setCurrentPage(pageCount) }, [currentPage, pageCount])
 
   // Export Filtered Visits as CSV
   const handleExport = () => {
@@ -479,9 +482,9 @@ export default function Dashboard() {
         <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 lg:flex-row lg:items-center lg:justify-between bg-white">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900">Top 10 Recent Visits</h3>
+              <h3 className="text-base font-bold text-slate-900">Recent Visits</h3>
               <span className="rounded-full bg-[#e6f4f1] px-2 py-0.5 text-xs font-semibold text-[#0f5449]">
-                {top10Scans.length} Visits
+                {dateFilteredScans.length} Visits
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -656,7 +659,7 @@ export default function Dashboard() {
                   className="group cursor-pointer transition hover:bg-slate-50/80"
                 >
                   {/* Row # */}
-                  <td className="py-3.5 px-4 text-slate-400 font-semibold">{idx + 1}</td>
+                  <td className="py-3.5 px-4 text-slate-400 font-semibold">{(currentPage - 1) * 10 + idx + 1}</td>
 
                   {/* Patient Info */}
                   <td
@@ -760,28 +763,30 @@ export default function Dashboard() {
         {/* Table Footer & Pagination */}
         <div className="flex items-center justify-between border-t border-slate-100 bg-white px-4 py-3 text-xs text-slate-400">
           <div>
-            Showing <span className="font-semibold text-slate-700">1</span> to{' '}
-            <span className="font-semibold text-slate-700">{top10Scans.length}</span> of{' '}
-            <span className="font-semibold text-slate-700">{top10Scans.length}</span> results
+            Showing <span className="font-semibold text-slate-700">{dateFilteredScans.length ? (currentPage - 1) * 10 + 1 : 0}</span> to{' '}
+            <span className="font-semibold text-slate-700">{Math.min(currentPage * 10, dateFilteredScans.length)}</span> of{' '}
+            <span className="font-semibold text-slate-700">{dateFilteredScans.length}</span> results
           </div>
 
           <div className="flex items-center gap-1">
             <button
               type="button"
-              disabled
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
               className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-300 disabled:opacity-50"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
-              className="flex h-7 w-7 items-center justify-center rounded-md border border-emerald-500 bg-emerald-50 text-xs font-bold text-emerald-700"
+              className="flex h-7 min-w-7 items-center justify-center rounded-md border border-emerald-500 bg-emerald-50 px-2 text-xs font-bold text-emerald-700"
             >
-              1
+              {currentPage} / {pageCount}
             </button>
             <button
               type="button"
-              disabled
+              disabled={currentPage === pageCount}
+              onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
               className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-300 disabled:opacity-50"
             >
               <ChevronRight className="h-3.5 w-3.5" />

@@ -22,6 +22,16 @@ export default function ImageCompareModal({ open, onClose, images = [] }) {
     setComparedImages(comparedImages.filter((i) => i !== img))
   }
 
+  const saveComparison = () => localStorage.setItem('echoai_image_comparison', JSON.stringify({ selectedTitle, columns, width, height, rowsCols, anonymous, imageCount: comparedImages.length }))
+  const exportComparison = () => {
+    const content = JSON.stringify({ title: selectedTitle, columns, width, height, rowsCols, anonymous, imageCount: comparedImages.length }, null, 2)
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
+    link.download = 'image-comparison.json'
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 backdrop-blur-2xs">
       <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl">
@@ -42,13 +52,13 @@ export default function ImageCompareModal({ open, onClose, images = [] }) {
                 <option>02/09/2025 10:42:46 AM</option>
               </select>
             </label>
-            <button type="button" className="legacy-small-button">4 Image Per Row</button>
+            <button type="button" onClick={() => { setColumns('4'); setRowsCols('4X2') }} className="legacy-small-button">4 Image Per Row</button>
             <button type="button" onClick={() => setComparedImages([])} className="legacy-small-button">Clear image</button>
-            <button type="button" className="legacy-small-button">Save</button>
-            <button type="button" className="legacy-small-button">Delete</button>
+            <button type="button" onClick={saveComparison} className="legacy-small-button">Save</button>
+            <button type="button" onClick={() => { localStorage.removeItem('echoai_image_comparison'); setComparedImages([]) }} className="legacy-small-button">Delete</button>
             <button type="button" onClick={() => setComparedImages([])} className="legacy-small-button">Clear</button>
-            <button type="button" className="legacy-small-button">Print</button>
-            <button type="button" className="legacy-small-button">Export</button>
+            <button type="button" onClick={() => window.print()} className="legacy-small-button">Print</button>
+            <button type="button" onClick={exportComparison} className="legacy-small-button">Export</button>
           </div>
 
           <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-1 shadow-2xs">
@@ -56,6 +66,7 @@ export default function ImageCompareModal({ open, onClose, images = [] }) {
             <select value={columns} onChange={(e) => setColumns(e.target.value)} className="h-7 rounded border border-slate-300 px-1 text-xs">
               <option value="1">Images: 1 column per row</option>
               <option value="2">Images: 2 column per row</option>
+              <option value="4">Images: 4 column per row</option>
             </select>
             <span>Width:</span>
             <input value={width} onChange={(e) => setWidth(e.target.value)} className="h-7 w-12 rounded border border-slate-300 text-center text-xs" />

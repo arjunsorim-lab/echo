@@ -61,7 +61,7 @@ function ReferralDoctors() {
           <h1 className="text-2xl font-bold text-gray-800">Referral Doctors</h1>
           <p className="text-sm text-gray-600 mt-1">Manage referral doctor records</p>
         </div>
-        <button type="button" onDoubleClick={() => setIsReferralModalOpen(true)} title="Double-click to manage referral doctors and hospitals" className="btn-primary flex items-center space-x-2">
+        <button type="button" onClick={() => setIsReferralModalOpen(true)} title="Manage referral doctors and hospitals" className="btn-primary flex items-center space-x-2">
           <UserPlus className="w-4 h-4" />
           <span>New Referral Doctor</span>
         </button>

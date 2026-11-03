@@ -35,6 +35,10 @@ export default function ReferralDoctorModal({ open, onClose, onSaved, onSelect }
   if (!open) return null
 
   const save = async () => {
+    if (form.doctor_type === 'hospital' ? !form.institution_name.trim() : !form.first_name.trim()) {
+      alert(form.doctor_type === 'hospital' ? 'Hospital name is required' : 'First name is required')
+      return
+    }
     setSaving(true)
     try {
       const result = await referralDoctorService.createReferralDoctor(form)

@@ -350,10 +350,11 @@ function FetalEchoReport() {
   const [selectedVisitId] = useState(searchParams.get('visitId') || '')
   const [activeMainTab, setActiveMainTab] = useState('scan')
   const [activeScanTab, setActiveScanTab] = useState('echo-details')
-  const [isPrintOptionsOpen, setIsPrintOptionsOpen] = useState(false)
+  const [isPrintOptionsOpen, setIsPrintOptionsOpen] = useState(searchParams.get('preview') === 'true')
   const [activeImageTab, setActiveImageTab] = useState('images')
   const [isLmpOpen, setIsLmpOpen] = useState(false)
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
+  const [imageAction, setImageAction] = useState('')
   const [report, setReport] = useState(() => deepClone(initialReport))
   const [savedScanId, setSavedScanId] = useState(scanId || '')
   const [isSaving, setIsSaving] = useState(false)
@@ -361,7 +362,7 @@ function FetalEchoReport() {
   const [reportSettings, setReportSettings] = useState({})
 
   const selectedPatient = useMemo(
-    () => patients.find((patient) => patient.id === selectedPatientId),
+    () => patients.find((patient) => String(patient.id) === String(selectedPatientId)),
     [patients, selectedPatientId],
   )
 
@@ -590,6 +591,23 @@ function FetalEchoReport() {
     setStatusMessage('')
   }
 
+  const handleDelete = async () => {
+    if (!savedScanId) return handleClear()
+    if (!window.confirm('Delete this fetal echo report?')) return
+    try {
+      await scanService.deleteScan(savedScanId)
+      navigate('/reports')
+    } catch (error) {
+      console.error('Error deleting fetal echo report:', error)
+      setStatusMessage('Could not delete fetal echo report.')
+    }
+  }
+
+  const openReferralLetter = () => {
+    const subject = `Referral letter - ${getPatientName(selectedPatient) || 'patient'}`
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(report.impression.final_impression || report.indication || '')}`
+  }
+
   return (
     <>
       <div className="no-print min-h-0 flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-slate-100 text-sm text-slate-900">
@@ -613,7 +631,7 @@ function FetalEchoReport() {
                 ✓ Fill Normal Scan
               </button>
               <ToolbarButton icon={Save} label={isSaving ? 'Saving' : 'Save'} onClick={handleSave} />
-              <ToolbarButton icon={Trash2} label="Delete" />
+              <ToolbarButton icon={Trash2} label="Delete" onClick={handleDelete} />
               <ToolbarButton icon={RotateCcw} label="Clear" onClick={handleClear} />
               <ToolbarButton icon={Printer} label="Preview" onClick={() => setIsPrintOptionsOpen(true)} />
               <ToolbarButton icon={FileImage} label="Images" onClick={() => setIsImagesModalOpen(true)} />
@@ -661,8 +679,8 @@ function FetalEchoReport() {
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" className="legacy-small-button">Open existing scans</button>
-              <button type="button" className="legacy-small-button">Ref. Letter</button>
+              <button type="button" onClick={() => navigate('/reports')} className="legacy-small-button">Open existing scans</button>
+              <button type="button" onClick={openReferralLetter} className="legacy-small-button">Ref. Letter</button>
               <button type="button" onClick={() => setIsLmpOpen(true)} className="legacy-small-button">LMP</button>
               <InlineField label="No. of fetuses" value={report.no_of_fetuses} onChange={(value) => updateReport(['no_of_fetuses'], value)} width="w-20" />
               <InlineField label="GA" value={report.ga_weeks} onChange={(value) => updateReport(['ga_weeks'], value)} width="w-20" suffix="wks" />
@@ -709,6 +727,7 @@ function FetalEchoReport() {
             setActiveImageTab={setActiveImageTab}
             report={report}
             updateReport={updateReport}
+            onOpenImages={(action = '') => { setImageAction(action); setIsImagesModalOpen(true) }}
           />
         </div>
       </div>
@@ -731,6 +750,7 @@ function FetalEchoReport() {
         onClose={() => setIsImagesModalOpen(false)}
         patient={selectedPatient}
         imageConfig={reportSettings}
+        initialAction={imageAction}
       />
       {isPrintOptionsOpen && <FetalPrintOptions report={report} updateReport={updateReport} onClose={() => setIsPrintOptionsOpen(false)} />}
     </div>
@@ -1152,7 +1172,11 @@ function ImpressionPanel({ report, updateReport }) {
   )
 }
 
-function ImagePanel({ activeImageTab, setActiveImageTab, report, updateReport }) {
+function ImagePanel({ activeImageTab, setActiveImageTab, report, updateReport, onOpenImages }) {
+  const handleAction = (label) => {
+    if (label === 'Print') return window.print()
+    onOpenImages(label)
+  }
   return (
     <aside className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-slate-50 px-3 pt-3">
@@ -1165,7 +1189,7 @@ function ImagePanel({ activeImageTab, setActiveImageTab, report, updateReport })
       <div className="space-y-4 p-4">
         <div className="grid grid-cols-2 gap-2">
           {['Import', 'Export', 'Delete', 'Print', 'Rule of three', 'Image title', 'Process', 'Ink Save', 'Refresh', 'Organ drawing'].map((label) => (
-            <button key={label} type="button" className="legacy-small-button">{label}</button>
+            <button key={label} type="button" onClick={() => handleAction(label)} className="legacy-small-button">{label}</button>
           ))}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
@@ -1492,7 +1516,7 @@ function ComboWithNew({ label, value, onChange }) {
       {label}
       <span className="flex min-w-0 gap-2">
         <input className="legacy-input w-full" value={value || ''} onChange={(event) => onChange(event.target.value)} />
-        <button type="button" className="legacy-small-button">New</button>
+        <button type="button" onClick={() => onChange('')} className="legacy-small-button">New</button>
       </span>
     </label>
   )

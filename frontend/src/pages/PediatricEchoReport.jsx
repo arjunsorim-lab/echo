@@ -29,7 +29,9 @@ const mainTabs = [
 const scanTabs = [
   { id: 'echo-details', label: 'Echo details' },
   { id: 'biometry', label: 'Biometry' },
+  { id: 'cardio-biometry', label: 'Cardio biometry' },
   { id: 'doppler', label: 'Doppler' },
+  { id: 'miscellaneous', label: 'Miscellaneous' },
 ]
 
 const imageTabs = [
@@ -111,6 +113,20 @@ const initialReport = {
     ao: '',
     la_ao: '',
   },
+  cardio_biometry: {
+    cardiac_area: '',
+    thoracic_area: '',
+    cardiothoracic_ratio: '',
+    lv_length: '',
+    lv_width: '',
+    rv_length: '',
+    rv_width: '',
+    mitral_annulus: '',
+    tricuspid_annulus: '',
+    aortic_annulus: '',
+    pulmonary_annulus: '',
+  },
+  miscellaneous: '',
   doppler: {
     valve_flow: {
       mitral_e: '',
@@ -274,12 +290,13 @@ function PediatricEchoReport() {
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
-  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(searchParams.get('preview') === 'true')
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
+  const [imageAction, setImageAction] = useState('')
   const [reportSettings, setReportSettings] = useState({})
 
   const selectedPatient = useMemo(
-    () => patients.find((patient) => patient.id === selectedPatientId),
+    () => patients.find((patient) => String(patient.id) === String(selectedPatientId)),
     [patients, selectedPatientId],
   )
 
@@ -438,6 +455,23 @@ function PediatricEchoReport() {
     setStatusMessage('')
   }
 
+  const handleDelete = async () => {
+    if (!savedScanId) return handleClear()
+    if (!window.confirm('Delete this pediatric echo report?')) return
+    try {
+      await scanService.deleteScan(savedScanId)
+      navigate('/reports')
+    } catch (error) {
+      console.error('Error deleting pediatric echo report:', error)
+      setStatusMessage('Could not delete pediatric echo report.')
+    }
+  }
+
+  const openReferralLetter = () => {
+    const subject = `Referral letter - ${getPatientName(selectedPatient) || 'patient'}`
+    window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(report.impression.final_impression || report.indication || '')}`
+  }
+
   const handleAddNewChange = (checked) => {
     updateReport(['add_new_tag'], checked)
     if (checked) setIsTagModalOpen(true)
@@ -465,7 +499,7 @@ function PediatricEchoReport() {
                 ✓ Fill Normal Scan
               </button>
               <ToolbarButton icon={Save} label={isSaving ? 'Saving' : 'Save'} onClick={handleSave} />
-              <ToolbarButton icon={Trash2} label="Delete" />
+              <ToolbarButton icon={Trash2} label="Delete" onClick={handleDelete} />
               <ToolbarButton icon={RotateCcw} label="Clear" onClick={handleClear} />
               <ToolbarButton icon={Printer} label="Preview" onClick={() => setIsPreviewOpen(true)} />
               <ToolbarButton icon={FileImage} label="Images" onClick={() => setIsImagesModalOpen(true)} />
@@ -513,8 +547,8 @@ function PediatricEchoReport() {
         <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="flex flex-wrap items-center gap-2">
-              <button type="button" className="legacy-small-button">Open existing scans</button>
-              <button type="button" className="legacy-small-button">Ref. Letter</button>
+              <button type="button" onClick={() => navigate('/reports')} className="legacy-small-button">Open existing scans</button>
+              <button type="button" onClick={openReferralLetter} className="legacy-small-button">Ref. Letter</button>
               <button type="button" onClick={() => setIsTagModalOpen(true)} className="legacy-small-button">
                 <Tag className="mr-2 h-4 w-4" />
                 Patient tag
@@ -551,7 +585,7 @@ function PediatricEchoReport() {
             </div>
           </section>
 
-          <ImagePanel activeImageTab={activeImageTab} setActiveImageTab={setActiveImageTab} report={report} updateReport={updateReport} />
+          <ImagePanel activeImageTab={activeImageTab} setActiveImageTab={setActiveImageTab} report={report} updateReport={updateReport} onOpenImages={(action = '') => { setImageAction(action); setIsImagesModalOpen(true) }} />
         </div>
       </div>
 
@@ -577,6 +611,7 @@ function PediatricEchoReport() {
         onClose={() => setIsImagesModalOpen(false)}
         patient={selectedPatient}
         imageConfig={reportSettings}
+        initialAction={imageAction}
       />
     </div>
   )
@@ -601,7 +636,9 @@ function ScanPanel({ activeScanTab, setActiveScanTab, report, updateReport, onTo
         />
       )}
       {activeScanTab === 'biometry' && <BiometryTab report={report} updateReport={updateReport} />}
+      {activeScanTab === 'cardio-biometry' && <CardioBiometryTab report={report} updateReport={updateReport} />}
       {activeScanTab === 'doppler' && <DopplerTab report={report} updateReport={updateReport} />}
+      {activeScanTab === 'miscellaneous' && <MiscellaneousTab report={report} updateReport={updateReport} />}
     </div>
   )
 }
@@ -824,6 +861,37 @@ function DopplerTab({ report, updateReport }) {
   )
 }
 
+function CardioBiometryTab({ report, updateReport }) {
+  const fields = [
+    ['Cardiac area', 'cardiac_area', 'cm²'],
+    ['Thoracic area', 'thoracic_area', 'cm²'],
+    ['Cardiothoracic ratio', 'cardiothoracic_ratio', ''],
+    ['LV length', 'lv_length', 'mm'],
+    ['LV width', 'lv_width', 'mm'],
+    ['RV length', 'rv_length', 'mm'],
+    ['RV width', 'rv_width', 'mm'],
+    ['Mitral annulus', 'mitral_annulus', 'mm'],
+    ['Tricuspid annulus', 'tricuspid_annulus', 'mm'],
+    ['Aortic annulus', 'aortic_annulus', 'mm'],
+    ['Pulmonary annulus', 'pulmonary_annulus', 'mm'],
+  ]
+  const values = report.cardio_biometry || {}
+
+  return (
+    <Fieldset title="Cardio biometry">
+      <div className="grid gap-x-8 gap-y-3 lg:grid-cols-2">
+        {fields.map(([label, key, suffix]) => (
+          <MeasurementField key={key} label={label} value={values[key]} suffix={suffix} onChange={(value) => updateReport(['cardio_biometry', key], value)} />
+        ))}
+      </div>
+    </Fieldset>
+  )
+}
+
+function MiscellaneousTab({ report, updateReport }) {
+  return <Fieldset title="Miscellaneous"><TextArea label="Additional report text" value={report.miscellaneous || ''} onChange={(value) => updateReport(['miscellaneous'], value)} rows={12} /></Fieldset>
+}
+
 function ImpressionPanel({ report, updateReport }) {
   const impression = report.impression
 
@@ -886,7 +954,11 @@ function ImpressionPanel({ report, updateReport }) {
   )
 }
 
-function ImagePanel({ activeImageTab, setActiveImageTab, report, updateReport }) {
+function ImagePanel({ activeImageTab, setActiveImageTab, report, updateReport, onOpenImages }) {
+  const handleAction = (label) => {
+    if (label === 'Print') return window.print()
+    onOpenImages(label)
+  }
   return (
     <aside className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
       <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-slate-50 px-3 pt-3">
@@ -899,7 +971,7 @@ function ImagePanel({ activeImageTab, setActiveImageTab, report, updateReport })
       <div className="space-y-4 p-4">
         <div className="grid grid-cols-2 gap-2">
           {['Import', 'Export', 'Delete', 'Print', 'Rule of three', 'Image title', 'Process', 'Ink Save', 'Refresh', 'Organ drawing'].map((label) => (
-            <button key={label} type="button" className="legacy-small-button">{label}</button>
+            <button key={label} type="button" onClick={() => handleAction(label)} className="legacy-small-button">{label}</button>
           ))}
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
@@ -1040,6 +1112,18 @@ function PatientTagModal({ report, updateReport, onClose, onStatus }) {
 
 function ReportPreviewModal({ report, updateReport, patient, settings = {}, onClose }) {
   const [isConfigOpen, setIsConfigOpen] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const [twoPages, setTwoPages] = useState(false)
+  const runPreviewAction = (label) => {
+    if (label === 'Print' || label === 'PDF') return window.print()
+    if (label === 'Zoom+') return setZoom((value) => Math.min(1.6, value + 0.1))
+    if (label === 'Zoom-') return setZoom((value) => Math.max(0.5, value - 0.1))
+    if (label === 'Actual size') return setZoom(1)
+    if (label === 'Fit width') return setZoom(0.85)
+    if (label === 'Two pages') return setTwoPages((value) => !value)
+    if (label === 'Config') return setIsConfigOpen(true)
+    if (label === 'Mail') window.location.href = `mailto:?subject=${encodeURIComponent(report.impression.report_title || 'Pediatric Echo Report')}`
+  }
   const detailRows = [
     ['Atrial situs', report.echo_details.atrial_situs || 'Normal'],
     ['Systemic venous connection', report.echo_details.systemic_venous_connection || 'Normal'],
@@ -1058,6 +1142,19 @@ function ReportPreviewModal({ report, updateReport, patient, settings = {}, onCl
     ['Pulmonary valve', report.echo_details.pulmonary_valve],
     ['Main pulmonary artery', report.echo_details.main_pulmonary_artery],
   ].filter(([, value]) => String(value || '').trim())
+  const cardioRows = [
+    ['Cardiac area', 'cardiac_area', 'cm²'],
+    ['Thoracic area', 'thoracic_area', 'cm²'],
+    ['Cardiothoracic ratio', 'cardiothoracic_ratio', ''],
+    ['LV length', 'lv_length', 'mm'],
+    ['LV width', 'lv_width', 'mm'],
+    ['RV length', 'rv_length', 'mm'],
+    ['RV width', 'rv_width', 'mm'],
+    ['Mitral annulus', 'mitral_annulus', 'mm'],
+    ['Tricuspid annulus', 'tricuspid_annulus', 'mm'],
+    ['Aortic annulus', 'aortic_annulus', 'mm'],
+    ['Pulmonary annulus', 'pulmonary_annulus', 'mm'],
+  ].map(([label, key, unit]) => [label, report.cardio_biometry?.[key], unit]).filter(([, value]) => String(value || '').trim())
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/30 p-4">
@@ -1068,13 +1165,7 @@ function ReportPreviewModal({ report, updateReport, patient, settings = {}, onCl
               <button
                 key={label}
                 type="button"
-                onClick={
-                  label === 'Print'
-                    ? () => window.print()
-                    : label === 'Config'
-                    ? () => setIsConfigOpen(true)
-                    : undefined
-                }
+                onClick={() => runPreviewAction(label)}
                 className="legacy-small-button"
               >
                 {label}
@@ -1083,7 +1174,7 @@ function ReportPreviewModal({ report, updateReport, patient, settings = {}, onCl
             <button type="button" onClick={onClose} className="legacy-small-button">Close</button>
           </div>
           <div className="min-h-0 flex-1 overflow-auto bg-slate-100 p-6">
-            <div className="mx-auto min-h-[980px] max-w-3xl bg-white p-10 shadow-sm">
+            <div className="mx-auto min-h-[980px] bg-white p-10 shadow-sm transition-transform" style={{ maxWidth: twoPages ? '1100px' : '768px', transform: `scale(${zoom})`, transformOrigin: 'top center' }}>
               {settings.reportHeaderText && <p className="mb-1 text-sm text-slate-600" style={{ textAlign: String(settings.reportHeaderPlacement || 'Center').toLowerCase() }}>{settings.reportHeaderText}</p>}
               <h2 className="mb-5 text-center text-xl font-bold">{report.impression.report_title || 'Pediatric Echo Report'}</h2>
               <table className="mb-4 w-full border border-slate-400 text-sm">
@@ -1117,6 +1208,8 @@ function ReportPreviewModal({ report, updateReport, patient, settings = {}, onCl
                   </div>
                 ))}
               </div>
+              {cardioRows.length > 0 && <><h3 className="mb-3 mt-8 font-bold">Cardio biometry</h3><div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm">{cardioRows.map(([label, value, unit]) => <div key={label} className="flex justify-between gap-4"><span>{label}</span><span>{value}{unit ? ` ${unit}` : ''}</span></div>)}</div></>}
+              {report.miscellaneous && <><h3 className="mb-3 mt-8 font-bold">Miscellaneous</h3><p className="whitespace-pre-wrap text-sm">{report.miscellaneous}</p></>}
               {(report.impression.report_signed_by_l || report.impression.report_signed_by_r || settings.leftDoctorName || settings.rightDoctorName) && <div className="mt-10 flex justify-between border-t pt-5 text-sm"><ConfiguredSignatureMark name={report.impression.report_signed_by_l || settings.leftDoctorName} settings={settings} /><ConfiguredSignatureMark name={report.impression.report_signed_by_r || settings.rightDoctorName} settings={settings} align="right" /></div>}
               {settings.reportFooterText && <p className="mt-8 border-t pt-3 text-xs text-slate-500" style={{ textAlign: String(settings.reportFooterPlacement || 'Center').toLowerCase() }}>{settings.reportFooterText}</p>}
             </div>
@@ -1416,7 +1509,7 @@ function CheckValueField({ label, checked, value, onChecked, onValue }) {
       </span>
       <span className="flex min-w-0 gap-2">
         <input className="legacy-input w-full" value={value || ''} onChange={(event) => onValue(event.target.value)} />
-        <button type="button" className="legacy-plus-button">+</button>
+        <button type="button" onClick={() => { onChecked(true); onValue('') }} className="legacy-plus-button">+</button>
       </span>
     </label>
   )
@@ -1457,7 +1550,7 @@ function ComboWithNew({ label, value, onChange }) {
       {label}
       <span className="flex min-w-0 gap-2">
         <input className="legacy-input w-full" value={value || ''} onChange={(event) => onChange(event.target.value)} />
-        <button type="button" className="legacy-small-button">New</button>
+        <button type="button" onClick={() => onChange('')} className="legacy-small-button">New</button>
       </span>
     </label>
   )

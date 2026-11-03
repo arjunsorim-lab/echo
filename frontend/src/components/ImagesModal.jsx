@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X, RefreshCw, Upload, Download, Trash2, Printer, Send, FileSpreadsheet, Tv, Settings, HardDrive, FileText, Check, Plus, Search } from 'lucide-react'
 import ImageCompareModal from './ImageCompareModal'
 import OrganEditingModal from './OrganEditingModal'
 import TiffaTemplateModal from './TiffaTemplateModal'
+import { workspaceService } from '../api/workspaceService'
 
-export default function ImagesModal({ open, onClose, patient, visitDate = '02/09/2025 10:42:46 AM', imageConfig = {} }) {
+export default function ImagesModal({ open, onClose, patient, visitDate = '02/09/2025 10:42:46 AM', imageConfig = {}, initialAction = '' }) {
   const [activeTab, setActiveTab] = useState('images')
   const [isCompareOpen, setIsCompareOpen] = useState(false)
   const [isOrganEditingOpen, setIsOrganEditingOpen] = useState(false)
@@ -24,6 +25,8 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
   const [ipAddress, setIpAddress] = useState('')
   const [port, setPort] = useState('')
   const [description, setDescription] = useState('')
+  const imageInputRef = useRef(null)
+  const [refreshKey, setRefreshKey] = useState(0)
 
   useEffect(() => {
     if (!open) return
@@ -41,6 +44,63 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
   const [archivedPdfs, setArchivedPdfs] = useState([])
   const [importedImages, setImportedImages] = useState([])
   const [importedVideos, setImportedVideos] = useState([])
+  const [mediaError, setMediaError] = useState('')
+  const visitId = new URLSearchParams(window.location.search).get('visitId') || ''
+  useEffect(() => {
+    if (!open || !patient?.id) return
+    setImportedImages([]); setImportedVideos([]); setMediaError('')
+    workspaceService.list('media-records').then((result) => {
+      const records = (result.data || []).filter((item) => String(item.patient_id) === String(patient.id) && String(item.visit_id || '') === visitId)
+      setImportedImages(records.filter((item) => item.type?.startsWith('image/')).map((item) => item.url))
+      setImportedVideos(records.filter((item) => item.type?.startsWith('video/')).map((item) => item.url))
+    }).catch(() => setMediaError('Unable to load saved study media.'))
+  }, [open, patient?.id, visitId, refreshKey])
+
+  useEffect(() => {
+    if (!open || !initialAction) return
+    if (initialAction === 'Import') setTimeout(() => imageInputRef.current?.click(), 0)
+    if (initialAction === 'Rule of three') { setInitialRuleMode('Rule of three'); setIsTiffaOpen(true) }
+    if (initialAction === 'Organ drawing') setIsOrganEditingOpen(true)
+    if (initialAction === 'Process') setIsCompareOpen(true)
+    if (initialAction === 'Image title') setActiveTab('configurations')
+    if (initialAction === 'Refresh') setRefreshKey((value) => value + 1)
+    if (['Export', 'Delete', 'Ink Save'].includes(initialAction)) setActiveTab('images')
+  }, [open, initialAction])
+  const persistFiles = async (files, setItems) => {
+    if (!patient?.id) { setMediaError('Select a patient before importing media.'); return }
+    try {
+      for (const file of files) {
+        const body = new FormData(); body.append('file', file)
+        const upload = await workspaceService.uploadMedia(body)
+        const record = await workspaceService.create('media-records', { patient_id: String(patient.id), visit_id: visitId, name: file.name, type: file.type, size: file.size, status: 'Ready', url: upload.data.url })
+        setItems((current) => [...current, record.data.url])
+      }
+    } catch { setMediaError('Media import failed. Please retry.'); }
+  }
+  const removeMedia = async (urls, setItems) => {
+    try {
+      const result = await workspaceService.list('media-records')
+      const records = (result.data || []).filter((item) => String(item.patient_id) === String(patient?.id) && String(item.visit_id || '') === visitId && urls.includes(item.url))
+      await Promise.all(records.map((item) => workspaceService.remove('media-records', item.id)))
+      setItems((current) => current.filter((url) => !urls.includes(url)))
+    } catch { setMediaError('Unable to remove saved media.'); }
+  }
+
+  const downloadUrls = (urls, prefix) => urls.forEach((url, index) => {
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${prefix}-${index + 1}`
+    link.click()
+  })
+
+  const exportImageManifest = () => {
+    const content = JSON.stringify({ patient: patientName, visitDate, columns, width, height, rowsCols, imageCount: importedImages.length }, null, 2)
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([content], { type: 'application/json' }))
+    link.download = `echo-images-${new Date().toISOString().slice(0, 10)}.json`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
 
   if (!open) return null
 
@@ -59,8 +119,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
 
   const handleImageImport = (e) => {
     const files = Array.from(e.target.files || [])
-    const newImages = files.map((file) => URL.createObjectURL(file))
-    setImportedImages([...importedImages, ...newImages])
+    persistFiles(files, setImportedImages)
   }
 
   const handlePdfImport = (e) => {
@@ -72,6 +131,11 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
       url: URL.createObjectURL(file),
     }))
     setArchivedPdfs([...archivedPdfs, ...newPdfs])
+  }
+
+  const handleVideoImport = (event) => {
+    const files = Array.from(event.target.files || [])
+    persistFiles(files, setImportedVideos)
   }
 
   return (
@@ -103,10 +167,10 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                 <option>{visitDate}</option>
               </select>
             </label>
-            <button type="button" className="legacy-small-button">
+            <button type="button" onClick={() => { setColumns('4'); setRowsCols('4X2') }} className="legacy-small-button">
               4 Image Per Row
             </button>
-            <button type="button" className="legacy-small-button">
+            <button type="button" onClick={() => { setActiveTab('images'); setSearchTitle(''); setRefreshKey((value) => value + 1) }} className="legacy-small-button">
               <RefreshCw className="mr-1 h-3 w-3" /> Refresh
             </button>
           </div>
@@ -121,6 +185,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
               <option value="1">Images: 1 column per row</option>
               <option value="2">Images: 2 column per row</option>
               <option value="3">Images: 3 column per row</option>
+              <option value="4">Images: 4 column per row</option>
             </select>
             <div className="flex items-center gap-1">
               <span>Width:</span>
@@ -160,10 +225,11 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
             <button type="button" onClick={() => { setInitialRuleMode('Rule of four'); setIsTiffaOpen(true); }} className="legacy-small-button">Rule of four</button>
             <button type="button" onClick={() => setIsOrganEditingOpen(true)} className="legacy-small-button">Organ drawing</button>
             <button type="button" onClick={() => setIsCompareOpen(true)} className="legacy-small-button">Image compare</button>
-            <button type="button" className="legacy-small-button">Export to PPT</button>
+            <button type="button" onClick={exportImageManifest} className="legacy-small-button">Export list</button>
           </div>
         </div>
 
+        {mediaError && <p className="px-4 py-2 text-sm text-red-700">{mediaError}</p>}
         {/* Tab Navigation */}
         <div className="flex shrink-0 border-b border-slate-200 bg-slate-100 px-4 pt-2 gap-1 text-xs font-semibold">
           {[
@@ -201,7 +267,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                         <img src={img} alt={`Imported ${idx}`} className="h-full w-full object-cover" />
                         <button
                           type="button"
-                          onClick={() => setImportedImages(importedImages.filter((_, i) => i !== idx))}
+                          onClick={() => removeMedia([img], setImportedImages)}
                           className="absolute right-1 top-1 rounded bg-slate-900/70 p-1 text-white opacity-0 transition group-hover:opacity-100 hover:bg-red-600"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -220,23 +286,23 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
 
               <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-2xs overflow-y-auto">
                 <div className="grid grid-cols-3 gap-2">
-                  <button type="button" className="legacy-small-button">Export</button>
+                  <button type="button" onClick={() => downloadUrls(importedImages, 'echo-image')} disabled={!importedImages.length} className="legacy-small-button disabled:opacity-40">Export</button>
                   <label className="legacy-small-button cursor-pointer justify-center">
                     Import
-                    <input type="file" accept="image/*" multiple onChange={handleImageImport} className="hidden" />
+                    <input ref={imageInputRef} type="file" accept="image/*" multiple onChange={handleImageImport} className="hidden" />
                   </label>
-                  <button type="button" onClick={() => setImportedImages([])} className="legacy-small-button">Delete</button>
-                  <button type="button" className="legacy-small-button">Process</button>
-                  <button type="button" className="legacy-small-button">Print</button>
-                  <button type="button" className="legacy-small-button">Send</button>
+                  <button type="button" onClick={() => removeMedia(importedImages, setImportedImages)} className="legacy-small-button">Delete</button>
+                  <button type="button" onClick={() => setIsCompareOpen(true)} className="legacy-small-button">Process</button>
+                  <button type="button" onClick={() => window.print()} className="legacy-small-button">Print</button>
+                  <button type="button" onClick={() => { window.location.href = `mailto:?subject=${encodeURIComponent(`Clinical images - ${patientName}`)}` }} className="legacy-small-button">Send</button>
                 </div>
 
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
                   <div className="mb-2 text-xs font-semibold text-slate-700">Anonymous images</div>
                   <div className="flex flex-wrap gap-1.5">
-                    <button type="button" className="legacy-small-button text-[11px]">Image Title</button>
-                    <button type="button" className="legacy-small-button text-[11px]">Ink Save</button>
-                    <button type="button" className="legacy-small-button text-[11px]">Rule of three...</button>
+                    <button type="button" onClick={() => setActiveTab('configurations')} className="legacy-small-button text-[11px]">Image Title</button>
+                    <button type="button" onClick={() => downloadUrls(importedImages, 'annotated-image')} disabled={!importedImages.length} className="legacy-small-button text-[11px] disabled:opacity-40">Ink Save</button>
+                    <button type="button" onClick={() => { setInitialRuleMode('Rule of three'); setIsTiffaOpen(true) }} className="legacy-small-button text-[11px]">Rule of three...</button>
                   </div>
                 </div>
 
@@ -249,11 +315,11 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                   </label>
 
                   <div className="grid grid-cols-2 gap-1.5 pt-2">
-                    <button type="button" className="legacy-small-button">Save</button>
-                    <button type="button" className="legacy-small-button">Delete</button>
-                    <button type="button" className="legacy-small-button">Clear</button>
-                    <button type="button" className="legacy-small-button">Print</button>
-                    <button type="button" className="legacy-small-button col-span-2">Clear image</button>
+                    <button type="button" onClick={() => localStorage.setItem('echoai_image_template', JSON.stringify({ columns, width, height, rowsCols }))} className="legacy-small-button">Save</button>
+                    <button type="button" onClick={() => localStorage.removeItem('echoai_image_template')} className="legacy-small-button">Delete</button>
+                    <button type="button" onClick={() => { setColumns('1'); setWidth('600'); setHeight('450'); setRowsCols('4X2') }} className="legacy-small-button">Clear</button>
+                    <button type="button" onClick={() => window.print()} className="legacy-small-button">Print</button>
+                    <button type="button" onClick={() => removeMedia(importedImages, setImportedImages)} className="legacy-small-button col-span-2">Clear image</button>
                   </div>
                 </div>
               </div>
@@ -266,15 +332,15 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
               <div className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-2xs overflow-auto">
                 <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
                   <Tv className="mb-2 h-12 w-12 stroke-1" />
-                  <p className="text-sm font-medium text-slate-600">No videos available</p>
+                  <p className="text-sm font-medium text-slate-600">{importedVideos.length ? `${importedVideos.length} video(s) imported` : 'No videos available'}</p>
                 </div>
               </div>
 
               <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-2xs">
                 <div className="flex gap-2">
-                  <button type="button" className="legacy-small-button flex-1">Export</button>
-                  <button type="button" className="legacy-small-button flex-1">Import</button>
-                  <button type="button" className="legacy-small-button flex-1">Delete</button>
+                  <button type="button" onClick={() => downloadUrls(importedVideos, `echo-video.${exportFormat}`)} disabled={!importedVideos.length} className="legacy-small-button flex-1 disabled:opacity-40">Export</button>
+                  <label className="legacy-small-button flex-1 cursor-pointer justify-center">Import<input type="file" accept="video/*" multiple onChange={handleVideoImport} className="hidden" /></label>
+                  <button type="button" onClick={() => removeMedia(importedVideos, setImportedVideos)} className="legacy-small-button flex-1">Delete</button>
                 </div>
 
                 <label className="field-label">
@@ -348,7 +414,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                     <option>Custom</option>
                   </select>
                 </label>
-                <button type="button" className="legacy-small-button self-end">Add</button>
+                <button type="button" onClick={() => titleName && localStorage.setItem(`echoai_image_title_${titleName}`, titleType)} className="legacy-small-button self-end">Add</button>
               </div>
 
               <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-2xs overflow-y-auto">
@@ -408,8 +474,8 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                 </fieldset>
 
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" className="legacy-small-button">Network Ping</button>
-                  <button type="button" className="legacy-small-button">Dicom Ping</button>
+                  <button type="button" onClick={() => setDescription(ipAddress ? 'Network configuration ready' : 'Enter an IP address first')} className="legacy-small-button">Validate network</button>
+                  <button type="button" onClick={() => setDescription(aeTitle ? 'DICOM configuration ready' : 'Enter an AE title first')} className="legacy-small-button">Validate DICOM</button>
                 </div>
               </div>
 

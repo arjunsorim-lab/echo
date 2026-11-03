@@ -1,31 +1,35 @@
+import { lazy, Suspense } from 'react'
 import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
-import Dashboard from './pages/Dashboard'
-import Search from './pages/Search'
-import NewPatient from './pages/NewPatient'
-import Patients from './pages/Patients'
-import EditPatient from './pages/EditPatient'
-import PatientRecords from './pages/PatientRecords'
-import Visits from './pages/Visits'
-import ReferralDoctors from './pages/ReferralDoctors'
-import NewReferralDoctor from './pages/NewReferralDoctor'
-import EditReferralDoctor from './pages/EditReferralDoctor'
-import ImagesViewer from './pages/ImagesViewer'
-import Measurements from './pages/Measurements'
-import Reports from './pages/Reports'
-import Analytics from './pages/Analytics'
-import Administration from './pages/Administration'
-import Settings from './pages/Settings'
-import Home from './pages/Home'
-import FetalEchoReport from './pages/FetalEchoReport'
-import AdultEchoReport from './pages/AdultEchoReport'
-import PediatricEchoReport from './pages/PediatricEchoReport'
+
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Search = lazy(() => import('./pages/Search'))
+const NewPatient = lazy(() => import('./pages/NewPatient'))
+const Patients = lazy(() => import('./pages/Patients'))
+const EditPatient = lazy(() => import('./pages/EditPatient'))
+const PatientRecords = lazy(() => import('./pages/PatientRecords'))
+const Visits = lazy(() => import('./pages/Visits'))
+const ReferralDoctors = lazy(() => import('./pages/ReferralDoctors'))
+const NewReferralDoctor = lazy(() => import('./pages/NewReferralDoctor'))
+const EditReferralDoctor = lazy(() => import('./pages/EditReferralDoctor'))
+const ImagesViewer = lazy(() => import('./pages/ImagesViewer'))
+const Measurements = lazy(() => import('./pages/Measurements'))
+const Reports = lazy(() => import('./pages/Reports'))
+const Analytics = lazy(() => import('./pages/Analytics'))
+const Administration = lazy(() => import('./pages/Administration'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Home = lazy(() => import('./pages/Home'))
+const FetalEchoReport = lazy(() => import('./pages/FetalEchoReport'))
+const AdultEchoReport = lazy(() => import('./pages/AdultEchoReport'))
+const PediatricEchoReport = lazy(() => import('./pages/PediatricEchoReport'))
+const AIAssistant = lazy(() => import('./pages/AIAssistant'))
+const CRM = lazy(() => import('./pages/CRM'))
+const EchoScan = lazy(() => import('./pages/EchoScan'))
+const EchoStudies = lazy(() => import('./pages/EchoStudies'))
 
 function isSignedIn() {
   return Boolean(
-    sessionStorage.getItem('echoai_user') ||
-    localStorage.getItem('echoai_user') ||
-    localStorage.getItem('echoai_google_access_token'),
+    sessionStorage.getItem('echoai_token') || localStorage.getItem('echoai_token'),
   )
 }
 
@@ -40,9 +44,12 @@ function ProtectedPage({ children }) {
 function LoginRoute() {
   const searchParams = new URLSearchParams(window.location.search)
   if (searchParams.get('signout') === '1') {
+    fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' }).catch(() => {})
     sessionStorage.removeItem('echoai_user')
     localStorage.removeItem('echoai_user')
     localStorage.removeItem('echoai_google_access_token')
+    sessionStorage.removeItem('echoai_token')
+    localStorage.removeItem('echoai_token')
     window.history.replaceState({}, document.title, '/')
     return <Home />
   }
@@ -53,7 +60,8 @@ function LoginRoute() {
 function App() {
   return (
     <Router>
-      <Routes>
+      <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-slate-500">Loading…</div>}>
+        <Routes>
         <Route path="/" element={<LoginRoute />} />
         <Route path="/dashboard" element={
           <ProtectedPage><Dashboard /></ProtectedPage>
@@ -89,7 +97,7 @@ function App() {
           <ProtectedPage><EditReferralDoctor /></ProtectedPage>
         } />
         <Route path="/echo-studies" element={
-          <Navigate to="/reports" replace />
+          <ProtectedPage><EchoStudies /></ProtectedPage>
         } />
         <Route path="/fetal-echo-report" element={
           <ProtectedPage><FetalEchoReport /></ProtectedPage>
@@ -110,10 +118,10 @@ function App() {
           <ProtectedPage><PediatricEchoReport /></ProtectedPage>
         } />
         <Route path="/echo-scan" element={
-          <Navigate to="/reports" replace />
+          <ProtectedPage><EchoScan /></ProtectedPage>
         } />
         <Route path="/echo-scan/:scanId" element={
-          <Navigate to="/reports" replace />
+          <ProtectedPage><EchoScan /></ProtectedPage>
         } />
         <Route path="/images" element={
           <ProtectedPage><ImagesViewer /></ProtectedPage>
@@ -122,13 +130,13 @@ function App() {
           <ProtectedPage><Measurements /></ProtectedPage>
         } />
         <Route path="/ai-assistant" element={
-          <Navigate to="/dashboard" replace />
+          <ProtectedPage><AIAssistant /></ProtectedPage>
         } />
         <Route path="/reports" element={
           <ProtectedPage><Reports /></ProtectedPage>
         } />
         <Route path="/crm" element={
-          <Navigate to="/dashboard" replace />
+          <ProtectedPage><CRM /></ProtectedPage>
         } />
         <Route path="/analytics" element={
           <ProtectedPage><Analytics /></ProtectedPage>
@@ -140,7 +148,8 @@ function App() {
           <ProtectedPage><Settings /></ProtectedPage>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+        </Routes>
+      </Suspense>
     </Router>
   )
 }

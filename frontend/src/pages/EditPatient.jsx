@@ -1,10 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Save, X } from 'lucide-react'
+import { Calendar, Plus, Save, Trash2, X } from 'lucide-react'
 import { patientService } from '../api/patientService'
+import { referralDoctorService } from '../api/referralDoctorService'
 import AddableSelect from '../components/AddableSelect'
 import ConfiguredFields from '../components/ConfiguredFields'
 import PatientDocumentUpload from '../components/PatientDocumentUpload'
+import ReferralDoctorModal from '../components/ReferralDoctorModal'
 import {
   getStatesForCountry,
   getCitiesForState,
@@ -51,6 +53,11 @@ function EditPatient() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [zipLookupStatus, setZipLookupStatus] = useState('')
+  const [visits, setVisits] = useState([])
+  const [deletedVisitIds, setDeletedVisitIds] = useState([])
+  const [referralDoctors, setReferralDoctors] = useState([])
+  const [isReferralModalOpen, setIsReferralModalOpen] = useState(false)
+  const [activeReferralVisitId, setActiveReferralVisitId] = useState(null)
 
   const countries = Object.keys(COUNTRY_DIAL_CODES)
   const availableStates = getStatesForCountry(formData.country)
@@ -62,10 +69,20 @@ function EditPatient() {
 
   useEffect(() => { fetchPatient() }, [id])
 
+  useEffect(() => {
+    referralDoctorService.getReferralDoctors().then((result) => setReferralDoctors(result.data || [])).catch(() => setReferralDoctors([]))
+  }, [])
+
   const fetchPatient = async () => {
     try {
-      const result = await patientService.getPatient(id)
-      if (result.success) { setFormData(result.data) }
+      const [patientResult, visitsResult] = await Promise.all([
+        patientService.getPatient(id),
+        patientService.getVisits(id),
+      ])
+      if (patientResult.success) {
+        setFormData((current) => ({ ...current, ...patientResult.data, custom_fields: patientResult.data.custom_fields || {} }))
+      }
+      if (visitsResult.success) setVisits(visitsResult.data || [])
     } catch (error) {
       console.error('Error fetching patient:', error)
       alert('Error loading patient data')
@@ -104,12 +121,35 @@ function EditPatient() {
     setIsSubmitting(true)
     try {
       await patientService.updatePatient(id, formData)
-      navigate('/patients')
+      await Promise.all(deletedVisitIds.map((visitId) => patientService.deleteVisit(id, visitId)))
+      for (const visit of visits.filter((item) => item.visit_date)) {
+        const { id: visitId, patient_id, created_at, updated_at, ...visitPayload } = visit
+        if (String(visitId).startsWith('new-')) await patientService.addVisit(id, visitPayload)
+        else await patientService.updateVisit(id, visitId, visitPayload)
+      }
+      navigate(`/patients/${id}/records`)
     } catch (error) {
       console.error('Error updating patient:', error)
       setSubmitError(error.response?.data?.detail || 'Unable to update the patient. Please check the required fields and try again.')
     } finally { setIsSubmitting(false) }
   }
+
+  const handleAddVisit = () => {
+    setVisits((current) => [...current, { id: `new-${Date.now()}`, visit_date: '', referral_doctor: '', image_count: '0', avi: '0', pregnancy: '0', ob: '' }])
+  }
+
+  const handleUpdateVisit = (visitId, field, value) => {
+    setVisits((current) => current.map((visit) => visit.id === visitId ? { ...visit, [field]: value } : visit))
+  }
+
+  const handleDeleteVisit = (visitId) => {
+    if (!String(visitId).startsWith('new-')) setDeletedVisitIds((current) => [...current, visitId])
+    setVisits((current) => current.filter((visit) => visit.id !== visitId))
+  }
+
+  const referralDoctorLabel = (doctor) => doctor.doctor_type === 'hospital'
+    ? (doctor.institution_name || doctor.name || 'Hospital')
+    : `${doctor.salutation || ''} ${doctor.first_name || ''} ${doctor.last_name || ''}`.trim() || doctor.name || 'Referral doctor'
 
   if (loading) {
     return (
@@ -270,6 +310,53 @@ function EditPatient() {
 
           <ConfiguredFields module="Patients" values={formData.custom_fields} onChange={(custom_fields) => setFormData({ ...formData, custom_fields })} />
 
+          {/* Visits */}
+          <div className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
+              <h3 className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                <Calendar className="h-4 w-4 text-teal-600" /> Visits
+              </h3>
+              <button type="button" onClick={handleAddVisit} className="flex items-center gap-2 rounded-lg bg-teal-600 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-teal-700">
+                <Plus className="h-4 w-4" /> Add new visit
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-slate-50">
+                  <tr>
+                    {['No.', 'Visit Date', 'Referral Doctor', 'Image', 'AVI', 'GA / Weeks', 'Obs / Scan', 'Action'].map((heading) => (
+                      <th key={heading} className={`px-4 py-3 text-left text-xs font-medium uppercase text-slate-700${heading === 'Action' ? ' text-center' : ''}`}>{heading}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {visits.length === 0 ? (
+                    <tr><td colSpan="8" className="px-4 py-8 text-center text-sm text-slate-500">No visits recorded. Click &quot;Add new visit&quot; to create one.</td></tr>
+                  ) : visits.map((visit, index) => (
+                    <tr key={visit.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 text-sm text-slate-900">{index + 1}</td>
+                      <td className="px-4 py-3"><input type="datetime-local" className="input text-sm" value={visit.visit_date?.slice(0, 16) || ''} onChange={(event) => handleUpdateVisit(visit.id, 'visit_date', event.target.value)} /></td>
+                      <td className="px-4 py-3">
+                        <div className="flex min-w-52 gap-1">
+                          <select className="input text-sm" value={visit.referral_doctor || ''} onChange={(event) => handleUpdateVisit(visit.id, 'referral_doctor', event.target.value)}>
+                            <option value="">Select referral doctor</option>
+                            {referralDoctors.map((doctor) => { const label = referralDoctorLabel(doctor); return <option key={doctor.id} value={label}>{label}</option> })}
+                          </select>
+                          <button type="button" onClick={() => { setActiveReferralVisitId(visit.id); setIsReferralModalOpen(true) }} className="rounded border border-teal-300 px-2 text-lg font-bold text-teal-700 hover:bg-teal-50" title="Add referral doctor">+</button>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3"><input className="input w-20 text-sm" value={visit.image_count ?? ''} onChange={(event) => handleUpdateVisit(visit.id, 'image_count', event.target.value)} /></td>
+                      <td className="px-4 py-3"><input className="input w-20 text-sm" value={visit.avi ?? ''} onChange={(event) => handleUpdateVisit(visit.id, 'avi', event.target.value)} /></td>
+                      <td className="px-4 py-3"><input className="input w-20 text-sm" value={visit.pregnancy ?? ''} onChange={(event) => handleUpdateVisit(visit.id, 'pregnancy', event.target.value)} /></td>
+                      <td className="px-4 py-3"><input className="input w-20 text-sm" value={visit.ob || ''} onChange={(event) => handleUpdateVisit(visit.id, 'ob', event.target.value)} /></td>
+                      <td className="px-4 py-3 text-center"><button type="button" onClick={() => handleDeleteVisit(visit.id)} className="text-red-600 transition hover:text-red-800" title="Delete visit"><Trash2 className="h-4 w-4" /></button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           {/* Action Buttons */}
           {submitError && (
             <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{submitError}</p>
@@ -284,6 +371,16 @@ function EditPatient() {
           </div>
         </form>
       </div>
+      <ReferralDoctorModal
+        open={isReferralModalOpen}
+        onClose={() => { setIsReferralModalOpen(false); setActiveReferralVisitId(null) }}
+        onSelect={(record) => {
+          const doctor = referralDoctorLabel(record)
+          if (activeReferralVisitId) handleUpdateVisit(activeReferralVisitId, 'referral_doctor', doctor)
+          setActiveReferralVisitId(null)
+          referralDoctorService.getReferralDoctors().then((result) => setReferralDoctors(result.data || [])).catch(() => {})
+        }}
+      />
     </div>
   )
 }

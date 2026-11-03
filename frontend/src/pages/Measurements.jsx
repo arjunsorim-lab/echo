@@ -3,6 +3,62 @@ import { Ruler, Search, Download, Filter } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 
+const isValue = (value) => value !== '' && value !== null && value !== undefined && value !== false
+
+function flattenMeasurements(source, prefix = '') {
+  if (!source || typeof source !== 'object') return []
+  return Object.entries(source).flatMap(([key, value]) => {
+    const label = [prefix, key].filter(Boolean).join(' ').replace(/_/g, ' ')
+    if (value && typeof value === 'object' && !Array.isArray(value)) return flattenMeasurements(value, label)
+    return isValue(value) ? [[label, Array.isArray(value) ? value.join(', ') : value]] : []
+  })
+}
+
+function reportForScan(scan) {
+  return scan.fetal_echo_report || scan.pediatric_echo_report || scan.adult_echo_report || {}
+}
+
+function categoryMeasurements(scan, category) {
+  const report = reportForScan(scan)
+  const biometry = report.biometry || {}
+  const categorySource = {
+    Biometry: biometry,
+    '2D Measurements': biometry.b_mode || report.cardio_biometry || report.measurements?.two_d || report.measurements || {},
+    'M-Mode & Functional': biometry.m_mode || report.m_mode || report.measurements?.m_mode || report.functional || {},
+    'Doppler Analysis': report.doppler || report.doppler_analysis || {},
+  }[category]
+
+  if (category === 'Z-Scores') {
+    const structured = flattenMeasurements(report).filter(([label]) => /z[ -]?score|ratio|index/i.test(label))
+    if (structured.length) return structured
+  }
+  const structured = flattenMeasurements(categorySource)
+  if (structured.length) return structured
+
+  const patterns = {
+    Biometry: /\b(mm|cm|dimension|diameter|annulus|area|length|width|size)\b/i,
+    '2D Measurements': /\b(2d|dimension|diameter|annulus|area|length|width|cavity|wall)\b/i,
+    'M-Mode & Functional': /\b(m-mode|lvef|ejection fraction|fractional shortening|contractility|function)\b/i,
+    'Z-Scores': /\b(z[ -]?score|ratio|index)\b/i,
+    'Doppler Analysis': /\b(doppler|velocity|gradient|flow|vmax|m\/s|mmhg|regurgitation)\b/i,
+  }
+  return String(`${scan.findings || ''}. ${scan.conclusion || ''}`)
+    .split(/(?<=[.;])\s+/)
+    .map((sentence) => sentence.trim())
+    .filter((sentence) => sentence && patterns[category]?.test(sentence))
+    .slice(0, 6)
+    .map((sentence, index) => [`Recorded finding ${index + 1}`, sentence.replace(/[.;]+$/, '')])
+}
+
+function ratioSummary(entries) {
+  const normalized = entries.map(([label, value]) => [label.toLowerCase(), Number.parseFloat(value)])
+  const find = (pattern) => normalized.find(([label, value]) => pattern.test(label) && Number.isFinite(value))?.[1]
+  const rv = find(/right ventricular width|rv width|rv.*diameter/)
+  const lv = find(/left ventricular width|lv width|lv.*diameter/)
+  if (!rv || !lv) return ''
+  return `RV/LV Ratio: ${(rv / lv).toFixed(2)}`
+}
+
 export default function Measurements() {
   const [scans, setScans] = useState([])
   const [patients, setPatients] = useState([])
@@ -135,7 +191,8 @@ export default function Measurements() {
               {filteredScans.map((scan) => {
                 const p = patientMap.get(scan.patient_id) || {}
                 const name = `${p.salutation || ''} ${p.first_name || ''} ${p.last_name || ''}`.trim() || p.patient_id || 'Unknown'
-                const details = scan.fetal_echo_report?.biometry?.b_mode || scan.pediatric_echo_report?.biometry || scan.adult_echo_report?.biometry || {}
+                const details = categoryMeasurements(scan, activeCategory)
+                const ratio = ratioSummary(flattenMeasurements(reportForScan(scan)))
                 const dateStr = scan.scan_date ? new Date(scan.scan_date).toLocaleDateString() : '—'
 
                 return (
@@ -150,22 +207,20 @@ export default function Measurements() {
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-xs text-slate-700">
-                      {Object.keys(details).length > 0 ? (
+                      {details.length > 0 ? (
                         <div className="flex flex-wrap gap-2">
-                          {Object.entries(details).slice(0, 4).map(([k, v]) => v ? (
+                          {details.slice(0, 6).map(([k, v]) => (
                             <span key={k} className="rounded bg-slate-100 px-2 py-0.5 font-medium">
-                              {k.replace(/_/g, ' ')}: <strong className="text-slate-900">{v}</strong>
+                              {k}: <strong className="text-slate-900">{String(v)}</strong>
                             </span>
-                          ) : null)}
+                          ))}
                         </div>
                       ) : (
-                        <span className="italic text-slate-400">Normal range recorded</span>
+                        <span className="italic text-slate-400">No {activeCategory.toLowerCase()} values recorded</span>
                       )}
                     </td>
                     <td className="px-4 py-3.5 text-xs">
-                      <span className="inline-flex items-center rounded bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 border border-teal-200">
-                        RV/LV Ratio: 1.05 (Normal)
-                      </span>
+                      {ratio ? <span className="inline-flex items-center rounded bg-teal-50 px-2.5 py-1 text-xs font-bold text-teal-800 border border-teal-200">{ratio}</span> : <span className="text-slate-400">—</span>}
                     </td>
                     <td className="px-4 py-3.5 text-xs text-slate-500">{dateStr}</td>
                   </tr>

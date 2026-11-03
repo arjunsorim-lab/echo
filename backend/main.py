@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Query
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -12,6 +12,9 @@ import shutil
 import uuid
 import smtplib
 import socket
+import secrets
+import time
+import hashlib
 from email.message import EmailMessage
 
 app = FastAPI(title="Echo AI Backend", version="1.0.0")
@@ -19,7 +22,7 @@ app = FastAPI(title="Echo AI Backend", version="1.0.0")
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[origin.strip() for origin in os.environ.get('ECHOAI_ALLOWED_ORIGINS', 'http://127.0.0.1:3000,http://localhost:3000').split(',') if origin.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -35,9 +38,31 @@ FRONTEND_DIST = os.environ.get(
     os.path.abspath(os.path.join(BASE_DIR, '..', 'frontend', 'dist')),
 )
 
+AUTH_TOKENS = {}
+AUTH_EXEMPT_PATHS = {'/api/health', '/api/auth/login'}
+
+@app.middleware('http')
+async def require_api_auth(request: Request, call_next):
+    if (request.url.path.startswith('/api/') or request.url.path.startswith('/uploads/')) and request.url.path not in AUTH_EXEMPT_PATHS:
+        header = request.headers.get('authorization', '')
+        token = header.removeprefix('Bearer ').strip() if header.startswith('Bearer ') else request.cookies.get('echoai_session', '')
+        expires_at = AUTH_TOKENS.get(token, 0)
+        if not token or expires_at <= time.time():
+            AUTH_TOKENS.pop(token, None)
+            return JSONResponse(status_code=401, content={'detail': 'Authentication required'})
+    return await call_next(request)
+
 def prepare_runtime_storage():
     os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
     os.makedirs(UPLOADS_DIR, exist_ok=True)
+    credential_path = os.path.join(BASE_DIR, '.local-credentials.json')
+    if not os.environ.get('ECHOAI_PASSWORD') and not os.environ.get('ECHOAI_PASSWORD_SHA256'):
+        if not os.path.exists(credential_path):
+            descriptor = os.open(credential_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+            with os.fdopen(descriptor, 'w') as credential_file:
+                json.dump({'password': secrets.token_urlsafe(24)}, credential_file)
+        with open(credential_path) as credential_file:
+            os.environ['ECHOAI_PASSWORD'] = json.load(credential_file)['password']
     if DB_PATH != DEFAULT_DB_PATH and not os.path.exists(DB_PATH):
         shutil.copy2(DEFAULT_DB_PATH, DB_PATH)
 
@@ -334,10 +359,14 @@ def init_db():
             phone TEXT,
             email TEXT,
             registration_number TEXT,
+            extra_data TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    existing_referral_columns = {row[1] for row in c.execute('PRAGMA table_info(referral_doctors)').fetchall()}
+    if 'extra_data' not in existing_referral_columns:
+        c.execute('ALTER TABLE referral_doctors ADD COLUMN extra_data TEXT')
     
     # 5. Custom options table
     c.execute('''
@@ -437,6 +466,10 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    existing_report_columns = {row[1] for row in c.execute('PRAGMA table_info(clinical_reports)').fetchall()}
+    for column, definition in {'visit_id': 'TEXT', 'data': 'TEXT'}.items():
+        if column not in existing_report_columns:
+            c.execute(f'ALTER TABLE clinical_reports ADD COLUMN {column} {definition}')
     
     # 10. Users table
     c.execute('''
@@ -488,6 +521,22 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    # 13. CRM follow-ups, appointments, and communication log
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS crm_activities (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            patient_id INTEGER,
+            activity_type TEXT NOT NULL,
+            subject TEXT NOT NULL,
+            due_at TEXT,
+            status TEXT DEFAULT 'Open',
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (patient_id) REFERENCES patients(id)
+        )
+    ''')
     
     conn.commit()
     conn.close()
@@ -500,6 +549,38 @@ def startup():
 @app.get('/api/health')
 def health():
     return {"message": "Echo AI Cardiology API Server", "status": "online", "version": "1.0.0"}
+
+@app.post('/api/auth/login')
+def login(data: dict):
+    configured_user = os.environ.get('ECHOAI_USERNAME', 'dr.shanthi').lower()
+    configured_email = os.environ.get('ECHOAI_EMAIL', 'dr.shanthi@echoai.com').lower()
+    configured_password = os.environ.get('ECHOAI_PASSWORD')
+    configured_password_hash = os.environ.get(
+        'ECHOAI_PASSWORD_SHA256',
+        '',
+    )
+    username = str(data.get('username') or data.get('email') or '').strip().lower()
+    submitted_password = str(data.get('password') or '')
+    password_matches = (
+        secrets.compare_digest(submitted_password, configured_password)
+        if configured_password is not None
+        else secrets.compare_digest(hashlib.sha256(submitted_password.encode()).hexdigest(), configured_password_hash)
+    )
+    if username not in {configured_user, configured_email} or not password_matches:
+        raise HTTPException(status_code=401, detail='Incorrect username or password')
+    token = secrets.token_urlsafe(32)
+    AUTH_TOKENS[token] = time.time() + 43200
+    response = JSONResponse({'success': True, 'token': token, 'user': {'name': 'Dr Shanthi', 'role': 'Founder', 'email': configured_email}})
+    response.set_cookie('echoai_session', token, httponly=True, samesite='strict', secure=os.environ.get('ECHOAI_SECURE_COOKIES') == '1', max_age=43200)
+    return response
+
+@app.post('/api/auth/logout')
+def logout(request: Request):
+    header = request.headers.get('authorization', '')
+    AUTH_TOKENS.pop(header.removeprefix('Bearer ').strip() or request.cookies.get('echoai_session', ''), None)
+    response = JSONResponse({'success': True})
+    response.delete_cookie('echoai_session')
+    return response
 
 # Helper Patient Data Mapper
 def _map_patient_row(row):
@@ -901,7 +982,20 @@ def create_scan(data: dict):
 def update_scan(scan_id: int, data: dict):
     conn = get_db()
     cursor = conn.cursor()
-    report_data = data.get('fetal_echo_report') or data.get('adult_echo_report') or data.get('pediatric_echo_report') or data.get('report_data') or {}
+    existing_row = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
+    if not existing_row:
+        conn.close()
+        raise HTTPException(status_code=404, detail='Scan not found')
+    existing = dict(existing_row)
+    def pick(key):
+        return data[key] if key in data else existing.get(key)
+    incoming_report = data.get('fetal_echo_report') or data.get('adult_echo_report') or data.get('pediatric_echo_report') or data.get('report_data')
+    report_data = incoming_report if incoming_report is not None else existing.get('report_data') or {}
+    if isinstance(report_data, str):
+        try:
+            report_data = json.loads(report_data)
+        except (TypeError, json.JSONDecodeError):
+            report_data = {}
     
     cursor.execute('''
         UPDATE scans SET
@@ -912,13 +1006,13 @@ def update_scan(scan_id: int, data: dict):
             typedBy = ?, reviewedBy = ?, icdCode = ?, report_data = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     ''', (
-        data.get('patient_id'), data.get('patient_display_id'), data.get('visit_id'),
-        data.get('scan_type'), data.get('scan_date'), data.get('findings'), data.get('conclusion'),
-        data.get('status'), 1 if data.get('abnormal') else 0, 1 if data.get('ambiguity') else 0,
-        1 if data.get('growthAbnormality') else 0, 1 if data.get('normal') else 0,
-        1 if data.get('normalVariant') else 0, data.get('indication'), data.get('diagnosis'),
-        data.get('referralDoctor'), data.get('primaryConsultant'), data.get('signedByLeft'),
-        data.get('signedByRight'), data.get('typedBy'), data.get('reviewedBy'), data.get('icdCode'), json.dumps(report_data), scan_id
+        pick('patient_id'), pick('patient_display_id'), pick('visit_id'),
+        pick('scan_type'), pick('scan_date'), pick('findings'), pick('conclusion'),
+        pick('status'), 1 if pick('abnormal') else 0, 1 if pick('ambiguity') else 0,
+        1 if pick('growthAbnormality') else 0, 1 if pick('normal') else 0,
+        1 if pick('normalVariant') else 0, pick('indication'), pick('diagnosis'),
+        pick('referralDoctor'), pick('primaryConsultant'), pick('signedByLeft'),
+        pick('signedByRight'), pick('typedBy'), pick('reviewedBy'), pick('icdCode'), json.dumps(report_data), scan_id
     ))
     
     conn.commit()
@@ -936,12 +1030,58 @@ def delete_scan(scan_id: int):
     return {"success": True, "message": "Scan deleted successfully"}
 
 # Referral Doctors Endpoints
+def serialize_referral_doctor(row):
+    stored = dict(row)
+    try:
+        extras = json.loads(stored.get('extra_data') or '{}')
+    except (TypeError, json.JSONDecodeError):
+        extras = {}
+    doctor = {**extras, **stored}
+    raw_name = str(doctor.get('name') or '').strip()
+    name_parts = raw_name.split()
+    salutation = name_parts[0] if name_parts and name_parts[0].rstrip('.').lower() in {'dr', 'prof', 'mr', 'mrs', 'ms'} else ''
+    if salutation:
+        name_parts = name_parts[1:]
+    doctor_type = 'hospital' if doctor.get('hospital') and doctor.get('hospital') == raw_name else 'doctor'
+    doctor.update({
+        'doctor_type': doctor_type,
+        'salutation': salutation,
+        'first_name': name_parts[0] if name_parts else '',
+        'last_name': ' '.join(name_parts[1:]),
+        'speciality': doctor.get('specialty') or '',
+        'institution_name': doctor.get('hospital') or '',
+        'parent_institution': doctor.get('hospital') or '',
+        'street': doctor.get('clinic_address') or '',
+        'phone1': doctor.get('phone') or '',
+        'mobile': doctor.get('phone') or '',
+        'reg_no': doctor.get('registration_number') or '',
+    })
+    return doctor
+
+def referral_payload(data):
+    doctor_type = data.get('doctor_type', 'doctor')
+    name = data.get('name')
+    if not name:
+        name = data.get('institution_name') if doctor_type == 'hospital' else ' '.join(filter(None, [data.get('salutation'), data.get('first_name'), data.get('middle_name'), data.get('last_name')]))
+    address = data.get('clinic_address') or ', '.join(filter(None, [data.get('street'), data.get('area'), data.get('area_po'), data.get('district_city'), data.get('state'), data.get('country')]))
+    return {
+        'name': name or 'Unnamed referral contact',
+        'qualification': data.get('qualification'),
+        'specialty': data.get('specialty') or data.get('speciality'),
+        'hospital': data.get('hospital') or data.get('parent_institution') or data.get('institution_name'),
+        'clinic_address': address,
+        'phone': data.get('phone') or data.get('mobile') or data.get('phone1'),
+        'email': data.get('email'),
+        'registration_number': data.get('registration_number') or data.get('reg_no'),
+        'extra_data': json.dumps(data),
+    }
+
 @app.get('/api/referral-doctors')
 def get_referral_doctors():
     conn = get_db()
     doctors = conn.execute('SELECT * FROM referral_doctors ORDER BY id DESC').fetchall()
     conn.close()
-    return {"success": True, "data": [dict(d) for d in doctors]}
+    return {"success": True, "data": [serialize_referral_doctor(d) for d in doctors]}
 
 @app.get('/api/referral-doctors/{doctor_id}')
 def get_referral_doctor(doctor_id: int):
@@ -950,42 +1090,44 @@ def get_referral_doctor(doctor_id: int):
     conn.close()
     if not doctor:
         raise HTTPException(status_code=404, detail="Referral doctor not found")
-    return {"success": True, "data": dict(doctor)}
+    return {"success": True, "data": serialize_referral_doctor(doctor)}
 
 @app.post('/api/referral-doctors')
 def create_referral_doctor(data: dict):
+    payload = referral_payload(data)
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
-        INSERT INTO referral_doctors (name, qualification, specialty, hospital, clinic_address, phone, email, registration_number)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO referral_doctors (name, qualification, specialty, hospital, clinic_address, phone, email, registration_number, extra_data)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
-        data.get('name'), data.get('qualification'), data.get('specialty'), data.get('hospital'),
-        data.get('clinic_address'), data.get('phone'), data.get('email'), data.get('registration_number')
+        payload['name'], payload['qualification'], payload['specialty'], payload['hospital'],
+        payload['clinic_address'], payload['phone'], payload['email'], payload['registration_number'], payload['extra_data']
     ))
     doctor_id = cursor.lastrowid
     conn.commit()
     inserted = conn.execute('SELECT * FROM referral_doctors WHERE id = ?', (doctor_id,)).fetchone()
     conn.close()
-    return {"success": True, "data": dict(inserted)}
+    return {"success": True, "data": serialize_referral_doctor(inserted)}
 
 @app.put('/api/referral-doctors/{doctor_id}')
 def update_referral_doctor(doctor_id: int, data: dict):
+    payload = referral_payload(data)
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('''
         UPDATE referral_doctors SET
             name = ?, qualification = ?, specialty = ?, hospital = ?, clinic_address = ?,
-            phone = ?, email = ?, registration_number = ?, updated_at = CURRENT_TIMESTAMP
+            phone = ?, email = ?, registration_number = ?, extra_data = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     ''', (
-        data.get('name'), data.get('qualification'), data.get('specialty'), data.get('hospital'),
-        data.get('clinic_address'), data.get('phone'), data.get('email'), data.get('registration_number'), doctor_id
+        payload['name'], payload['qualification'], payload['specialty'], payload['hospital'],
+        payload['clinic_address'], payload['phone'], payload['email'], payload['registration_number'], payload['extra_data'], doctor_id
     ))
     conn.commit()
     updated = conn.execute('SELECT * FROM referral_doctors WHERE id = ?', (doctor_id,)).fetchone()
     conn.close()
-    return {"success": True, "data": dict(updated)}
+    return {"success": True, "data": serialize_referral_doctor(updated)}
 
 @app.delete('/api/referral-doctors/{doctor_id}')
 def delete_referral_doctor(doctor_id: int):
@@ -1198,8 +1340,16 @@ def delete_template(template_id: int):
     return {"success": True, "message": "Template deleted"}
 
 # Clinical Reports Endpoints
+def _clinical_report_to_dict(row):
+    report = dict(row)
+    try:
+        report['data'] = json.loads(report.get('data') or '{}')
+    except (TypeError, json.JSONDecodeError):
+        report['data'] = {}
+    return report
+
 @app.get('/api/clinical-reports')
-def get_reports(patient_id: Optional[int] = Query(None), scan_type: Optional[str] = Query(None)):
+def get_reports(patient_id: Optional[int] = Query(None), visit_id: Optional[str] = Query(None), scan_type: Optional[str] = Query(None)):
     conn = get_db()
     query = 'SELECT * FROM clinical_reports WHERE 1=1'
     params_list = []
@@ -1210,10 +1360,13 @@ def get_reports(patient_id: Optional[int] = Query(None), scan_type: Optional[str
     if scan_type is not None:
         query += ' AND scan_type = ?'
         params_list.append(scan_type)
+    if visit_id is not None:
+        query += ' AND visit_id = ?'
+        params_list.append(visit_id)
     
     reports = conn.execute(query, params_list).fetchall()
     conn.close()
-    return {"success": True, "data": [dict(r) for r in reports]}
+    return {"success": True, "data": [_clinical_report_to_dict(r) for r in reports]}
 
 @app.get('/api/clinical-reports/{report_id}')
 def get_report(report_id: int):
@@ -1222,7 +1375,7 @@ def get_report(report_id: int):
     conn.close()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    return {"success": True, "data": dict(report)}
+    return {"success": True, "data": _clinical_report_to_dict(report)}
 
 @app.post('/api/clinical-reports')
 def create_report(data: dict):
@@ -1230,38 +1383,45 @@ def create_report(data: dict):
     cursor = conn.cursor()
     
     cursor.execute('''
-        INSERT INTO clinical_reports (patient_id, scan_id, scan_type, report_title, findings, conclusion, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO clinical_reports (patient_id, scan_id, visit_id, scan_type, report_title, findings, conclusion, status, data, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
-        data.get('patient_id'), data.get('scan_id'), data.get('scan_type'),
+        data.get('patient_id'), data.get('scan_id'), data.get('visit_id'), data.get('scan_type'),
         data.get('report_title'), data.get('findings'), data.get('conclusion'),
-        data.get('status', 'draft'), datetime.now().isoformat()
+        data.get('status', 'draft'), json.dumps(data.get('data') or {}), datetime.now().isoformat()
     ))
     
     report_id = cursor.lastrowid
     conn.commit()
     inserted = conn.execute('SELECT * FROM clinical_reports WHERE id = ?', (report_id,)).fetchone()
     conn.close()
-    return {"success": True, "data": dict(inserted)}
+    return {"success": True, "data": _clinical_report_to_dict(inserted)}
 
 @app.put('/api/clinical-reports/{report_id}')
 def update_report(report_id: int, data: dict):
     conn = get_db()
     cursor = conn.cursor()
+    current_row = conn.execute('SELECT * FROM clinical_reports WHERE id = ?', (report_id,)).fetchone()
+    if not current_row:
+        conn.close()
+        raise HTTPException(status_code=404, detail='Report not found')
+    current = dict(current_row)
+    def report_value(key):
+        return data[key] if key in data else current.get(key)
     
     cursor.execute('''
         UPDATE clinical_reports SET
-            scan_type = ?, report_title = ?, findings = ?, conclusion = ?, status = ?, updated_at = ?
+            patient_id = ?, scan_id = ?, visit_id = ?, scan_type = ?, report_title = ?, findings = ?, conclusion = ?, status = ?, data = ?, updated_at = ?
         WHERE id = ?
     ''', (
-        data.get('scan_type'), data.get('report_title'), data.get('findings'),
-        data.get('conclusion'), data.get('status'), datetime.now().isoformat(), report_id
+        report_value('patient_id'), report_value('scan_id'), report_value('visit_id'), report_value('scan_type'), report_value('report_title'), report_value('findings'),
+        report_value('conclusion'), report_value('status'), json.dumps(data.get('data')) if 'data' in data else current.get('data'), datetime.now().isoformat(), report_id
     ))
     
     conn.commit()
     updated = conn.execute('SELECT * FROM clinical_reports WHERE id = ?', (report_id,)).fetchone()
     conn.close()
-    return {"success": True, "data": dict(updated)}
+    return {"success": True, "data": _clinical_report_to_dict(updated)}
 
 @app.delete('/api/clinical-reports/{report_id}')
 def delete_report(report_id: int):
@@ -1284,10 +1444,15 @@ def _normalize_table_name(resource: str) -> str:
         'media_records': 'media_records',
         'saved-queries': 'saved_queries',
         'saved_queries': 'saved_queries',
+        'crm-activities': 'crm_activities',
+        'crm_activities': 'crm_activities',
         'report-templates': 'report_templates',
         'clinical-reports': 'clinical_reports',
     }
-    return table_map.get(resource, resource.replace('-', '_'))
+    table = table_map.get(resource)
+    if table is None:
+        raise HTTPException(status_code=404, detail='Unsupported resource')
+    return table
 
 @app.get('/api/resources/{resource}')
 def list_resources(resource: str):
@@ -1319,13 +1484,15 @@ def create_resource(resource: str, data: dict):
     table = _normalize_table_name(resource)
     
     cursor = conn.cursor()
-    # Check if table exists, create if saved_queries / media_records
+    # Check if table exists, create if a supported auxiliary table is missing
     cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name=?", (table,))
     if not cursor.fetchone():
         if table == 'saved_queries':
             cursor.execute('CREATE TABLE saved_queries (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, query TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
         elif table == 'media_records':
             cursor.execute('CREATE TABLE media_records (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id TEXT, visit_id TEXT, name TEXT, type TEXT, size INTEGER, status TEXT, url TEXT, data_url TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)')
+        elif table == 'crm_activities':
+            cursor.execute("CREATE TABLE crm_activities (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id INTEGER, activity_type TEXT NOT NULL, subject TEXT NOT NULL, due_at TEXT, status TEXT DEFAULT 'Open', notes TEXT, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)")
         else:
             conn.close()
             raise HTTPException(status_code=404, detail=f"Resource {resource} not supported")
@@ -1395,9 +1562,19 @@ def delete_resource(resource: str, item_id: int):
     conn = get_db()
     table = _normalize_table_name(resource)
     cursor = conn.cursor()
+    media_path = None
+    if table == 'media_records':
+        media = cursor.execute('SELECT url FROM media_records WHERE id = ?', (item_id,)).fetchone()
+        if media and media['url'] and str(media['url']).startswith('/uploads/'):
+            candidate = os.path.abspath(os.path.join(UPLOADS_DIR, os.path.basename(media['url'])))
+            uploads_root = os.path.abspath(UPLOADS_DIR) + os.sep
+            if candidate.startswith(uploads_root):
+                media_path = candidate
     cursor.execute(f'DELETE FROM {table} WHERE id = ?', (item_id,))
     conn.commit()
     conn.close()
+    if media_path and os.path.isfile(media_path):
+        os.remove(media_path)
     return {"success": True, "message": "Resource deleted successfully"}
 
 # Media Upload Endpoint

@@ -10,11 +10,14 @@ frontend/build/
 # Environment files
 .env
 .env.local
+backend/.local-credentials.json
 .env.*.local
 
 # Database
 *.sqlite
 *.db
+*.db-shm
+*.db-wal
 backend/migrations/versions/
 
 # IDE

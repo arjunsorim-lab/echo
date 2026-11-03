@@ -239,7 +239,6 @@ function NewPatient() {
                       <label className={labelClass}>Area (P.O.)</label>
                       <div className="flex gap-2">
                         <input type="text" className={inputClass} value={formData.area_po} onChange={(e) => setFormData({ ...formData, area_po: e.target.value })} placeholder="Auto-filled by zip code" />
-                        <button type="button" className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition text-sm whitespace-nowrap">Add / Modify</button>
                       </div>
                     </div>
                     <div>
