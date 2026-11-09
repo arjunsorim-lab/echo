@@ -7,9 +7,8 @@ export default defineConfig({
     host: '127.0.0.1',
     port: 3000,
     proxy: {
+      '/uploads': { target: 'http://127.0.0.1:8002', changeOrigin: true },
       '/api': {
-        // Keep the development proxy aligned with the FastAPI application's
-        // default local port (see backend/main.py).
         target: process.env.VITE_API_TARGET || 'http://127.0.0.1:8002',
         changeOrigin: true,
       }

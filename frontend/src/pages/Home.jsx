@@ -1,3 +1,4 @@
+import api from '../api/axios'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -26,7 +27,16 @@ import {
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 import EchoLogo from '../components/EchoLogo'
-import api from '../api/axios'
+
+const demoUsers = [
+  {
+    name: 'Dr Shanthi',
+    role: 'Founder',
+    email: 'dr.shanthi@echoai.com',
+    userName: 'dr.shanthi',
+
+  },
+]
 
 const pipelineSteps = [
   {
@@ -373,9 +383,6 @@ function Home() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    Promise.allSettled([scanService.getDashboardStats(), patientService.getPatients()])
-  }, [])
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
@@ -389,8 +396,8 @@ function Home() {
     navigate('/dashboard', { replace: true })
   }, [navigate])
 
-  const useDemoUser = () => {
-    setEmail('dr.shanthi@echoai.com')
+  const useDemoUser = (user = demoUsers[0]) => {
+    setEmail(user.email)
     setPassword('')
     setError('')
   }
@@ -404,14 +411,12 @@ function Home() {
       other.removeItem('echoai_user'); other.removeItem('echoai_token')
       storage.setItem('echoai_user', JSON.stringify(result.user)); storage.setItem('echoai_token', result.token)
       navigate('/dashboard', { replace: true })
-    } catch (loginError) {
-      setError(loginError.response?.data?.detail || 'Unable to sign in')
-    }
+    } catch (error) { setError(error.response?.data?.detail || 'Unable to sign in. Check the backend connection.') }
   }
 
   const handleGoogleSignIn = () => {
     const authUrl = buildGoogleAuthUrl()
-    window.location.assign(authUrl || 'https://accounts.google.com/signin/v2/identifier')
+    setError('Use your clinical account. Google sign-in has not been connected to clinical roles.')
   }
 
   return (
@@ -483,6 +488,28 @@ function Home() {
               Login
             </button>
           </form>
+
+          <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
+            <div className="h-px flex-1 bg-slate-200" />
+            <span>or</span>
+            <div className="h-px flex-1 bg-slate-200" />
+          </div>
+
+          {/* ── GOOGLE BUTTON (proper icon) ── */}
+          <button
+            type="button"
+            onClick={handleGoogleSignIn}
+            className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:shadow-md active:scale-[0.98]"
+          >
+            {/* Official Google coloured G */}
+            <svg width="18" height="18" viewBox="0 0 48 48" className="shrink-0">
+              <path fill="#EA4335" d="M24 9.5c3.2 0 5.9 1.1 8.1 2.9l6-6C34.5 3.2 29.6 1 24 1 14.8 1 7 6.7 3.7 14.5l7 5.4C12.4 13.8 17.7 9.5 24 9.5z"/>
+              <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.4 5.7c4.3-4 6.8-9.9 6.8-16.9z"/>
+              <path fill="#FBBC05" d="M10.7 28.6A14.9 14.9 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7-5.4A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.5 10.8l8.2-6.2z"/>
+              <path fill="#34A853" d="M24 47c5.9 0 10.9-1.9 14.5-5.2l-7.4-5.7c-2 1.3-4.5 2.1-7.1 2.1-6.3 0-11.6-4.2-13.5-10l-8.2 6.2C6.6 41.6 14.8 47 24 47z"/>
+            </svg>
+            Sign in with Google
+          </button>
 
           {/* ── FOUNDER ACCESS CARD ── */}
           <div className="mt-4 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5">

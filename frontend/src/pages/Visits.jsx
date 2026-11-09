@@ -1,103 +1,228 @@
-import { useEffect, useState } from 'react'
-import { Calendar, CheckCircle2, Pencil, Save, Search, Stethoscope, Trash2, Upload, UserCheck } from 'lucide-react'
+import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import {
+  Activity,
+  Calendar,
+  Check,
+  CheckCircle2,
+  FileText,
+  Filter,
+  Plus,
+  Save,
+  Search,
+  Stethoscope,
+  Trash2,
+  UserCheck,
+  X,
+} from 'lucide-react'
+import { QRCodeSVG } from 'qrcode.react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { patientService } from '../api/patientService'
+import { scanService } from '../api/scanService'
 import { workspaceService } from '../api/workspaceService'
-import { referralDoctorService } from '../api/referralDoctorService'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
-import ConfiguredFields from '../components/ConfiguredFields'
-
-const scanRoutes = {
-  'Adult Echo': '/adult-echo-report',
-  'Fetal Echo': '/fetal-echo-report',
-  'Pediatric Echo': '/pediatric-echo-report',
-}
-
-const defaultVisitData = {
-  visit_date: '',
-  visit_type: 'Consultation',
-  scan_type: 'Fetal Echo',
-  referral_doctor: '',
-  report_template_id: '',
-  documentation_name: '',
-  documentation_path: '',
-  custom_fields: {},
-}
-
-const getPatientName = (patient) => [patient?.salutation, patient?.first_name, patient?.middle_name, patient?.last_name]
-  .filter(Boolean)
-  .join(' ')
-  .trim()
+import SearchableSelect from '../components/SearchableSelect'
 
 export default function Visits() {
   const navigate = useNavigate()
-  const [searchParams] = useSearchParams()
-  const patientParam = searchParams.get('patient') || searchParams.get('patientId') || searchParams.get('patient_id') || ''
+  const requestKey = useRef(crypto.randomUUID())
+  const [searchParams, setSearchParams] = useSearchParams()
+  const patientParam =
+    searchParams.get('patient') || searchParams.get('patientId') || searchParams.get('patient_id') || ''
   const [patients, setPatients] = useState([])
   const [selectedPatient, setSelectedPatient] = useState('')
-  const [selectedVisit, setSelectedVisit] = useState('')
-  const [editingVisitId, setEditingVisitId] = useState(null)
   const [visits, setVisits] = useState([])
+  const [allVisits, setAllVisits] = useState([])
+  const [scans, setScans] = useState([])
+  const [activeScanFilter, setActiveScanFilter] = useState('')
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [status, setStatus] = useState('')
   const [templates, setTemplates] = useState([])
-  const [referralDoctors, setReferralDoctors] = useState([])
   const [referralOpen, setReferralOpen] = useState(false)
-  const [uploadingDocument, setUploadingDocument] = useState(false)
-  const [showVisits, setShowVisits] = useState(Boolean(patientParam))
-  const [visitFilter, setVisitFilter] = useState('All')
-  const [visitData, setVisitData] = useState(defaultVisitData)
+  const [visitData, setVisitData] = useState({
+    visit_date: '',
+    scan_type: '',
+    referral_doctor: '',
+    report_template_id: '',
+    notes: '',
+  })
 
+  // Map visit count for every patient across the entire system
+  const visitCountsByPatient = useMemo(() => {
+    const map = {}
+    for (const v of allVisits) {
+      const pid = String(v.patient_id)
+      map[pid] = (map[pid] || 0) + 1
+    }
+    return map
+  }, [allVisits])
+
+  // Patient options for SearchableSelect with real-time visit count badges
+  const patientOptions = useMemo(() => {
+    return patients.map((item) => {
+      const countFromId = visitCountsByPatient[String(item.id)] || 0
+      const countFromPatientId = visitCountsByPatient[String(item.patient_id)] || 0
+      const vCount = item.visit_count || countFromId || countFromPatientId || 0
+      const visitLabel = vCount === 1 ? '1 visit' : `${vCount} visits`
+      return {
+        value: item.id,
+        label: `${item.patient_id || ''} — ${item.first_name || ''} ${item.last_name || ''}`.trim(),
+        badge: visitLabel,
+        visitCount: vCount,
+      }
+    })
+  }, [patients, visitCountsByPatient])
+
+  // Initial data fetch
   useEffect(() => {
-    Promise.all([patientService.getPatients(), workspaceService.getTemplates(), referralDoctorService.getReferralDoctors()])
-      .then(([patientResult, templateResult, doctorResult]) => {
+    Promise.all([
+      patientService.getPatients(),
+      workspaceService.getTemplates(),
+      patientService.getAllVisits().catch(() => ({ data: [] })),
+    ])
+      .then(([patientResult, templateResult, allVisitsResult]) => {
         const patientList = patientResult.data || []
         setPatients(patientList)
         setTemplates(templateResult.data || [])
-        setReferralDoctors(doctorResult.data || [])
-        if (patientParam) {
-          const found = patientList.find(
-            (p) => String(p.id) === String(patientParam) || String(p.patient_id) === String(patientParam)
-          )
-          if (found) selectPatient(found.id, true)
-        }
+        setAllVisits(allVisitsResult.data || [])
       })
-      .catch(() => { setPatients([]); setTemplates([]); setReferralDoctors([]) })
-  }, [patientParam])
+      .catch(() => {
+        setPatients([])
+        setTemplates([])
+        setAllVisits([])
+      })
+  }, [])
 
-  const selectPatient = async (patientId, revealVisits = false) => {
+  // Sync selected patient when URL patientParam or patientList changes
+  useEffect(() => {
+    if (!patients.length) return
+    if (patientParam) {
+      const found = patients.find(
+        (p) => String(p.id) === String(patientParam) || String(p.patient_id) === String(patientParam)
+      )
+      if (found && String(found.id) !== String(selectedPatient)) {
+        selectPatient(found.id, false)
+      }
+    }
+  }, [patientParam, patients, selectedPatient])
+
+  const selectPatient = async (patientId, syncUrl = true) => {
+    requestKey.current = crypto.randomUUID()
     setSelectedPatient(patientId)
-    setSelectedVisit('')
-    setEditingVisitId(null)
-    setVisitData(defaultVisitData)
+    const selected = patients.find(p => String(p.id) === String(patientId))
+    const now = new Date()
+    setVisitData({visit_date:new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16),scan_type:'',referral_doctor:selected?.family_doctor || '',report_template_id:'',notes:''})
+    setActiveScanFilter('')
     setStatus('')
-    setShowVisits(Boolean(revealVisits))
+
+    // Immediately keep browser URL query parameter in sync
+    if (syncUrl) {
+      if (patientId) {
+        setSearchParams({ patient: String(patientId) }, { replace: true })
+      } else {
+        setSearchParams({}, { replace: true })
+      }
+    }
+
     if (!patientId) {
       setVisits([])
+      setScans([])
       return
     }
     setLoading(true)
     try {
-      const visitResult = await patientService.getVisits(patientId)
+      const [visitResult, scanResult] = await Promise.all([
+        patientService.getVisits(patientId),
+        scanService.getScansByPatient(patientId),
+      ])
       setVisits(visitResult.data || [])
+      setScans(scanResult.data || [])
     } catch {
       setVisits([])
+      setScans([])
     } finally {
       setLoading(false)
     }
   }
 
-  const openVisit = (visit) => {
-    if (!selectedPatient || !visit?.id) return
-    const route = scanRoutes[visit.scan_type] || '/fetal-echo-report'
-    navigate(`${route}?patientId=${selectedPatient}&visitId=${visit.id}&scatter=true`)
-  }
+  // Determine intelligent default scan type for current patient
+  const defaultScanType = useMemo(() => {
+    if (activeScanFilter) return activeScanFilter
+    if (scans.length > 0 && scans[0].scan_type) return scans[0].scan_type
+    const patientRecord = patients.find((p) => String(p.id) === String(selectedPatient))
+    if (patientRecord?.age !== undefined && patientRecord?.age !== null && Number(patientRecord.age) < 18) {
+      return 'Pediatric Echo'
+    }
+    return 'Adult Echo'
+  }, [activeScanFilter, scans, patients, selectedPatient])
 
-  const selectVisit = (visitId) => {
-    setSelectedVisit(visitId)
-    const visit = visits.find((item) => String(item.id) === String(visitId))
-    if (visit) openVisit(visit)
+  // Determine which scan types a visit belongs to
+  const getVisitScanTypes = useCallback(
+    (visit) => {
+      const types = new Set()
+      if (!visit) return []
+
+      if (visit.visit_type && ['Adult Echo','Fetal Echo','Pediatric Echo','Ultrasound'].includes(visit.visit_type)) types.add(visit.visit_type)
+      // 1. Direct match via scans table visit_id
+      for (const s of scans) {
+        if (s.scan_type && String(s.visit_id) === String(visit.id)) {
+          types.add(s.scan_type)
+        }
+      }
+
+      // 2. Match via chosen template
+      if (visit.report_template_id) {
+        const tmpl = templates.find((t) => String(t.id) === String(visit.report_template_id))
+        if (tmpl?.scan_type) types.add(tmpl.scan_type)
+      }
+
+      // 3. Match via visit_type, notes, diagnosis, or ob text
+      const visitType = (visit.visit_type || '').toLowerCase()
+      if (visitType.includes('fetal') || visitType.includes('routine fetal scan')) types.add('Fetal Echo')
+      if (visitType.includes('pediatric')) types.add('Pediatric Echo')
+      if (visitType.includes('adult')) types.add('Adult Echo')
+
+      const text = `${visit.notes || ''} ${visit.diagnosis || ''} ${visit.ob || ''}`.toLowerCase()
+      if (text.includes('adult echo') || text.includes('adult')) types.add('Adult Echo')
+      if (text.includes('fetal echo') || text.includes('fetal')) types.add('Fetal Echo')
+      if (text.includes('pediatric echo') || text.includes('pediatric')) types.add('Pediatric Echo')
+
+      // 4. Fallback: If visit still has no explicit scan type, inherit from patient's scans or age
+      if (types.size === 0) {
+        if (scans.length > 0) {
+          const uniquePatientScanTypes = Array.from(new Set(scans.map((s) => s.scan_type).filter(Boolean)))
+          if (uniquePatientScanTypes.length === 1) {
+            types.add(uniquePatientScanTypes[0])
+          } else {
+            for (const s of scans) {
+              if (s.scan_type && (!s.visit_id || String(s.visit_id) === String(visit.id))) {
+                types.add(s.scan_type)
+              }
+            }
+          }
+        } else {
+          const patientRecord = patients.find((p) => String(p.id) === String(selectedPatient))
+          if (patientRecord?.age !== undefined && patientRecord?.age !== null && Number(patientRecord.age) < 18) {
+            types.add('Pediatric Echo')
+          } else {
+            types.add('Adult Echo')
+          }
+        }
+      }
+
+      return Array.from(types)
+    },
+    [scans, templates, patients, selectedPatient],
+  )
+
+  // Filter visits based on active scan filter
+  const filteredVisits = useMemo(() => {
+    if (!activeScanFilter) return visits
+    return visits.filter((v) => getVisitScanTypes(v).includes(activeScanFilter))
+  }, [visits, activeScanFilter, getVisitScanTypes])
+
+  const toggleScanFilter = (type) => {
+    setActiveScanFilter((prev) => (prev === type ? '' : type))
   }
 
   const addVisit = async (event) => {
@@ -111,26 +236,55 @@ export default function Visits() {
       alert('The selected patient record could not be found')
       return
     }
+    if (saving) return
+    if (!visitData.scan_type || !visitData.visit_date) { setStatus('Select a scan type and visit date.'); return }
     setSaving(true)
     setStatus('')
     try {
-      const payload = {
+      const selectedTmpl = templates.find((t) => String(t.id) === String(visitData.report_template_id))
+      const determinedScanType =
+        visitData.scan_type
+
+      const result = await patientService.addVisit(selectedPatient, {
         ...visitData,
         patient_id: selectedPatient,
         patient_display_id: selectedPatientRecord.patient_id,
-        patient_name: getPatientName(selectedPatientRecord),
+        patient_name: `${selectedPatientRecord.first_name || ''} ${selectedPatientRecord.last_name || ''}`.trim(),
+        visit_type: determinedScanType,
+        request_id: requestKey.current,
+        referral_doctor: visitData.referral_doctor || selectedPatientRecord.family_doctor || '',
+      })
+      const newVisit = result.data
+
+      // Create the visit-linked draft before opening its matching editor.
+      let createdScan
+      try {
+        const scanResult = await scanService.createScan({
+          patient_id: selectedPatient,
+          patient_display_id: selectedPatientRecord.patient_id,
+          visit_id: newVisit.id,
+          scan_type: determinedScanType,
+          status: 'draft',
+          normal: 1,
+        })
+        createdScan = scanResult.data
+        if (scanResult?.data) {
+          setScans((prev) => [scanResult.data, ...prev])
+        }
+      } catch (err) {
+        setStatus('Visit saved, but the report could not be created. Open this visit from history to retry.'); return
       }
-      const result = editingVisitId
-        ? await patientService.updateVisit(selectedPatient, editingVisitId, payload)
-        : await patientService.addVisit(selectedPatient, payload)
-      const createdVisit = result.data
-      setVisits((current) => editingVisitId ? current.map((visit) => visit.id === editingVisitId ? createdVisit : visit) : [createdVisit, ...current])
-      setVisitData(defaultVisitData)
-      const wasEditing = Boolean(editingVisitId)
-      setEditingVisitId(null)
-      setShowVisits(true)
-      setStatus(wasEditing ? 'Visit details updated.' : `Visit added for ${selectedPatientRecord.patient_id} — ${getPatientName(selectedPatientRecord)}`)
-      if (!wasEditing) openVisit(createdVisit)
+
+      setVisits([newVisit, ...visits])
+      setAllVisits([newVisit, ...allVisits])
+      setVisitData({ visit_date: '', scan_type: '', referral_doctor: '', report_template_id: '', notes: '' })
+      setStatus(
+        `Visit added and linked to ${selectedPatientRecord.patient_id} — ${selectedPatientRecord.first_name} ${selectedPatientRecord.last_name}`
+      )
+      if (determinedScanType === 'Ultrasound') { setStatus('Ultrasound visit saved. Its clinical report template awaits confirmation.'); return }
+      const route = {'Adult Echo':'adult-echo-report','Fetal Echo':'fetal-echo-report','Pediatric Echo':'pediatric-echo-report'}[determinedScanType]
+      navigate('/' + route + '/' + createdScan.id + '?patientId=' + selectedPatient + '&visitId=' + newVisit.id)
+
     } catch (error) {
       alert(error.response?.data?.detail || 'Unable to add visit')
     } finally {
@@ -138,252 +292,396 @@ export default function Visits() {
     }
   }
 
-  const uploadDocumentation = async (file) => {
-    if (!file) return
-    setUploadingDocument(true)
-    try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const result = await workspaceService.uploadMedia(formData)
-      const document = result.data || {}
-      setVisitData((current) => ({
-        ...current,
-        documentation_name: document.filename || file.name,
-        documentation_path: document.url || document.path || '',
-      }))
-    } catch (error) {
-      alert(error.response?.data?.detail || 'Unable to upload the document')
-    } finally {
-      setUploadingDocument(false)
-    }
-  }
-
-  const referralDoctorLabel = (record) => {
-    if (record.doctor_type === 'hospital') return record.institution_name || record.name || 'Hospital'
-    return `${record.salutation || ''} ${record.first_name || ''} ${record.last_name || ''}`.trim() || record.name || 'Referral doctor'
-  }
-
   const deleteVisit = async (visitId) => {
     if (!selectedPatient || !visitId) return
     await patientService.deleteVisit(selectedPatient, visitId)
     setVisits(visits.filter((visit) => visit.id !== visitId))
+    setAllVisits(allVisits.filter((visit) => visit.id !== visitId))
+    setScans(scans.filter((scan) => String(scan.visit_id) !== String(visitId)))
     setStatus('Visit removed from this patient')
   }
 
-  const editVisit = (visit) => {
-    setEditingVisitId(visit.id)
-    setVisitData({
-      visit_date: visit.visit_date ? new Date(visit.visit_date).toISOString().slice(0, 16) : '',
-      visit_type: visit.visit_type || 'Consultation',
-      scan_type: visit.scan_type || 'Fetal Echo',
-      referral_doctor: visit.referral_doctor || '',
-      report_template_id: visit.report_template_id || '',
-      documentation_name: visit.documentation_name || '',
-      documentation_path: visit.documentation_path || '',
-      custom_fields: visit.custom_fields || {},
-    })
-    setShowVisits(true)
-    setStatus(`Editing visit #${visit.id}`)
+  const patient = patients.find((item) => String(item.id) === String(selectedPatient))
+
+  const openEcho = (type) => {
+    if (!selectedPatient) return
+    const matchingScan = scans.find((scan) => scan.scan_type === type)
+    const visitId = matchingScan?.visit_id || visits[0]?.id || ''
+    navigate(`/echo-studies?patient=${selectedPatient}&visit=${visitId}&type=${encodeURIComponent(type)}`)
   }
 
-  const patient = patients.find((item) => String(item.id) === String(selectedPatient))
-  const filteredVisits = visits.filter((visit) => visitFilter === 'All' || visit.scan_type === visitFilter)
+  const handleGoToScan = () => {
+    if (!selectedPatient) return
+    if (activeScanFilter) {
+      const matchingScan = scans.find((s) => s.scan_type === activeScanFilter)
+      const visitId = matchingScan?.visit_id || visits[0]?.id || ''
+      navigate(`/echo-studies?patient=${selectedPatient}&visit=${visitId}&type=${encodeURIComponent(activeScanFilter)}`)
+    } else {
+      navigate(`/echo-studies?patient=${selectedPatient}`)
+    }
+  }
+
+  const getScanBadgeClass = (scanType) => {
+    if (scanType === 'Adult Echo') return 'bg-sky-50 text-sky-700 border-sky-200'
+    if (scanType === 'Fetal Echo') return 'bg-purple-50 text-purple-700 border-purple-200'
+    return 'bg-amber-50 text-amber-700 border-amber-200'
+  }
 
   return (
     <div className="space-y-3">
+      {/* Patient Selector & Info Card */}
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-end">
           <div className="field-label flex-1">
-            <span>Select patient</span>
-            <select
-              aria-label="Patient selector"
-              className="field-control w-full bg-white"
+            <span className="flex items-center gap-2">
+              <span>Select patient</span>
+              {selectedPatient && (
+                <span className="text-xs font-normal text-teal-700 bg-teal-50 border border-teal-200 px-2 py-0.5 rounded-full">
+                  {visits.length} {visits.length === 1 ? 'visit' : 'visits'} recorded
+                </span>
+              )}
+            </span>
+            <SearchableSelect
+              options={patientOptions}
               value={selectedPatient}
-              onChange={(event) => selectPatient(event.target.value, false)}
-            >
-              <option value="">Select a patient</option>
-              {patients.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {item.patient_id || `PAT${item.id}`} — {getPatientName(item) || 'Unnamed patient'}
-                </option>
-              ))}
-            </select>
+              onChange={(val) => selectPatient(val, true)}
+              placeholder="Search or select a patient"
+              searchPlaceholder="Search patient ID, name, or visits..."
+            />
           </div>
-          <div className="field-label flex-1">
-            <span>Open an existing visit</span>
-            <select
-              aria-label="Visit selector"
-              className="field-control w-full bg-white disabled:cursor-not-allowed disabled:bg-slate-100"
-              value={selectedVisit}
-              disabled={!patient || loading || visits.length === 0}
-              onChange={(event) => selectVisit(event.target.value)}
-            >
-              <option value="">
-                {!patient ? 'Select a patient first' : visits.length ? 'Select a visit to open' : 'No visits for this patient'}
-              </option>
-              {visits.map((visit) => (
-                <option key={visit.id} value={visit.id}>
-                  {visit.visit_date ? new Date(visit.visit_date).toLocaleString() : 'Date not recorded'} — {visit.visit_type || 'Consultation'} — {visit.scan_type || 'Fetal Echo'}
-                </option>
-              ))}
-            </select>
-          </div>
-          <button type="button" className="primary-button" disabled={!patient} onClick={() => setShowVisits(true)}>
-            <Calendar className="h-4 w-4" />Visits
+          <button type="button" className="secondary-button" onClick={() => navigate('/patients/new')}>
+            <Plus className="h-4 w-4" />
+            New patient
           </button>
         </div>
 
-        <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-          <PatientField label="Patient ID" value={patient?.patient_id} />
-          <PatientField label="First name" value={patient?.first_name} />
-          <PatientField label="Last name" value={patient?.last_name} />
-          <PatientField label="Aadhaar number" value={patient?.aadhaar_no} />
-          <PatientField label="Gender" value={patient?.gender} />
-          <PatientField label="Age" value={patient?.age} />
-          <PatientField label="Date of birth" value={patient?.dob} />
-          <PatientField label="Ethnic origin" value={patient?.ethnic_origin} />
-          <PatientField label="Street" value={patient?.street} wide />
-          <PatientField label="Taluk" value={patient?.taluk} />
-          <PatientField label="Area" value={patient?.area} />
-          <PatientField label="Area (P.O.)" value={patient?.area_po} />
-          <PatientField label="Zip code" value={patient?.zip_code} />
-          <PatientField label="City" value={patient?.district_city} />
-          <PatientField label="State" value={patient?.state} />
-          <PatientField label="Country" value={patient?.country} />
-          <PatientField label="Phone #1" value={patient?.phone1} />
-          <PatientField label="Phone #2" value={patient?.phone2} />
-          <PatientField label="Mobile" value={patient?.mobile} />
-          <PatientField label="Fax" value={patient?.fax} />
-          <PatientField label="Email" value={patient?.email} wide />
-          <PatientField label="Family doctor" value={patient?.family_doctor} wide />
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <h2 className="font-semibold text-slate-900">Visit creation</h2>
-            <p className="text-xs text-slate-500">Create one visit, select its scan/report type, then continue directly to the matching report.</p>
+        <div className="grid gap-4 p-4 xl:grid-cols-[1fr_180px]">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <PatientField label="Patient ID" value={patient?.patient_id} />
+            <PatientField label="First name" value={patient?.first_name} />
+            <PatientField label="Last name" value={patient?.last_name} />
+            <PatientField label="Aadhaar number" value={patient?.aadhaar_no} />
+            <PatientField label="Gender" value={patient?.gender} />
+            <PatientField
+              label="Age"
+              value={patient?.age ? `${patient.age} ${patient.age_unit || 'Years'}` : ''}
+            />
+            <PatientField label="Date of birth" value={patient?.dob} />
+            <PatientField label="Ethnic origin" value={patient?.ethnic_origin} />
+            <PatientField label="Street" value={patient?.street} wide />
+            <PatientField label="Taluk" value={patient?.taluk} />
+            <PatientField label="Area" value={patient?.area} />
+            <PatientField label="Area (P.O.)" value={patient?.area_po} />
+            <PatientField label="Zip code" value={patient?.zip_code} />
+            <PatientField label="City" value={patient?.district_city} />
+            <PatientField label="State" value={patient?.state} />
+            <PatientField label="Country" value={patient?.country} />
+            <PatientField label="Phone #1" value={patient?.phone1} />
+            <PatientField label="Phone #2" value={patient?.phone2} />
+            <PatientField label="Mobile" value={patient?.mobile} />
+            <PatientField label="Fax" value={patient?.fax} />
+            <PatientField label="Email" value={patient?.email} wide />
+            <PatientField label="Family doctor" value={patient?.family_doctor} wide />
           </div>
-          {loading && <span className="text-xs text-teal-700">Loading…</span>}
-        </div>
-        {patient ? (
-          <div className="flex items-center gap-3 border-b border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-900">
-            <UserCheck className="h-5 w-5 text-primary-600" />
-            <span>New visits will be linked to <strong>{patient.patient_id} — {getPatientName(patient)}</strong></span>
-          </div>
-        ) : (
-          <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">Select a patient above before adding a visit.</div>
-        )}
-        {status && <div className="flex items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800"><CheckCircle2 className="h-4 w-4" />{status}</div>}
-
-        <form onSubmit={addVisit} className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 lg:grid-cols-3">
-          <label className="field-label">
-            <span>Visit date and time *</span>
-            <input required disabled={!patient || saving} type="datetime-local" className="field-control disabled:bg-slate-100" value={visitData.visit_date} onChange={(event) => setVisitData({ ...visitData, visit_date: event.target.value })} />
-          </label>
-          <label className="field-label">
-            <span>Visit type</span>
-            <select disabled={!patient || saving} className="field-control disabled:bg-slate-100" value={visitData.visit_type} onChange={(event) => setVisitData({ ...visitData, visit_type: event.target.value })}>
-              <option>Consultation</option>
-              <option>Follow-up</option>
-              <option>Review</option>
-              <option>Procedure</option>
-            </select>
-          </label>
-          <label className="field-label">
-            <span>Scan type</span>
-            <select disabled={!patient || saving} className="field-control disabled:bg-slate-100" value={visitData.scan_type} onChange={(event) => setVisitData({ ...visitData, scan_type: event.target.value })}>
-              <option>Fetal Echo</option>
-              <option>Adult Echo</option>
-              <option>Pediatric Echo</option>
-            </select>
-          </label>
-          <label className="field-label">
-            <span>Report template</span>
-            <select disabled={!patient || saving} className="field-control disabled:bg-slate-100" value={visitData.report_template_id} onChange={(event) => setVisitData({ ...visitData, report_template_id: event.target.value })}>
-              <option value="">Select template</option>
-              {templates.map((template) => <option key={template.id} value={template.id}>{template.title || template.name || template.scan_type}</option>)}
-            </select>
-          </label>
-          <label className="field-label">
-            <span>Referral doctor</span>
-            <div className="flex gap-2">
-              <select disabled={!patient || saving} className="field-control disabled:bg-slate-100" value={visitData.referral_doctor} onChange={(event) => setVisitData({ ...visitData, referral_doctor: event.target.value })}>
-                <option value="">Select referral doctor</option>
-                {referralDoctors.map((doctor) => {
-                  const label = referralDoctorLabel(doctor)
-                  return <option key={doctor.id} value={label}>{label}</option>
+          <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
+            {patient ? (
+              <QRCodeSVG
+                value={JSON.stringify({
+                  id: patient.id,
+                  patient_id: patient.patient_id,
+                  name: `${patient.first_name || ''} ${patient.last_name || ''}`.trim(),
                 })}
-              </select>
-              <button type="button" disabled={!patient || saving} onClick={() => setReferralOpen(true)} className="secondary-button whitespace-nowrap disabled:opacity-40"><Stethoscope className="h-4 w-4" />Manage</button>
-            </div>
-          </label>
-          <label className="field-label">
-            <span>Documentation</span>
-            <label className="field-control flex cursor-pointer items-center gap-2 bg-white text-slate-600">
-              <Upload className="h-4 w-4" />
-              <span className="truncate">{uploadingDocument ? 'Uploading document…' : visitData.documentation_name || 'Upload document'}</span>
-              <input disabled={!patient || saving || uploadingDocument} type="file" className="hidden" onChange={(event) => uploadDocumentation(event.target.files?.[0])} />
-            </label>
-          </label>
-          <div className="lg:col-span-3">
-            <ConfiguredFields module="Visits" values={visitData.custom_fields} onChange={(custom_fields) => setVisitData({ ...visitData, custom_fields })} disabled={!patient || saving} />
+                size={112}
+                level="M"
+                includeMargin
+              />
+            ) : (
+              <div className="h-28 w-28 rounded-lg border-2 border-dashed border-slate-300" />
+            )}
+            <span className="mt-2 text-xs font-medium text-slate-500">
+              {patient?.patient_id || 'Patient QR code'}
+            </span>
           </div>
-          <button disabled={!patient || saving || uploadingDocument || !visitData.visit_date} className="primary-button self-end justify-center disabled:cursor-not-allowed disabled:opacity-40">
-            <Save className="h-4 w-4" />{saving ? 'Saving…' : editingVisitId ? 'Update Visit' : 'Add Visit'}
-          </button>
-        </form>
+        </div>
       </section>
 
-      {showVisits ? (
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+      {/* Main Visits Section + List of Scans Sidebar */}
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+        {/* Left: Visits Management Table */}
+        <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <div>
-              <h2 className="font-semibold text-slate-900">Visits</h2>
-              <p className="text-xs text-slate-500">Click a visit to open its linked report directly.</p>
+              <h2 className="font-semibold text-slate-900 flex items-center gap-2">
+                <Calendar className="h-4 w-4 text-teal-600" />
+                <span>Visits ({visits.length})</span>
+              </h2>
+              <p className="text-xs text-slate-500">Add and review clinical visits for the selected patient.</p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {['All', 'Adult Echo', 'Fetal Echo', 'Pediatric Echo'].map((type) => (
-                <button key={type} type="button" onClick={() => setVisitFilter(type)} className={`rounded-lg px-3 py-1 text-xs font-semibold ${visitFilter === type ? 'bg-teal-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
-                  {type}
-                </button>
-              ))}
-            </div>
+            {loading && <span className="text-xs font-medium text-teal-700 animate-pulse">Loading visits…</span>}
           </div>
-          <div className="overflow-x-auto">
-            <table className="data-table min-w-[860px]">
-              <thead><tr><th>No.</th><th>Patient</th><th>Visit date</th><th>Visit type</th><th>Scan type</th><th>Referral doctor</th><th>Documentation</th><th>Action</th></tr></thead>
-              <tbody>
-                {filteredVisits.map((visit, index) => (
-                  <tr key={visit.id || index} onClick={() => openVisit(visit)} className="cursor-pointer transition hover:bg-teal-50/60" title="Open this visit">
-                    <td>{index + 1}</td>
-                    <td><div className="font-medium text-slate-900">{patient?.patient_id}</div><div className="text-xs text-slate-500">{getPatientName(patient)}</div></td>
-                    <td>{visit.visit_date ? new Date(visit.visit_date).toLocaleString() : '-'}</td>
-                    <td>{visit.visit_type || 'Consultation'}</td>
-                    <td>{visit.scan_type || 'Fetal Echo'}</td>
-                    <td>{visit.referral_doctor || '—'}</td>
-                    <td>{visit.documentation_path ? <a href={visit.documentation_path} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()} className="font-medium text-teal-700 hover:underline">{visit.documentation_name || 'Open document'}</a> : visit.documentation_name || '—'}</td>
-                    <td><div className="flex items-center gap-1"><button type="button" onClick={(e) => { e.stopPropagation(); editVisit(visit) }} className="rounded p-2 text-teal-700 hover:bg-teal-50" title="Edit visit"><Pencil className="h-4 w-4" /></button><button type="button" onClick={(e) => { e.stopPropagation(); deleteVisit(visit.id) }} className="rounded p-2 text-red-600 hover:bg-red-50" title="Delete visit"><Trash2 className="h-4 w-4" /></button></div></td>
-                  </tr>
+
+          {patient ? (
+            <div className="flex items-center gap-3 border-b border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-900">
+              <UserCheck className="h-5 w-5 text-primary-600 shrink-0" />
+              <span>
+                New visits will be linked to{' '}
+                <strong>
+                  {patient.patient_id} — {patient.first_name} {patient.last_name}
+                </strong>
+              </span>
+            </div>
+          ) : (
+            <div className="border-b border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Select a patient above before adding a visit.
+            </div>
+          )}
+
+          {status && (
+            <div className="flex items-center gap-2 border-b border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+              <span>{status}</span>
+            </div>
+          )}
+
+          {/* Active Scan Filter Indicator Banner */}
+          {activeScanFilter && (
+            <div className="flex items-center justify-between border-b border-teal-200 bg-teal-50/90 px-4 py-2.5 text-xs text-teal-900">
+              <div className="flex items-center gap-2">
+                <Filter className="h-3.5 w-3.5 text-teal-600 shrink-0" />
+                <span>
+                  Filtering visits by: <strong className="font-bold">{activeScanFilter}</strong> · Showing{' '}
+                  <strong>{filteredVisits.length}</strong> of {visits.length} visits
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveScanFilter('')}
+                className="flex items-center gap-1 rounded-md border border-teal-300 bg-white px-2.5 py-1 text-xs font-semibold text-teal-700 hover:bg-teal-100 transition shadow-2xs"
+              >
+                <X className="h-3 w-3" />
+                <span>Show All Visits</span>
+              </button>
+            </div>
+          )}
+
+          {/* Add Visit Form */}
+          <form
+            onSubmit={addVisit}
+            className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 lg:grid-cols-[190px_160px_1fr_1fr_auto]"
+          >
+            <label className="field-label">
+              <span>Visit date and time *</span>
+              <input
+                required
+                disabled={!patient || saving}
+                type="datetime-local"
+                className="field-control disabled:bg-slate-100"
+                value={visitData.visit_date}
+                onChange={(event) => setVisitData({ ...visitData, visit_date: event.target.value })}
+              />
+            </label>
+            <label className="field-label">
+              <span>Scan type</span>
+              <select
+                disabled={!patient || saving}
+                className="field-control disabled:bg-slate-100"
+                value={visitData.scan_type}
+                onChange={(event) => setVisitData({ ...visitData, scan_type: event.target.value })}
+              >
+                <option value="">Select examination</option><option value="Adult Echo">Adult Echo</option><option value="Ultrasound">Ultrasound</option>
+                <option value="Fetal Echo">Fetal Echo</option>
+                <option value="Pediatric Echo">Pediatric Echo</option>
+              </select>
+            </label>
+            <label className="field-label">
+              <span>Report template</span>
+              <select
+                disabled={!patient || saving}
+                className="field-control disabled:bg-slate-100"
+                value={visitData.report_template_id}
+                onChange={(event) => {
+                  const tmplId = event.target.value
+                  const tmpl = templates.find((t) => String(t.id) === String(tmplId))
+                  setVisitData((prev) => ({
+                    ...prev,
+                    report_template_id: tmplId,
+                    scan_type: tmpl?.scan_type || prev.scan_type || defaultScanType,
+                  }))
+                }}
+              >
+                <option value="">Select template</option>
+                {templates.map((template) => (
+                  <option key={template.id} value={template.id}>
+                    {template.title || template.name || template.scan_type}
+                  </option>
                 ))}
+              </select>
+            </label>
+            <label className="field-label"><span>Referral Doctor / Institute</span><input className="field-control" value={visitData.referral_doctor} onChange={e=>setVisitData({...visitData,referral_doctor:e.target.value})} /></label>
+            <label className="field-label">
+              <span>Visit notes</span>
+              <input
+                disabled={!patient || saving}
+                className="field-control disabled:bg-slate-100"
+                placeholder={activeScanFilter ? `e.g., ${activeScanFilter} examination` : 'Visit notes'}
+                value={visitData.notes}
+                onChange={(event) => setVisitData({ ...visitData, notes: event.target.value })}
+              />
+            </label>
+            <button
+              disabled={!patient || saving || !visitData.visit_date}
+              className="primary-button self-end disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Save className="h-4 w-4" />
+              {saving ? 'Saving…' : 'Save & Go to Reporting'}
+            </button>
+          </form>
+
+          {/* Action Row */}
+          <div className="flex flex-wrap gap-2 border-b border-slate-200 px-4 py-3">
+            <button
+              type="button"
+              disabled={!patient}
+              onClick={() => setReferralOpen(true)}
+              className="secondary-button disabled:opacity-40"
+            >
+              <Stethoscope className="h-4 w-4" />
+              New referral doctor
+            </button>
+
+          </div>
+
+          {/* Visits Table */}
+          <div className="overflow-x-auto">
+            <table className="data-table min-w-[760px]">
+              <thead>
+                <tr>
+                  <th>No.</th>
+                  <th>Patient</th>
+                  <th>Visit date</th>
+                  <th>Scan Type</th>
+                  <th>Referral doctor</th>
+                  <th>Notes / report status</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredVisits.map((visit, index) => {
+                  const visitTypes = getVisitScanTypes(visit)
+                  return (
+                    <tr
+                      key={visit.id || index}
+                      onClick={() => {
+                        const targetType = activeScanFilter || visitTypes[0] || 'Adult Echo'
+                        navigate(
+                          `/echo-studies?patient=${selectedPatient}&visit=${visit.id || ''}&type=${encodeURIComponent(
+                            targetType
+                          )}`
+                        )
+                      }}
+                      title="Click to view study and report"
+                      className="cursor-pointer transition hover:bg-teal-50/60"
+                    >
+                      <td>{index + 1}</td>
+                      <td>
+                        <div className="font-medium text-slate-900">
+                          {visit.patient_display_id || patient?.patient_id}
+                        </div>
+                        <div className="text-xs text-slate-500">
+                          {visit.patient_name || `${patient?.first_name || ''} ${patient?.last_name || ''}`}
+                        </div>
+                      </td>
+                      <td>{visit.visit_date ? new Date(visit.visit_date).toLocaleString() : '-'}</td>
+                      <td>
+                        {visitTypes.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {visitTypes.map((st) => (
+                              <span
+                                key={st}
+                                className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                                  st === activeScanFilter
+                                    ? 'bg-teal-600 text-white border-teal-600 shadow-2xs'
+                                    : getScanBadgeClass(st)
+                                }`}
+                              >
+                                {st}
+                              </span>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-xs">—</span>
+                        )}
+                      </td>
+                      <td>{visit.referral_doctor || '—'}</td>
+                      <td>{scans.find(s => String(s.visit_id) === String(visit.id))?.status || 'No report'} — {visit.notes || '—'}</td>
+                      <td>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            deleteVisit(visit.id)
+                          }}
+                          className="rounded p-2 text-red-600 hover:bg-red-50"
+                          title="Delete visit"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
-            {!loading && filteredVisits.length === 0 && <p className="py-10 text-center text-sm text-slate-500">No visits match the selected patient/filter.</p>}
+
+            {!loading && visits.length === 0 && (
+              <p className="py-10 text-center text-sm text-slate-500">
+                {selectedPatient
+                  ? 'No visits recorded yet for this patient. Add their first visit above.'
+                  : 'Select a patient above to view their visits.'}
+              </p>
+            )}
+
+            {!loading && visits.length > 0 && filteredVisits.length === 0 && (
+              <div className="py-10 text-center text-sm text-slate-500 space-y-2">
+                <p>No visits found matching &quot;{activeScanFilter}&quot; for this patient.</p>
+                <button
+                  type="button"
+                  onClick={() => setActiveScanFilter('')}
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-teal-700 hover:text-teal-800 underline"
+                >
+                  Clear filter and show all {visits.length} visits
+                </button>
+              </div>
+            )}
           </div>
         </section>
-      ) : (
-        <section className="rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center shadow-sm">
-          <Search className="mx-auto h-8 w-8 text-slate-300" />
-          <p className="mt-2 text-sm font-medium text-slate-700">Select a patient, then click Visits to show their visit history.</p>
-        </section>
-      )}
 
-      <ReferralDoctorModal open={referralOpen} onClose={() => setReferralOpen(false)} onSaved={() => referralDoctorService.getReferralDoctors().then((result) => setReferralDoctors(result.data || []))} onSelect={(record) => setVisitData({ ...visitData, referral_doctor: referralDoctorLabel(record) })} />
+
+      </div>
+
+      <ReferralDoctorModal
+        open={referralOpen}
+        onClose={() => setReferralOpen(false)}
+        onSaved={() => {}}
+        onSelect={(record) =>
+          setVisitData({
+            ...visitData,
+            referral_doctor:
+              record.doctor_type === 'hospital'
+                ? record.institution_name
+                : `${record.first_name || ''} ${record.last_name || ''}`.trim(),
+          })
+        }
+      />
     </div>
   )
 }
 
 function PatientField({ label, value, wide }) {
-  return <label className={`field-label ${wide ? 'sm:col-span-2' : ''}`}><span>{label}</span><div className="field-control flex items-center bg-slate-50 text-slate-700">{value || '—'}</div></label>
+  return (
+    <label className={`field-label ${wide ? 'sm:col-span-2' : ''}`}>
+      <span>{label}</span>
+      <div className="field-control flex items-center bg-slate-50 text-slate-700">{value || '—'}</div>
+    </label>
+  )
 }

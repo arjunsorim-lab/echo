@@ -1,0 +1,8 @@
+@media print {
+  body:has(.clinical-preview) * { visibility: hidden !important; }
+  body:has(.clinical-preview) .clinical-print, body:has(.clinical-preview) .clinical-print * { visibility: visible !important; }
+  .clinical-preview { position: absolute !important; inset: 0 !important; overflow: visible !important; background: white !important; padding: 0 !important; }
+  .clinical-print { width: 100% !important; max-width: none !important; padding: 12mm !important; box-shadow: none !important; }
+  .clinical-print section { break-inside: avoid; }
+  .no-print { display: none !important; }
+}

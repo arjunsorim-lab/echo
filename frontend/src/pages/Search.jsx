@@ -432,18 +432,6 @@ function SearchPage() {
     navigate(`/fetal-echo-report${query.toString() ? `?${query.toString()}` : ''}`)
   }
 
-  const runQuickAction = (label) => {
-    const patientQuery = selectedPatient?.id ? `?patientId=${encodeURIComponent(selectedPatient.id)}` : ''
-    const actions = {
-      Template: () => navigate('/reports'),
-      'Ref. letter': () => navigate('/referral-doctors'),
-      Images: () => navigate(`/images${patientQuery}`),
-      Capture: () => navigate(`/images${patientQuery}${patientQuery ? '&' : '?'}capture=1`),
-      Close: () => navigate('/dashboard'),
-    }
-    actions[label]?.()
-  }
-
   return (
     <>
           {isQuickSearchOpen && (
@@ -773,7 +761,6 @@ function SearchPage() {
                       key={action.label}
                       type="button"
                       title={action.label}
-                      onClick={() => runQuickAction(action.label)}
                       className={`flex h-12 items-center gap-3 rounded-lg border px-3 text-left text-sm font-medium transition hover:-translate-y-px hover:shadow-sm ${action.tone}`}
                     >
                       <Icon className="h-5 w-5 shrink-0" />

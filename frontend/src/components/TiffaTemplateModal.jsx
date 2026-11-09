@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { X, Save, Trash2, RotateCcw, Printer } from 'lucide-react'
-import { workspaceService } from '../api/workspaceService'
 
 const ruleConfigs = {
   'Rule of two': {
@@ -65,20 +64,6 @@ export default function TiffaTemplateModal({
 
   const currentConfig = ruleConfigs[ruleMode] || ruleConfigs['Rule of three']
   const [placements, setPlacements] = useState(() => Array(currentConfig.count).fill(null))
-  const [savedId, setSavedId] = useState(null)
-  const [message, setMessage] = useState('')
-  const templateKey = `TIFFA:${patient?.id || ''}:${new URLSearchParams(window.location.search).get('visitId') || ''}:${ruleMode}`
-  useEffect(() => {
-    if (!open) return
-    workspaceService.getTemplates().then((result) => {
-      const saved = (result.data || []).find((item) => item.title === templateKey)
-      setSavedId(saved?.id || null)
-      if (!saved) return
-      const value = JSON.parse(saved.layout || '{}')
-      setTemplateName(value.templateName || 'FETAL ECHO'); setColumns(value.columns || '1')
-      setWidth(value.width || '600'); setHeight(value.height || '450'); setRowsCols(value.rowsCols || '4X2'); setPlacements(value.placements || [])
-    }).catch(() => setMessage('Unable to load saved template.'))
-  }, [open, templateKey])
 
   useEffect(() => {
     if (initialRuleMode) {
@@ -107,27 +92,9 @@ export default function TiffaTemplateModal({
     setActiveSlot(Math.min(activeSlot + 1, placements.length - 1))
   }
 
-  const saveTemplate = async () => {
-    try {
-      const payload = { title: templateKey, scan_type: 'Fetal Echo', layout: JSON.stringify({ ruleMode, templateName, columns, width, height, rowsCols, placements }), views: [] }
-      const result = savedId ? await workspaceService.updateTemplate(savedId, payload) : await workspaceService.createTemplate(payload)
-      setSavedId(result.data.id); setMessage('Template saved')
-    } catch { setMessage('Unable to save template.'); }
-  }
-
-  const deleteTemplate = async () => {
-    try {
-      if (savedId) await workspaceService.deleteTemplate(savedId)
-      setSavedId(null)
-      setPlacements(Array(currentConfig.count).fill(null))
-      setMessage('Template deleted')
-    } catch { setMessage('Unable to delete template.'); }
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 backdrop-blur-2xs">
       <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl">
-        {message && <p role="status" className="p-2 text-sm">{message}</p>}
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-300 bg-gradient-to-r from-slate-100 to-slate-200 px-4 py-2.5">
           <h2 className="text-sm font-semibold text-slate-900">
@@ -141,16 +108,16 @@ export default function TiffaTemplateModal({
         {/* Top Action Toolbar */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs">
           <div className="flex items-center gap-2">
-            <button type="button" onClick={saveTemplate} className="legacy-small-button">
+            <button type="button" className="legacy-small-button">
               <Save className="mr-1 h-3.5 w-3.5 text-teal-700" /> Save
             </button>
-            <button type="button" onClick={deleteTemplate} className="legacy-small-button">
+            <button type="button" onClick={() => setPlacements(Array(currentConfig.count).fill(null))} className="legacy-small-button">
               <Trash2 className="mr-1 h-3.5 w-3.5 text-red-600" /> Delete
             </button>
             <button type="button" onClick={() => setPlacements(Array(currentConfig.count).fill(null))} className="legacy-small-button">
               <RotateCcw className="mr-1 h-3.5 w-3.5 text-slate-600" /> Clear
             </button>
-            <button type="button" onClick={() => window.print()} className="legacy-small-button">
+            <button type="button" className="legacy-small-button">
               <Printer className="mr-1 h-3.5 w-3.5 text-teal-700" /> Preview
             </button>
             <button type="button" onClick={onClose} className="legacy-small-button">

@@ -67,11 +67,11 @@ const findPatientForScan = (scan, patientLookup) => (
 )
 
 const formatPatientName = (patient) => {
-  if (!patient) return ''
+  if (!patient) return 'Unknown patient'
   return [patient.salutation, patient.first_name, patient.middle_name, patient.last_name]
     .filter(Boolean)
     .join(' ')
-    .trim() || patient.patient_id || 'Patient record'
+    .trim() || patient.patient_id || 'Unknown patient'
 }
 
 const formatDemographics = (patient) => {
@@ -93,27 +93,22 @@ const formatScanDate = (value) => {
 
 const getClinicalImportance = (scan) => {
   if (scan.abnormal) return 'High'
-  if (scan.ambiguity || scan.normalVariant) return 'Medium'
+  if (scan.ambiguity || scan.growthAbnormality || scan.normalVariant) return 'Medium'
   return 'Low'
-}
-
-const getReportDetails = (scan, visit) => {
-  const report = scan?.fetal_echo_report || scan?.adult_echo_report || scan?.pediatric_echo_report || scan?.report_data || {}
-  const impression = report?.impression?.final_impression || report?.final_impression
-  return scan?.findings || scan?.conclusion || scan?.diagnosis || impression || visit?.diagnosis || visit?.visit_type || 'Visit recorded. Open the visit to complete the report.'
 }
 
 export default function Dashboard() {
   const navigate = useNavigate()
   const [stats, setStats] = useState({
-    total_patients: 101,
-    total_scans: 137,
-    total_visits: 142,
+    total_patients: 0,
+    total_scans: 0,
+    total_visits: 0,
     todays_visits: 0,
-    upcoming_visits: 22,
-    adult_echo: 81,
-    fetal_echo: 26,
-    pediatric_echo: 30,
+    upcoming_visits: 0,
+    adult_echo: 0,
+    fetal_echo: 0,
+    pediatric_echo: 0,
+    ultrasound: 0,
   })
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -123,17 +118,15 @@ export default function Dashboard() {
   const [customEndDate, setCustomEndDate] = useState('')
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false)
   const [recentScans, setRecentScans] = useState([])
-  const [currentPage, setCurrentPage] = useState(1)
   const [isLoadingScans, setIsLoadingScans] = useState(true)
 
   useEffect(() => {
     Promise.all([
       scanService.getDashboardStats(),
-      patientService.getAllVisits(),
-      patientService.getPatients(),
       scanService.getScans(),
+      patientService.getPatients(),
     ])
-      .then(([statsResult, visitsResult, patientsResult, scansResult]) => {
+      .then(([statsResult, scansResult, patientsResult]) => {
         if (statsResult.success && statsResult.data) {
           setStats((prev) => ({
             ...prev,
@@ -145,77 +138,48 @@ export default function Dashboard() {
             adult_echo: statsResult.data.adult_echo ?? prev.adult_echo,
             fetal_echo: statsResult.data.fetal_echo ?? prev.fetal_echo,
             pediatric_echo: statsResult.data.pediatric_echo ?? prev.pediatric_echo,
+            ultrasound: statsResult.data.ultrasound ?? 0,
           }))
         }
 
         const patients = asList(patientsResult)
         const patientLookup = buildPatientLookup(patients)
-        const scans = asList(scansResult)
-        const visitsById = new Map(asList(visitsResult).map((visit) => [normalizeLookupId(visit.id), visit]))
-        const scannedVisitIds = new Set(scans.map((scan) => normalizeLookupId(scan.visit_id)).filter(Boolean))
-
-        const toDashboardRow = (scan, visit) => {
-            const patient = findPatientForScan(scan || visit, patientLookup) || findPatientForScan(visit || scan, patientLookup)
-            // Never show a placeholder/unknown patient: records without a valid patient link are omitted.
-            if (!patient) return null
-            const { dateTime, timeStr, rawDate } = formatScanDate(scan?.scan_date || visit?.visit_date || scan?.created_at || visit?.created_at)
+        const scans = [...asList(scansResult)]
+          .sort((left, right) => {
+            const rightDate = new Date(right.scan_date || right.created_at || 0).getTime()
+            const leftDate = new Date(left.scan_date || left.created_at || 0).getTime()
+            return (rightDate - leftDate) || (right.id - left.id)
+          })
+          .map((scan) => {
+            const patient = findPatientForScan(scan, patientLookup)
+            const { dateTime, timeStr, rawDate } = formatScanDate(scan.scan_date || scan.created_at)
             const patientName = formatPatientName(patient)
             const initials = [patient?.first_name, patient?.last_name]
               .filter(Boolean)
               .map((part) => part.charAt(0).toUpperCase())
               .join('')
               .slice(0, 2) || 'AB'
-            const scanType = scan?.scan_type || visit?.scan_type || 'Fetal Echo'
 
             return {
-              id: scan ? `scan-${scan.id}` : `visit-${visit.id}`,
-              patientId: patient.id,
-              visitId: scan?.visit_id || visit?.id || '',
+              id: scan.id,
+              patientId: patient?.id || scan.patient_id || scan.patient_display_id,
+              visitId: scan.visit_id,
               patientName,
-              patientCode: patient.patient_id || `PAT${patient.id}`,
+              patientCode: patient?.patient_id || scan.patient_display_id || `PAT${scan.patient_id}`,
               demographics: formatDemographics(patient),
               initials,
-              scanType,
-              scanRoute: scanRoutes[scanType] || '/fetal-echo-report',
+              scanType: scan.scan_type || 'Echo',
+              scanRoute: scanRoutes[scan.scan_type] || '/echo-studies',
               dateTime,
               timeStr,
               rawDate,
-              aiSummary: getReportDetails(scan, visit),
-              importance: getClinicalImportance(scan || {}),
-              confidence: scan?.ai_confidence || scan?.confidence || 'Not recorded',
-              referralDoctor: scan?.referralDoctor || visit?.referral_doctor || '—',
-              searchText: [
-                patient?.dob,
-                patient?.mobile,
-                patient?.phone1,
-                patient?.phone2,
-                patient?.email,
-                visit?.referral_doctor,
-                visit?.visit_type,
-                scan?.scan_type,
-                scan?.findings,
-                scan?.conclusion,
-                scan?.diagnosis,
-              ].filter(Boolean).join(' '),
+              aiSummary: scan.conclusion || scan.findings || 'No findings recorded.',
+              importance: getClinicalImportance(scan),
+              confidence: scan.ai_confidence ?? 92,
             }
-        }
+          })
 
-        // Most historic data has a scan but no visit_id. Start with scans so the
-        // grid retains adult, fetal and pediatric report details, then include
-        // only unscanned visits as a fallback.
-        const dashboardRows = [
-          ...scans.map((scan) => toDashboardRow(scan, visitsById.get(normalizeLookupId(scan.visit_id)))).filter(Boolean),
-          ...asList(visitsResult)
-            .filter((visit) => !scannedVisitIds.has(normalizeLookupId(visit.id)))
-            .map((visit) => toDashboardRow(null, visit))
-            .filter(Boolean),
-        ].sort((left, right) => {
-          const rightDate = right.rawDate?.getTime() || 0
-          const leftDate = left.rawDate?.getTime() || 0
-          return rightDate - leftDate
-        })
-
-        setRecentScans(dashboardRows)
+        setRecentScans(scans)
       })
       .catch(() => setRecentScans([]))
       .finally(() => setIsLoadingScans(false))
@@ -243,7 +207,7 @@ export default function Dashboard() {
       iconBg: 'bg-[#3b82f6]', // blue
       strokeColor: '#3b82f6',
       path: 'M0,24 Q15,20 30,22 T60,14 T90,16 T120,5',
-      link: '/reports',
+      link: '/echo-studies',
     },
     {
       title: 'TOTAL VISITS',
@@ -310,6 +274,8 @@ export default function Dashboard() {
     },
   ]
 
+
+  statCards.push({ title:'ULTRASOUND', value:stats.ultrasound, change:'', isPositive:true, icon:Activity, iconBg:'bg-slate-600', strokeColor:'#475569', link:'/visits' })
   // Datewise Filtering Logic
   const dateFilteredScans = useMemo(() => {
     return recentScans.filter((scan) => {
@@ -324,8 +290,7 @@ export default function Dashboard() {
         const matchName = scan.patientName.toLowerCase().includes(q)
         const matchCode = scan.patientCode.toLowerCase().includes(q)
         const matchSummary = scan.aiSummary.toLowerCase().includes(q)
-        const matchExtra = scan.searchText.toLowerCase().includes(q)
-        if (!matchName && !matchCode && !matchSummary && !matchExtra) return false
+        if (!matchName && !matchCode && !matchSummary) return false
       }
 
       // 3. Date Filter
@@ -385,14 +350,12 @@ export default function Dashboard() {
     })
   }, [recentScans, selectedScanType, searchQuery, dateFilter, customStartDate, customEndDate])
 
-  const pageCount = Math.max(1, Math.ceil(dateFilteredScans.length / 10))
-  const top10Scans = useMemo(() => dateFilteredScans.slice((currentPage - 1) * 10, currentPage * 10), [dateFilteredScans, currentPage])
-  useEffect(() => { setCurrentPage(1) }, [selectedScanType, searchQuery, dateFilter, customStartDate, customEndDate])
-  useEffect(() => { if (currentPage > pageCount) setCurrentPage(pageCount) }, [currentPage, pageCount])
+  // Limit to Top 10 Recent Scans
+  const top10Scans = useMemo(() => dateFilteredScans.slice(0, 10), [dateFilteredScans])
 
-  // Export Filtered Visits as CSV
+  // Export Filtered Scans as CSV
   const handleExport = () => {
-    const headers = ['#', 'Patient Name', 'Patient ID', 'Scan Type', 'Date', 'Time', 'Visit Summary', 'Importance']
+    const headers = ['#', 'Patient Name', 'Patient ID', 'Scan Type', 'Date', 'Time', 'AI Findings', 'Importance']
     const rows = top10Scans.map((s, idx) => [
       idx + 1,
       `"${s.patientName}"`,
@@ -409,7 +372,7 @@ export default function Dashboard() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.setAttribute('href', url)
-    link.setAttribute('download', `recent_visits_${new Date().toISOString().slice(0, 10)}.csv`)
+    link.setAttribute('download', `recent_scans_${new Date().toISOString().slice(0, 10)}.csv`)
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -476,19 +439,19 @@ export default function Dashboard() {
         })}
       </div>
 
-      {/* Top 10 Recent Visits Main Section */}
+      {/* Top 10 Recent Scans Main Section */}
       <div className="rounded-2xl border border-slate-200/90 bg-white shadow-2xs overflow-hidden">
         {/* Section Header & Toolbar */}
         <div className="flex flex-col gap-4 border-b border-slate-200/80 p-4 lg:flex-row lg:items-center lg:justify-between bg-white">
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-bold text-slate-900">Recent Visits</h3>
+              <h3 className="text-base font-bold text-slate-900">Top 10 Recent Scans</h3>
               <span className="rounded-full bg-[#e6f4f1] px-2 py-0.5 text-xs font-semibold text-[#0f5449]">
-                {dateFilteredScans.length} Visits
+                {top10Scans.length} Scans
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Latest patient visits across Adult, Fetal and Pediatric Echo workflows
+              Latest echo scans with AI analysis, clinical importance and detailed findings
             </p>
           </div>
 
@@ -499,7 +462,7 @@ export default function Dashboard() {
               <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
-                placeholder="Search patient, ID, DOB, mobile..."
+                placeholder="Search patient, ID, findings..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="h-8 w-52 rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-xs font-medium text-slate-800 placeholder-slate-400 outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500/20"
@@ -508,7 +471,7 @@ export default function Dashboard() {
 
             {/* Scan Type Filter Pills */}
             <div className="flex items-center rounded-xl bg-slate-100/80 p-0.5">
-              {['All', 'Adult Echo', 'Fetal Echo', 'Pediatric Echo'].map((type) => (
+              {['All', 'Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'].map((type) => (
                 <button
                   key={type}
                   type="button"
@@ -645,7 +608,7 @@ export default function Dashboard() {
                 <th className="py-3 px-4">PATIENT DETAILS</th>
                 <th className="py-3 px-4">SCAN TYPE</th>
                 <th className="py-3 px-4">DATE & TIME</th>
-                <th className="py-3 px-4">REPORT DETAILS</th>
+                <th className="py-3 px-4">AI FINDINGS (SUMMARY)</th>
                 <th className="py-3 px-4">CLINICAL IMPORTANCE</th>
                 <th className="py-3 px-4">AI CONFIDENCE</th>
                 <th className="py-3 px-4 text-center">ACTIONS</th>
@@ -655,18 +618,18 @@ export default function Dashboard() {
               {top10Scans.map((scan, idx) => (
                 <tr
                   key={scan.id}
-                  onClick={() => navigate(`${scan.scanRoute}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
+                  onClick={() => navigate(`${scan.scanRoute}/${scan.id}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
                   className="group cursor-pointer transition hover:bg-slate-50/80"
                 >
                   {/* Row # */}
-                  <td className="py-3.5 px-4 text-slate-400 font-semibold">{(currentPage - 1) * 10 + idx + 1}</td>
+                  <td className="py-3.5 px-4 text-slate-400 font-semibold">{idx + 1}</td>
 
                   {/* Patient Info */}
                   <td
                     className="py-3.5 px-4"
                     onClick={(event) => {
                       event.stopPropagation()
-                      if (scan.patientId) navigate(`/patients/${scan.patientId}/records`)
+                      if (scan.patientId) navigate(`/visits?patient=${scan.patientId}`)
                     }}
                   >
                     <div className="flex items-center gap-3">
@@ -722,7 +685,7 @@ export default function Dashboard() {
 
                   {/* AI Confidence */}
                   <td className="py-3.5 px-4 text-slate-400 font-medium">
-                    {scan.confidence}
+                    {scan.confidence}% (Estimated)
                   </td>
 
                   {/* Action Icon Buttons */}
@@ -730,7 +693,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => navigate(`${scan.scanRoute}?patientId=${scan.patientId}&visitId=${scan.visitId || ''}&scatter=true`)}
+                        onClick={() => navigate(`${scan.scanRoute}/${scan.id}?patientId=${scan.patientId}`)}
                         className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
                         title="View Echo Report"
                       >
@@ -738,7 +701,7 @@ export default function Dashboard() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => navigate(`/patients/${scan.patientId}/records`)}
+                        onClick={() => navigate(`/visits?patient=${scan.patientId}`)}
                         className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700 transition"
                         title="View Patient Details"
                       >
@@ -752,7 +715,7 @@ export default function Dashboard() {
               {!isLoadingScans && top10Scans.length === 0 && (
                 <tr>
                   <td colSpan="8" className="px-4 py-10 text-center text-xs text-slate-500">
-                    No visits match the selected filters.
+                    No scans match the selected filters.
                   </td>
                 </tr>
               )}
@@ -763,30 +726,28 @@ export default function Dashboard() {
         {/* Table Footer & Pagination */}
         <div className="flex items-center justify-between border-t border-slate-100 bg-white px-4 py-3 text-xs text-slate-400">
           <div>
-            Showing <span className="font-semibold text-slate-700">{dateFilteredScans.length ? (currentPage - 1) * 10 + 1 : 0}</span> to{' '}
-            <span className="font-semibold text-slate-700">{Math.min(currentPage * 10, dateFilteredScans.length)}</span> of{' '}
-            <span className="font-semibold text-slate-700">{dateFilteredScans.length}</span> results
+            Showing <span className="font-semibold text-slate-700">1</span> to{' '}
+            <span className="font-semibold text-slate-700">{top10Scans.length}</span> of{' '}
+            <span className="font-semibold text-slate-700">{top10Scans.length}</span> results
           </div>
 
           <div className="flex items-center gap-1">
             <button
               type="button"
-              disabled={currentPage === 1}
-              onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+              disabled
               className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-300 disabled:opacity-50"
             >
               <ChevronLeft className="h-3.5 w-3.5" />
             </button>
             <button
               type="button"
-              className="flex h-7 min-w-7 items-center justify-center rounded-md border border-emerald-500 bg-emerald-50 px-2 text-xs font-bold text-emerald-700"
+              className="flex h-7 w-7 items-center justify-center rounded-md border border-emerald-500 bg-emerald-50 text-xs font-bold text-emerald-700"
             >
-              {currentPage} / {pageCount}
+              1
             </button>
             <button
               type="button"
-              disabled={currentPage === pageCount}
-              onClick={() => setCurrentPage((page) => Math.min(pageCount, page + 1))}
+              disabled
               className="flex h-7 w-7 items-center justify-center rounded-md border border-slate-200 text-slate-300 disabled:opacity-50"
             >
               <ChevronRight className="h-3.5 w-3.5" />

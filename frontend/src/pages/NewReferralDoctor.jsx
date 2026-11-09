@@ -36,10 +36,6 @@ function NewReferralDoctor() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (formData.doctor_type === 'hospital' ? !formData.institution_name.trim() : !formData.first_name.trim()) {
-      alert(formData.doctor_type === 'hospital' ? 'Hospital name is required' : 'First name is required')
-      return
-    }
     try {
       await referralDoctorService.createReferralDoctor(formData)
       navigate('/referral-doctors')

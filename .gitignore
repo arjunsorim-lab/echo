@@ -10,14 +10,11 @@ frontend/build/
 # Environment files
 .env
 .env.local
-backend/.local-credentials.json
 .env.*.local
 
 # Database
 *.sqlite
 *.db
-*.db-shm
-*.db-wal
 backend/migrations/versions/
 
 # IDE
@@ -38,3 +35,10 @@ coverage/
 # Cache
 .cache/
 *.pyc
+backend/.local-credentials.json
+backend/.workflow-users.json
+backend/.workflow-users.json.tmp
+*.db-wal
+*.db-shm
+frontend/test-output/
+browser-fixture-info.json

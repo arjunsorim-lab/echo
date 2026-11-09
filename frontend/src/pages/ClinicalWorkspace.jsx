@@ -5,45 +5,26 @@ import { Field, FieldGrid, Section, Tabs, Workspace } from '../components/Worksp
 import SearchableSelect from '../components/SearchableSelect'
 import { patientService } from '../api/patientService'
 import { referralDoctorService } from '../api/referralDoctorService'
-import { scanService } from '../api/scanService'
+import { workspaceService } from '../api/workspaceService'
 import {
   adult2D, adultDoppler, aortic, echoSections, fetalBiometry, fetalDoppler, impressionFields,
   lmpFields, mMode, pediatricBiometry, pediatricDoppler, pisa,
 } from '../data/clinicalFields'
 
 const tabsByType = {
-  'Adult Echo': ['Echo details', '2D measurements', 'M-Mode', 'Cardio biometry', 'Doppler', 'PISA', 'Aortic Stenosis', 'Miscellaneous', 'Impression', 'Referral letter', 'Multiframes', 'Preview'],
-  'Pediatric Echo': ['Echo details', 'Biometry', 'Cardio biometry', 'Doppler', 'Custom measurements', 'Miscellaneous', 'Impression', 'Referral letter', 'Multiframes', 'Preview'],
-  'Fetal Echo': ['LMP details', 'Echo details', 'Aortic', 'Biometry', 'Cardio biometry', 'Doppler', 'Miscellaneous', 'Impression', 'Referral letter', 'Multiframes', 'Preview'],
+  'Adult Echo': ['Echo details', '2D measurements', 'M-Mode', 'Doppler', 'PISA', 'Aortic Stenosis', 'Impression', 'Multiframes', 'Preview'],
+  'Pediatric Echo': ['Echo details', 'Biometry', 'Doppler', 'Custom measurements', 'Impression', 'Multiframes', 'Preview'],
+  'Fetal Echo': ['LMP details', 'Echo details', 'Aortic', 'Biometry', 'Doppler', 'Impression', 'Multiframes', 'Preview'],
 }
-
-const cardioBiometry = [
-  {key:'heartArea',label:'Heart area',type:'number'},
-  {key:'thoraxArea',label:'Thorax area',type:'number'},
-  {key:'cardiothoracicRatio',label:'Cardiothoracic ratio',type:'number'},
-  {key:'mvAnnulus',label:'Mitral valve annulus',type:'number'},
-  {key:'tvAnnulus',label:'Tricuspid valve annulus',type:'number'},
-  {key:'avAnnulus',label:'Aortic valve annulus',type:'number'},
-  {key:'pvAnnulus',label:'Pulmonary valve annulus',type:'number'},
-  {key:'rvWidth',label:'Right ventricular width',type:'number'},
-  {key:'lvWidth',label:'Left ventricular width',type:'number'},
-]
 
 const formatFields = [
   {key:'imageColumns',label:'Images per row',type:'select',options:['1','2','3','4']},
   {key:'imageWidth',label:'Image width',type:'number'}, {key:'imageHeight',label:'Image height',type:'number'},
   {key:'imageRows',label:'Image rows',type:'select',options:['1','2','3','4']},
-  {key:'investigationStatus',label:'Investigation status',type:'select',options:['Draft','In Progress','Completed']},
+  {key:'investigationStatus',label:'Investigation status',type:'select',options:['Draft','In progress','Completed']},
 ]
 
 const emptyData = () => ({ imageColumns:'1', imageWidth:'600', imageHeight:'450', imageRows:'2', investigationStatus:'Draft', customMeasurements:[{name:'',value:'',unit:'mm'}], clips:[] })
-const reportKeyByType = { 'Adult Echo': 'adult_echo_report', 'Pediatric Echo': 'pediatric_echo_report', 'Fetal Echo': 'fetal_echo_report' }
-const normalizeStatus = (status) => {
-  const value = String(status || '').trim().toLowerCase()
-  if (value === 'completed') return 'Completed'
-  if (value === 'in progress' || value === 'in_progress') return 'In Progress'
-  return 'Draft'
-}
 
 export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
   const [params, setParams] = useSearchParams()
@@ -54,11 +35,10 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
   const [patients, setPatients] = useState([])
   const [visits, setVisits] = useState([])
   const [doctors, setDoctors] = useState([])
-  const [patientId, setPatientId] = useState(params.get('patient') || params.get('patientId') || '')
-  const [visitId, setVisitId] = useState(params.get('visit') || params.get('visitId') || '')
+  const [patientId, setPatientId] = useState(params.get('patient') || '')
+  const [visitId, setVisitId] = useState(params.get('visit') || '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
-  const [saveError, setSaveError] = useState('')
   const [clips, setClips] = useState([])
 
   const patientOptions = useMemo(() => {
@@ -81,17 +61,15 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
 
   useEffect(() => {
     setSaved(false)
-    if (!patientId) { setReportId(''); setData(emptyData()); return }
-    scanService.getScansByPatient(patientId)
+    workspaceService.getReports({ patient_id: patientId || undefined, visit_id: visitId || undefined })
       .then((result) => {
-        const match = (result.data || []).find((report) => report.scan_type === scanType && (!visitId || String(report.visit_id || '') === String(visitId)))
-        const reportData = match?.[reportKeyByType[scanType]] || {}
-        if (match) { setReportId(match.id); setData({...emptyData(), ...reportData, investigationStatus:normalizeStatus(match.status || reportData.investigationStatus)}) }
+        const match = (result.data || []).find((report) => report.scan_type === scanType)
+        if (match) { setReportId(match.id); setData({...emptyData(), ...(match.data || {}), investigationStatus:match.status || match.data?.investigationStatus || 'Draft'}) }
         else { setReportId(''); setData(emptyData()) }
       }).catch(() => { setReportId(''); setData(emptyData()) })
   }, [patientId, visitId, scanType])
 
-  const patient = patients.find((item) => String(item.id) === String(patientId))
+  const patient = patients.find((item) => item.id === patientId)
   const changeType = (type) => { setScanType(type); setActiveTab(tabsByType[type][0]); setParams((current) => { current.set('type', type); return current }) }
 
   const calculated = useMemo(() => {
@@ -108,22 +86,19 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
   }, [data.weight, data.height, data.lvedd, data.lvesd, data.avVmax, data.aorticValveVmax, data.trVmax, data.rap])
 
   const save = async () => {
-    setSaving(true); setSaved(false); setSaveError('')
+    setSaving(true); setSaved(false)
     try {
       const fullData = {...data, ...calculated}
-      const payload = { patient_id:patientId, patient_display_id:patient?.patient_id || '', visit_id:visitId, scan_type:scanType, status:fullData.investigationStatus || 'Draft', findings:fullData.findings || fullData.systemImpression || '', conclusion:fullData.impression || '', indication:fullData.indication || '', diagnosis:fullData.impression || '', abnormal:Boolean(fullData.abnormal), ambiguity:Boolean(fullData.ambiguity), normal:Boolean(fullData.normal), normalVariant:Boolean(fullData.normalVariant), referralDoctor:fullData.referralDoctor || '', primaryConsultant:fullData.primaryConsultant || '', signedByLeft:fullData.signedByLeft || '', signedByRight:fullData.signedByRight || '', typedBy:fullData.typedBy || '', reviewedBy:fullData.reviewedBy || '', icdCode:fullData.icdCode || '', [reportKeyByType[scanType]]:fullData }
-      const result = reportId ? await scanService.updateScan(reportId, payload) : await scanService.createScan(payload)
+      const payload = { patient_id:patientId, patient_display_id:patient?.patient_id || '', patient_name:patient ? `${patient.first_name || ''} ${patient.last_name || ''}`.trim() : '', visit_id:visitId, scan_type:scanType, status:fullData.investigationStatus || 'Draft', data:fullData }
+      const result = reportId ? await workspaceService.updateReport(reportId, payload) : await workspaceService.createReport(payload)
       setReportId(result.data.id); setData(fullData); setSaved(true)
-    } catch (error) {
-      setSaveError(error.response?.data?.detail || 'The report could not be saved.')
     } finally { setSaving(false) }
   }
 
   const addFiles = (event) => setClips((current) => [...current, ...[...event.target.files].map((file) => ({name:file.name,url:URL.createObjectURL(file),size:file.size}))])
-  const fields = activeTab === '2D measurements' ? adult2D : activeTab === 'M-Mode' ? mMode : activeTab === 'Cardio biometry' ? cardioBiometry : activeTab === 'PISA' ? pisa : activeTab === 'Aortic' || activeTab === 'Aortic Stenosis' ? aortic : activeTab === 'Biometry' ? (scanType === 'Fetal Echo' ? fetalBiometry : pediatricBiometry) : activeTab === 'Doppler' ? (scanType === 'Adult Echo' ? adultDoppler : scanType === 'Fetal Echo' ? fetalDoppler : pediatricDoppler) : []
+  const fields = activeTab === '2D measurements' ? adult2D : activeTab === 'M-Mode' ? mMode : activeTab === 'PISA' ? pisa : activeTab === 'Aortic' || activeTab === 'Aortic Stenosis' ? aortic : activeTab === 'Biometry' ? (scanType === 'Fetal Echo' ? fetalBiometry : pediatricBiometry) : activeTab === 'Doppler' ? (scanType === 'Adult Echo' ? adultDoppler : scanType === 'Fetal Echo' ? fetalDoppler : pediatricDoppler) : []
 
   return <Workspace title={`${scanType} reporting`} description="Patient-linked measurements, images, impression, referral letter and report output." actions={<><select className="field-control w-44" value={scanType} onChange={(e)=>changeType(e.target.value)}>{Object.keys(tabsByType).map((type)=><option key={type}>{type}</option>)}</select><button className="primary-button" onClick={save} disabled={saving}><Save className="h-4 w-4" />{saving?'Saving…':'Save report'}</button>{saved&&<span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4"/>Saved to database</span>}</>}>
-    {saveError && <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{saveError}</div>}
     <Section title="Patient and visit" className="mb-4">
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <div className="field-label">
@@ -153,12 +128,11 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
     {activeTab==='LMP details'&&<Section title="Pregnancy dating"><FieldGrid fields={lmpFields.map((field)=>({...field,type:['lmp','edd','etDate','btDate'].includes(field.key)?'date':field.type}))} data={data} setData={setData}/></Section>}
     {activeTab==='Echo details'&&<div className="space-y-4">{echoSections.map((section)=><Section key={section.title} title={section.title}><FindingGrid fields={section.fields} data={data} setData={setData}/></Section>)}<Section title="Additional details"><div className="grid gap-3 lg:grid-cols-2"><Field type="textarea" rows={8} label="Additional comments" value={data.comments} onChange={(value)=>setData({...data,comments:value})}/><Field type="textarea" rows={8} label="Default normal comments" value={data.normalComments} onChange={(value)=>setData({...data,normalComments:value})}/></div></Section></div>}
     {fields.length>0&&<Section title={activeTab} description="All blank measurements are omitted from the final report. Calculated fields update when their source measurements are entered.">{scanType!=='Adult Echo'&&['Biometry','Aortic'].includes(activeTab)?<ZScoreGrid fields={fields} data={{...data,...calculated}} setData={setData}/>:<FieldGrid fields={fields} data={{...data,...calculated}} setData={setData}/>} {Object.keys(calculated).length>0&&<div className="mt-4 rounded-lg bg-primary-50 p-3 text-sm text-primary-800">Calculated: {Object.entries(calculated).map(([key,value])=><span className="mr-4" key={key}><strong>{key.replace(/([A-Z])/g,' $1')}:</strong> {value}</span>)}</div>}</Section>}
-    {activeTab==='Custom measurements'&&<CustomMeasurements data={data} setData={setData}/>} 
-    {activeTab==='Miscellaneous'&&<Section title="Miscellaneous"><Field type="textarea" rows={14} label="Additional report text" value={data.miscellaneous} onChange={(value)=>setData({...data,miscellaneous:value})}/></Section>}
-    {activeTab==='Impression'&&<Impression data={data} setData={setData} doctors={doctors}/>} 
-    {activeTab==='Referral letter'&&<ReferralLetter data={data} setData={setData} doctors={doctors} patient={patient}/>} 
-    {activeTab==='Multiframes'&&<Multiframes clips={clips} setClips={setClips} addFiles={addFiles}/>} 
-    {activeTab==='Preview'&&<ReportPreview scanType={scanType} data={{...data,...calculated}} setData={setData} patient={patient}/>} 
+    {activeTab==='Custom measurements'&&<CustomMeasurements data={data} setData={setData}/>}
+    {activeTab==='Impression'&&<Impression data={data} setData={setData} doctors={doctors}/>}
+    {activeTab==='Referral letter'&&<ReferralLetter data={data} setData={setData} doctors={doctors} patient={patient}/>}
+    {activeTab==='Multiframes'&&<Multiframes clips={clips} setClips={setClips} addFiles={addFiles}/>}
+    {activeTab==='Preview'&&<ReportPreview scanType={scanType} data={{...data,...calculated}} setData={setData} patient={patient}/>}
   </Workspace>
 }
 
@@ -174,7 +148,7 @@ function CustomMeasurements({data,setData}) {
 
 function Impression({data,setData,doctors}) {
   const names=doctors.map((doctor)=>doctor.doctor_type==='hospital'?doctor.institution_name:`${doctor.first_name||''} ${doctor.last_name||''}`.trim()).filter(Boolean)
-  return <div className="space-y-4"><Section title="Report details"><FieldGrid fields={impressionFields.map((field)=>['signedByLeft','signedByRight','primaryConsultant','secondConsultant','auditedBy','typedBy'].includes(field.key)?{...field,type:'select',options:names,addable:true}:field)} data={data} setData={setData}/><div className="mt-3 grid gap-3 sm:grid-cols-3"><Field label="Abnormal" type="checkbox" value={data.abnormal} onChange={(value)=>setData({...data,abnormal:value})}/><Field label="Ambiguity" type="checkbox" value={data.ambiguity} onChange={(value)=>setData({...data,ambiguity:value})}/></div></Section><div className="grid gap-4 lg:grid-cols-2"><Section title="Comments"><Field type="textarea" rows={5} label="Header comments" value={data.headerComments} onChange={(value)=>setData({...data,headerComments:value})}/><div className="mt-3"><Field type="textarea" rows={5} label="Footer comments" value={data.footerComments} onChange={(value)=>setData({...data,footerComments:value})}/></div><div className="mt-3"><Field type="textarea" rows={5} label="System impression" value={data.systemImpression} onChange={(value)=>setData({...data,systemImpression:value})}/></div></Section><Section title="Finalisation"><Field type="textarea" rows={8} label="Final impression" value={data.impression} onChange={(value)=>setData({...data,impression:value})}/><div className="mt-3"><Field type="textarea" rows={4} label="Recommendations" value={data.recommendations} onChange={(value)=>setData({...data,recommendations:value})}/></div><div className="mt-3"><Field type="textarea" rows={4} label="Disclaimer comments" value={data.disclaimer} onChange={(value)=>setData({...data,disclaimer:value})}/></div><div className="mt-3"><Field type="textarea" rows={4} label="Internal comments (not printed)" value={data.internalComments} onChange={(value)=>setData({...data,internalComments:value})}/></div><div className="mt-3"><Field label="Report completed" type="checkbox" value={data.reportCompleted} onChange={(value)=>setData({...data,reportCompleted:value,investigationStatus:value?'Completed':data.investigationStatus})}/></div></Section></div></div>
+  return <div className="space-y-4"><Section title="Report details"><FieldGrid fields={impressionFields.map((field)=>['signedByLeft','signedByRight','primaryConsultant','secondConsultant','auditedBy','typedBy'].includes(field.key)?{...field,type:'select',options:names,addable:true}:field)} data={data} setData={setData}/><div className="mt-3 grid gap-3 sm:grid-cols-3"><Field label="Abnormal" type="checkbox" value={data.abnormal} onChange={(value)=>setData({...data,abnormal:value})}/><Field label="Ambiguity" type="checkbox" value={data.ambiguity} onChange={(value)=>setData({...data,ambiguity:value})}/><Field label="Growth abnormality" type="checkbox" value={data.growthAbnormality} onChange={(value)=>setData({...data,growthAbnormality:value})}/></div></Section><div className="grid gap-4 lg:grid-cols-2"><Section title="Comments"><Field type="textarea" rows={5} label="Header comments" value={data.headerComments} onChange={(value)=>setData({...data,headerComments:value})}/><div className="mt-3"><Field type="textarea" rows={5} label="Footer comments" value={data.footerComments} onChange={(value)=>setData({...data,footerComments:value})}/></div><div className="mt-3"><Field type="textarea" rows={5} label="System impression" value={data.systemImpression} onChange={(value)=>setData({...data,systemImpression:value})}/></div></Section><Section title="Finalisation"><Field type="textarea" rows={8} label="Final impression" value={data.impression} onChange={(value)=>setData({...data,impression:value})}/><div className="mt-3"><Field type="textarea" rows={4} label="Recommendations" value={data.recommendations} onChange={(value)=>setData({...data,recommendations:value})}/></div><div className="mt-3"><Field type="textarea" rows={4} label="Disclaimer comments" value={data.disclaimer} onChange={(value)=>setData({...data,disclaimer:value})}/></div><div className="mt-3"><Field type="textarea" rows={4} label="Internal comments (not printed)" value={data.internalComments} onChange={(value)=>setData({...data,internalComments:value})}/></div><div className="mt-3"><Field label="Report completed" type="checkbox" value={data.reportCompleted} onChange={(value)=>setData({...data,reportCompleted:value,investigationStatus:value?'Completed':data.investigationStatus})}/></div></Section></div></div>
 }
 
 function ReferralLetter({data,setData,doctors,patient}) {
