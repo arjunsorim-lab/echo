@@ -11,9 +11,9 @@ from datetime import date
 from fastapi import HTTPException, Request
 from fastapi.responses import JSONResponse
 from derived_measurements import recalculate, rules
+from session_store import SessionStore
 
 actor = contextvars.ContextVar('clinical_actor', default=None)
-tokens = {}
 lock = threading.RLock()
 REPORT_KEYS = ('adult_echo_report', 'pediatric_echo_report', 'fetal_echo_report')
 TITLES = {'Adult Echo': 'Adult Echocardiography', 'Pediatric Echo': 'Paediatric Echocardiography', 'Fetal Echo': 'Fetal Echocardiography', 'Ultrasound': 'Ultrasound'}
@@ -28,6 +28,8 @@ def verify(password, stored):
 def install(app, base_dir):
     path = os.environ.get('ECHOAI_USERS_PATH', os.path.join(base_dir, '.workflow-users.json'))
     cookie_name = os.environ.get('ECHOAI_SESSION_COOKIE', 'echoai_session')
+    sessions = SessionStore(os.environ.get('ECHOAI_SESSIONS_PATH', path + '.sessions.db'))
+    secure_cookie = os.environ.get('ECHOAI_SECURE_COOKIE', '').lower() in ('1', 'true')
     if not os.path.exists(path):
         # Reuse explicitly configured local credentials where available.
         credential_path = os.path.join(base_dir, '.local-credentials.json')
@@ -53,10 +55,11 @@ def install(app, base_dir):
         if request.method == 'OPTIONS' or not request.url.path.startswith(('/api/', '/uploads/')) or request.url.path in ('/api/health', '/api/auth/login'):
             return await call_next(request)
         token = request.headers.get('authorization', '').removeprefix('Bearer ') or request.cookies.get(cookie_name)
-        session = tokens.get(token)
-        if not session or session['expires'] <= time.time():
+        username = sessions.username(token)
+        user = next((u for u in users() if u['username'] == username), None) if username else None
+        if not user or user.get('role') not in ('L1', 'L2', 'L3'):
             return JSONResponse(status_code=401, content={'detail': 'Sign in to continue.'})
-        mark = actor.set(session['user'])
+        mark = actor.set({k: user[k] for k in ('username', 'name', 'role')})
         try:
             # Generic table writes cannot bypass clinical validation or approval permissions.
             if request.method not in ('GET', 'HEAD') and request.url.path.startswith('/api/resources/'):
@@ -70,18 +73,22 @@ def install(app, base_dir):
             actor.reset(mark)
 
     @app.post('/api/auth/login')
-    def login(data: dict):
+    def login(data: dict, request: Request):
+        client = request.client.host if request.client else 'unknown'
+        if sessions.blocked(client):
+            raise HTTPException(429, 'Too many failed sign-in attempts. Retry in 15 minutes.')
         username = str(data.get('username') or '').strip().lower()
         if username == 'dr.shanthi':
             username = 'dr.shanthi@echoai.com'
         user = next((u for u in users() if u['username'].lower() == username), None)
         if not user or not verify(str(data.get('password') or ''), user['password_hash']):
+            sessions.failed(client)
             raise HTTPException(401, 'Incorrect username or password.')
         public = {k: user[k] for k in ('username', 'name', 'role')}
         token = secrets.token_urlsafe(32)
-        tokens[token] = {'user': public, 'expires': time.time() + 43200}
+        sessions.create(token, user['username'], time.time() + 43200)
         response = JSONResponse({'success': True, 'token': token, 'user': public})
-        response.set_cookie(cookie_name, token, httponly=True, samesite='strict', max_age=43200)
+        response.set_cookie(cookie_name, token, httponly=True, secure=secure_cookie, samesite='strict', max_age=43200)
         return response
 
     @app.get('/api/auth/me')
@@ -95,7 +102,7 @@ def install(app, base_dir):
     @app.post('/api/auth/logout')
     def logout(request: Request):
         token = request.headers.get('authorization', '').removeprefix('Bearer ') or request.cookies.get(cookie_name)
-        tokens.pop(token, None)
+        sessions.revoke(token)
         response = JSONResponse({'success': True})
         response.delete_cookie(cookie_name)
         return response
@@ -257,6 +264,8 @@ def prepare_scan(data, existing=None):
         require_role('L3')
         if not str(impression.get('primary_consultant') or '').strip() or not str(impression.get('final_impression') or '').strip():
             raise HTTPException(422, 'Primary consultant and final impression are required for completion.')
+        if not str(impression.get('header_comments') or '').strip() or not str(impression.get('disclaimer_comments') or '').strip():
+            raise HTTPException(422, 'Header comments and disclaimer comments are required for completion.')
         merged['status'] = 'Completed'
         impression['report_completed'] = True
         impression['completed_by'] = user['name']

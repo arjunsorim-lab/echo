@@ -110,7 +110,8 @@ export function ClinicalPreview({ report, patient, visitId, title, onClose, stat
       {Object.entries(report).filter(([k,v]) => CLINICAL_GROUPS.includes(k) && populated(v)).map(([k,v]) => <section key={k} className="mb-5"><h2 className="border-b text-lg font-bold">{label(k)}</h2><Values node={v}/></section>)}
       {report.impression?.final_impression && <section className="mb-4"><h2 className="font-bold">Final impression</h2><p className="whitespace-pre-wrap">{report.impression.final_impression}</p></section>}
       {report.impression?.footer_comments && <p className="whitespace-pre-wrap">{report.impression.footer_comments}</p>}
-      <footer className="mt-8 flex justify-between"><span>{report.impression?.primary_consultant || ''}</span><span>{report.impression?.second_consultant || ''}</span></footer>
+      {report.impression?.disclaimer_comments && <section className="mt-5 whitespace-pre-wrap"><h2 className="font-bold">Disclaimer</h2><p>{report.impression.disclaimer_comments}</p></section>}
+      <footer className="mt-8 flex flex-wrap justify-between gap-6"><div>{report.impression?.primary_consultant && <><p className="text-sm">Primary consultant</p><p>{report.impression.primary_consultant}</p></>}</div>{report.impression?.second_consultant && <div><p className="text-sm">Secondary consultant</p><p>{report.impression.second_consultant}</p></div>}</footer>
     </article>
   </div>
   // Print content must not inherit an editor's no-print/overflow container.

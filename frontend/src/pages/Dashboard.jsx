@@ -92,9 +92,7 @@ const formatScanDate = (value) => {
 }
 
 const getClinicalImportance = (scan) => {
-  if (scan.abnormal) return 'High'
-  if (scan.ambiguity || scan.growthAbnormality || scan.normalVariant) return 'Medium'
-  return 'Low'
+  return scan.clinical_importance || 'Not recorded'
 }
 
 export default function Dashboard() {
@@ -175,7 +173,7 @@ export default function Dashboard() {
               rawDate,
               aiSummary: scan.conclusion || scan.findings || 'No findings recorded.',
               importance: getClinicalImportance(scan),
-              confidence: scan.ai_confidence ?? 92,
+              confidence: scan.ai_confidence ?? null,
             }
           })
 
@@ -190,7 +188,7 @@ export default function Dashboard() {
     {
       title: 'TOTAL PATIENTS',
       value: stats.total_patients,
-      change: '↑ 12 this week',
+      change: '',
       isPositive: true,
       icon: Users,
       iconBg: 'bg-[#10b981]', // emerald green
@@ -201,7 +199,7 @@ export default function Dashboard() {
     {
       title: 'TOTAL SCANS',
       value: stats.total_scans,
-      change: '↑ 18 this week',
+      change: '',
       isPositive: true,
       icon: Activity,
       iconBg: 'bg-[#3b82f6]', // blue
@@ -212,7 +210,7 @@ export default function Dashboard() {
     {
       title: 'TOTAL VISITS',
       value: stats.total_visits,
-      change: '↑ 14 this week',
+      change: '',
       isPositive: true,
       icon: CalendarCheck,
       iconBg: 'bg-[#8b5cf6]', // purple
@@ -223,7 +221,7 @@ export default function Dashboard() {
     {
       title: "TODAY'S VISITS",
       value: stats.todays_visits,
-      change: '~ Same as yesterday',
+      change: '',
       isPositive: false,
       icon: Clock,
       iconBg: 'bg-[#f97316]', // orange
@@ -245,7 +243,7 @@ export default function Dashboard() {
     {
       title: 'ADULT ECHO',
       value: stats.adult_echo,
-      change: '↑ 10 this week',
+      change: '',
       isPositive: true,
       icon: Heart,
       iconBg: 'bg-[#7c3aed]', // purple
@@ -255,7 +253,7 @@ export default function Dashboard() {
     {
       title: 'FETAL ECHO',
       value: stats.fetal_echo,
-      change: '↑ 4 this week',
+      change: '',
       isPositive: true,
       icon: Baby,
       iconBg: 'bg-[#ec4899]', // pink
@@ -265,7 +263,7 @@ export default function Dashboard() {
     {
       title: 'PEDIATRIC ECHO',
       value: stats.pediatric_echo,
-      change: '↑ 6 this week',
+      change: '',
       isPositive: true,
       icon: Smile,
       iconBg: 'bg-[#f97316]', // orange
@@ -685,7 +683,7 @@ export default function Dashboard() {
 
                   {/* AI Confidence */}
                   <td className="py-3.5 px-4 text-slate-400 font-medium">
-                    {scan.confidence}% (Estimated)
+                    {scan.confidence === null ? 'Not available' : `${scan.confidence}%`}
                   </td>
 
                   {/* Action Icon Buttons */}

@@ -77,7 +77,7 @@ class WorkflowTests(unittest.TestCase):
         code,result=call('POST','/api/scans',draft,l1);self.assertEqual(code,200,result);sid=result['data']['id']
         self.assertEqual(call('POST','/api/scans',draft,l1)[1]['data']['id'],sid)
         self.assertEqual(call('POST','/api/scans',{**draft,'scan_type':'Adult Echo'},l1)[0],422)
-        report={'indication':'Dummy test only','no_of_fetuses':'1','lmp':{'lmp_date':'2026-06-01'},'echo_details':{'general':{'cardiac_position':'Abnormal'}},'impression':{'final_impression':'Dummy test report','primary_consultant':'Test Consultant','report_completed':False}}
+        report={'indication':'Dummy test only','no_of_fetuses':'1','lmp':{'lmp_date':'2026-06-01'},'echo_details':{'general':{'cardiac_position':'Abnormal'}},'impression':{'header_comments':'Synthetic header','disclaimer_comments':'Synthetic disclaimer','final_impression':'Dummy test report','primary_consultant':'Test Consultant','report_completed':False}}
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l1)[0],422)
         report['echo_details']['general']['cardiac_position_comments']='Dummy description'
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'patient_id':0,'fetal_echo_report':report},l1)[0],409)
@@ -128,13 +128,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'adult_echo_report':report},l1)[0],422)
         for invalid in ({'impression':None},{'impression':{'report_completed':'false'}},{'impression':{'classification':'Unknown'}},{'no_of_fetuses':'0'}):
             self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':{**report,**invalid}},l1)[0],422)
-        report['impression']={'report_completed':True,'primary_consultant':'Dummy','final_impression':'Test only'}
+        report['impression']={'header_comments':'Synthetic header','disclaimer_comments':'Synthetic disclaimer','report_completed':True,'primary_consultant':'Dummy','final_impression':'Test only'}
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l1)[0],403)
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l3)[0],422)
         report.update(indication='Test only',lmp={'edd':'2027-01-01'},no_of_fetuses='1')
         report['echo_details']={'situs':'Abnormal','situs_comments':'   '}
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l3)[0],422)
         report['echo_details']['situs_comments']='Dummy description'
+        for required in ('header_comments', 'disclaimer_comments'):
+            invalid = copy.deepcopy(report)
+            invalid['impression'][required] = '   '
+            self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':invalid},l3)[0],422)
         code,result=call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l3);self.assertEqual(code,200,result)
         self.assertEqual(result['data']['fetal_echo_report']['impression']['completed_by'],'Dr Shanthi')
         self.assertTrue(result['data']['fetal_echo_report']['impression']['completed_at'])
@@ -195,5 +199,16 @@ class WorkflowTests(unittest.TestCase):
                 self.assertEqual(self.call('PUT',f'/api/patients/{pid}',{key:value},token)[0],409)
             self.assertEqual(self.call('GET',f'/api/patients/{pid}/visits',token=token)[1]['data'],[])
             self.assertEqual(self.call('GET',f'/api/scans/patient/{pid}',token=token)[1]['data'],[])
+
+    def test_z_logout_and_login_abuse_protection(self):
+        code, result = self.call('POST', '/api/auth/login', {'username':'l1','password':'Workflow-test-only!42'})
+        self.assertEqual(code, 200)
+        token = result['token']
+        self.assertEqual(self.call('GET', '/api/auth/me', token=token)[0], 200)
+        self.assertEqual(self.call('POST', '/api/auth/logout', {}, token)[0], 200)
+        self.assertEqual(self.call('GET', '/api/auth/me', token=token)[0], 401)
+        for _ in range(10):
+            self.assertEqual(self.call('POST', '/api/auth/login', {'username':'missing','password':'invalid'})[0], 401)
+        self.assertEqual(self.call('POST', '/api/auth/login', {'username':'l1','password':'Workflow-test-only!42'})[0], 429)
 
 if __name__=='__main__':unittest.main(verbosity=2)

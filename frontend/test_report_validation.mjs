@@ -6,9 +6,17 @@ test('incomplete drafts persist but progression and completion require profile f
   const report={indication:'',lmp:{},impression:{},no_of_fetuses:''}
   assert.deepEqual(reportErrors(report,true),[])
   assert.equal(reportErrors(report,true,false,true).length,3)
-  assert.equal(reportErrors(report,true,true).length,5)
+  assert.equal(reportErrors(report,true,true).length,7)
   assert(reportErrors({...report,lmp:{edd:'2026-02-30'}},true).length)
   assert(reportErrors({...report,no_of_fetuses:'0'},true).length)
+})
+test('completion requires entered header and disclaimer; drafts and optional footer/secondary consultant stay available',()=>{
+  const report={indication:'Synthetic test',impression:{primary_consultant:'Test consultant',final_impression:'Test impression',header_comments:'  ',disclaimer_comments:''}}
+  assert.deepEqual(reportErrors(report),[])
+  assert.equal(reportErrors(report,false,true).length,2)
+  report.impression.header_comments='Synthetic header'
+  report.impression.disclaimer_comments='Synthetic disclaimer'
+  assert.deepEqual(reportErrors(report,false,true),[])
 })
 test('abnormal descriptions reject whitespace; not visualized remains optional',()=>{
   assert(reportErrors({echo_details:{situs:'Abnormal',situs_comments:'  '}}).length)

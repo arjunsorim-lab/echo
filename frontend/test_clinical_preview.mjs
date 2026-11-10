@@ -21,7 +21,7 @@ fill(report)
 report.no_of_fetuses='1';report.ga_weeks='20';report.ga_days='0'
 report.lmp={lmp_date:'2026-06-01',edd:'',et_date:''}
 report.indication='DUMMY DATA — software review only'
-report.impression={first_line:'DUMMY SAMPLE — NOT A CLINICAL REPORT',final_impression:'Sample text for layout review. No diagnosis or clinical interpretation.',primary_consultant:'Dummy consultant',second_consultant:'',internal_comments:'SECRET_INTERNAL_NOTE',system_impression:'UNUSED_SYSTEM_IMPRESSION',header_comments:'Dummy imaging-quality comment',footer_comments:'Dummy footer'}
+report.impression={first_line:'DUMMY SAMPLE — NOT A CLINICAL REPORT',final_impression:'Sample text for layout review. No diagnosis or clinical interpretation.',primary_consultant:'Dummy consultant',second_consultant:'',internal_comments:'SECRET_INTERNAL_NOTE',system_impression:'UNUSED_SYSTEM_IMPRESSION',header_comments:'Dummy imaging-quality comment',footer_comments:'Dummy footer',disclaimer_comments:'DUMMY DISCLAIMER TEXT'}
 report.preview_settings={report_type:'SECRET_PREVIEW_SETTING'}
 report._legacy_findings='SECRET_LEGACY_FINDINGS'
 // Formula-dependent Z-scores are deliberately absent from this requested first sample.
@@ -38,7 +38,7 @@ assert(markup.includes('DUMMY REFERRAL INSTITUTE'));assert(!markup.includes('WRO
 assert(!markup.includes('SURYA'));assert(!markup.includes('1.05'))
 assert(markup.indexOf('DUMMY-ONLY')<markup.indexOf('Fetal Echocardiography'))
 assert(markup.indexOf('Fetal Echocardiography')<markup.indexOf('DUMMY DATA'))
-assert(markup.includes('Dummy imaging-quality comment'));assert(markup.includes('Final impression'))
+assert(markup.includes('DUMMY DISCLAIMER TEXT'));assert(markup.includes('Primary consultant'));assert(!markup.includes('Secondary consultant'));assert(markup.includes('Dummy imaging-quality comment'));assert(markup.includes('Final impression'))
 for (const [name, pageSource] of [['Adult', adultSource], ['Paediatric', pediatricSource], ['Fetal', source]]) {
   const seedMatch = pageSource.match(/const initialReport = (\{[\s\S]*?^\})/m)
   assert(seedMatch, `${name} report seed exists`)

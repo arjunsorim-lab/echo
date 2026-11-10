@@ -20,7 +20,7 @@ For every approved formula provide: output field path, input field paths, input/
 
 - Supply the annotated fetal field list: additions/removals, clinical terminology, section order, units, and mandatory/optional status. Current grouping is retained provisionally; no unapproved anatomical sequence was invented.
 - Supply common indication choices. Free text remains available.
-- Resolve the conflicting header/disclaimer terminology and mandatory/print rules: **Needs confirmation – unclear from transcript.** Internal auditor notes remain excluded from patient output.
+- Later user-supplied meeting clarification confirms Header Comments, Final Impression, Disclaimer Comments and primary consultant are required for completion. Drafts may remain incomplete; footer and secondary consultant are optional. Exact clinical wording and final layout still require input. Internal auditor notes remain excluded from patient output.
 - Confirm approved report titles, clinic/report registration identifiers, letterhead, primary/secondary consultant positioning and signature requirements.
 - Confirm whether classification defaults to Normal or requires an explicit selection. New scans no longer silently assert Normal.
 - Confirm whether editing an audited report invalidates its audit, and whether completion requires an earlier L2 audit. Current cumulative L3 authority is preserved; no new clinical policy was invented.

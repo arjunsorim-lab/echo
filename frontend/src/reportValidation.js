@@ -38,5 +38,7 @@ export function reportErrors(report, fetal=false, completing=false, progressing=
   walk(report.echo_details)
   if(completing && !String(report.impression?.primary_consultant || '').trim())errors.push('Primary consultant is required for completion.')
   if(completing && !String(report.impression?.final_impression || '').trim())errors.push('Final impression is required for completion.')
+  if(completing && !String(report.impression?.header_comments || '').trim())errors.push('Header comments are required for completion.')
+  if(completing && !String(report.impression?.disclaimer_comments || '').trim())errors.push('Disclaimer comments are required for completion.')
   return [...new Set(errors)]
 }
