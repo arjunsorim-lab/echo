@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { workspaceService } from '../api/workspaceService'
+import MediaPrintPreview from './MediaPrintPreview'
 import { X, Save, Trash2, RotateCcw, Printer } from 'lucide-react'
 
 const ruleConfigs = {
@@ -50,7 +52,9 @@ export default function TiffaTemplateModal({
   open,
   onClose,
   patient,
-  visitDate = '02/09/2025 10:42:46 AM',
+  visitDate = '',
+  visitId = '',
+  mediaRecords = [],
   images = [],
   initialRuleMode = 'Rule of three',
 }) {
@@ -61,6 +65,10 @@ export default function TiffaTemplateModal({
   const [height, setHeight] = useState('450')
   const [rowsCols, setRowsCols] = useState('4X2')
   const [activeSlot, setActiveSlot] = useState(0)
+  const [busy, setBusy] = useState(false)
+  const [ready, setReady] = useState(false)
+  const [message, setMessage] = useState('')
+  const [preview, setPreview] = useState(false)
 
   const currentConfig = ruleConfigs[ruleMode] || ruleConfigs['Rule of three']
   const [placements, setPlacements] = useState(() => Array(currentConfig.count).fill(null))
@@ -72,18 +80,46 @@ export default function TiffaTemplateModal({
   }, [initialRuleMode])
 
   useEffect(() => {
+    let active=true
     const cfg = ruleConfigs[ruleMode] || ruleConfigs['Rule of three']
     setPlacements(Array(cfg.count).fill(null))
     setActiveSlot(0)
-  }, [ruleMode])
+    setPreview(false);setReady(false)
+    if(open && patient?.id && visitId) {
+      setBusy(true)
+      const kind={'Rule of two':'rule-2','Rule of three':'rule-3','Rule of four':'rule-4'}[ruleMode]
+      workspaceService.getMediaLayout(patient.id,visitId,kind).then(result=>{
+        if(!active)return
+        if(result.data) {
+          setPlacements(Array.from({length:cfg.count},(_,index)=>mediaRecords.find(item=>item.id===result.data.placements[index] && item.status!=='Archived')?.url || null))
+          setTemplateName(result.data.title || 'FETAL ECHO')
+        }
+        setReady(true);setMessage(result.data?'Saved layout loaded.':'Choose images and save this visit layout.')
+      }).catch(()=>{if(active)setMessage('Unable to load layout. Close and retry before saving.')}).finally(()=>{if(active)setBusy(false)})
+    }
+    return ()=>{active=false}
+  }, [ruleMode, open, patient?.id, visitId, mediaRecords])
+
+  const saveLayout = async () => {
+    if(!ready || busy)return
+    setBusy(true)
+    try {
+      const kind={'Rule of two':'rule-2','Rule of three':'rule-3','Rule of four':'rule-4'}[ruleMode]
+      const ids=placements.map(url=>url?mediaRecords.find(item=>item.url===url)?.id:null)
+      if(ids.some(id=>id===undefined))throw new Error('Save the source images to this visit before saving the layout.')
+      await workspaceService.saveMediaLayout(patient.id,visitId,kind,{title:templateName,columns:Math.sqrt(currentConfig.count),placements:ids})
+      setMessage('Layout saved to this patient visit.')
+    } catch(error) {setMessage(error.response?.data?.detail || error.message || 'Layout save failed.')}
+    finally {setBusy(false)}
+  }
 
   if (!open) return null
 
   const patientName = patient
     ? [patient.salutation, patient.first_name, patient.last_name].filter(Boolean).join(' ') ||
       patient.patient_id ||
-      'Testecho(test)'
-    : 'Testecho(test)'
+      'Select patient'
+    : 'Select patient'
 
   const placeImage = (img) => {
     const next = [...placements]
@@ -93,12 +129,12 @@ export default function TiffaTemplateModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 backdrop-blur-2xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-3 backdrop-blur-2xs" role="dialog" aria-modal="true" aria-label="Image layout">
       <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-300 bg-gradient-to-r from-slate-100 to-slate-200 px-4 py-2.5">
           <h2 className="text-sm font-semibold text-slate-900">
-            TIFFA - Targeted Imaging For Fetal Anomalies - Patient: <span className="font-bold">{patientName}</span> Visit# 1 on {visitDate}
+            Image layout - Patient: <span className="font-bold">{patientName}</span> Visit# {visitId || '—'} {visitDate}
           </h2>
           <button type="button" onClick={onClose} className="rounded p-1 text-slate-500 hover:bg-slate-300 hover:text-slate-900">
             <X className="h-4 w-4" />
@@ -108,16 +144,13 @@ export default function TiffaTemplateModal({
         {/* Top Action Toolbar */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs">
           <div className="flex items-center gap-2">
-            <button type="button" className="legacy-small-button">
+            <button type="button" disabled={busy || !ready} onClick={saveLayout} className="legacy-small-button">
               <Save className="mr-1 h-3.5 w-3.5 text-teal-700" /> Save
             </button>
             <button type="button" onClick={() => setPlacements(Array(currentConfig.count).fill(null))} className="legacy-small-button">
-              <Trash2 className="mr-1 h-3.5 w-3.5 text-red-600" /> Delete
+              <Trash2 className="mr-1 h-3.5 w-3.5 text-red-600" /> Clear layout
             </button>
-            <button type="button" onClick={() => setPlacements(Array(currentConfig.count).fill(null))} className="legacy-small-button">
-              <RotateCcw className="mr-1 h-3.5 w-3.5 text-slate-600" /> Clear
-            </button>
-            <button type="button" className="legacy-small-button">
+            <button type="button" disabled={!placements.some(Boolean)} onClick={()=>setPreview(true)} className="legacy-small-button">
               <Printer className="mr-1 h-3.5 w-3.5 text-teal-700" /> Preview
             </button>
             <button type="button" onClick={onClose} className="legacy-small-button">
@@ -126,9 +159,11 @@ export default function TiffaTemplateModal({
           </div>
 
           <div className="flex items-center gap-2 text-[11px] font-medium text-slate-600">
-            <span>Tips: Double click to place selected images into template (or) Drag and drop into template</span>
+            <span>Click once to place an image in the active frame, or drag it into a frame.</span>
           </div>
         </div>
+
+        <p role="status" className="px-4 py-2 text-sm">{busy?'Loading/saving layout…':message}</p>
 
         {/* Template Controls Bar */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-100 px-4 py-2 text-xs">
@@ -233,8 +268,7 @@ export default function TiffaTemplateModal({
                 images.map((img, idx) => (
                   <div
                     key={idx}
-                    onDoubleClick={() => placeImage(img)}
-                    onClick={() => placeImage(img)}
+                    onClick={(event) => { if(event.detail <= 1) placeImage(img) }}
                     className="cursor-pointer rounded border border-slate-200 bg-slate-50 p-1 hover:border-teal-500"
                   >
                     <img src={img} alt={`List item ${idx}`} className="h-24 w-full object-cover rounded" />
@@ -250,6 +284,7 @@ export default function TiffaTemplateModal({
           </div>
         </div>
       </div>
+      {preview && <MediaPrintPreview images={placements} columns={Math.sqrt(currentConfig.count)} title={`${templateName} — ${patientName} — Visit ${visitId}`} onClose={()=>setPreview(false)} />}
     </div>
   )
 }

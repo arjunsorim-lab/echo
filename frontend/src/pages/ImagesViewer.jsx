@@ -59,7 +59,7 @@ export default function ImagesViewer() {
       catch(error) { setError(error.response?.data?.detail || 'Upload failed. The file was not saved.');break }
     }
   }
-  const scopedAssets=assets.filter(asset=>patientId && String(asset.patient_id)===String(patientId) && (!visitId || String(asset.visit_id)===String(visitId)))
+  const scopedAssets=assets.filter(asset=>asset.status !== 'Archived' && patientId && String(asset.patient_id)===String(patientId) && (!visitId || String(asset.visit_id)===String(visitId)))
   const images=scopedAssets.filter(asset=>String(asset.type || '').startsWith('image/'))
   const videos=scopedAssets.filter(asset=>String(asset.type || '').startsWith('video/'))
   const toggle = (id) => setSelected(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id].slice(-2))
@@ -135,7 +135,7 @@ function RuleImageTemplate({templates,setTemplates,images}) {
 
 function Spooler({ assets, setAssets }) {
   const remove=async(asset)=>{if(asset.id&&!String(asset.id).startsWith('local-'))await workspaceService.remove('media-records',asset.id);setAssets(current=>current.filter(item=>item.id!==asset.id))}
-  return <Section title="Stored media records" description="Local storage status only. No PACS transfer queue is implemented."><div className="overflow-auto"><table className="data-table"><thead><tr><th>Patient ID</th><th>Image ID</th><th>AE title</th><th>IP address</th><th>Status</th><th/></tr></thead><tbody>{assets.map((asset)=><tr key={asset.id}><td>{asset.patient_id||'—'}</td><td>{asset.id}</td><td>{asset.ae_title||'—'}</td><td>{asset.ip_address||'—'}</td><td className="text-emerald-700">{asset.status||'Ready'}</td><td><button onClick={()=>remove(asset)} className="rounded p-2 text-red-600"><Trash2 className="h-4 w-4"/></button></td></tr>)}</tbody></table></div>{!assets.length&&<p className="py-10 text-center text-sm text-slate-500">The transfer queue is empty.</p>}</Section>
+  return <Section title="Stored media records" description="Local storage status only. No PACS transfer queue is implemented."><div className="overflow-auto"><table className="data-table"><thead><tr><th>Patient ID</th><th>Image ID</th><th>AE title</th><th>IP address</th><th>Status</th><th/></tr></thead><tbody>{assets.map((asset)=><tr key={asset.id}><td>{asset.patient_id||'—'}</td><td>{asset.id}</td><td>{asset.ae_title||'—'}</td><td>{asset.ip_address||'—'}</td><td className="text-emerald-700">{asset.status||'Ready'}</td><td><button title="Archive media (original preserved)" onClick={()=>remove(asset)} className="rounded p-2 text-red-600"><Trash2 className="h-4 w-4"/></button></td></tr>)}</tbody></table></div>{!assets.length&&<p className="py-10 text-center text-sm text-slate-500">The transfer queue is empty.</p>}</Section>
 }
 
 function OrganEditor({image,patientId,visitId,onGoToImages,onSaved}) {

@@ -187,6 +187,26 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',{'patient_id':'999'},token)[0],409)
         self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',{'url':'https://example.com/file.png'},token)[0],409)
         self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',record,token)[0],200)
+        layout={'placements':[record['id'],None,record['id'],None],'columns':2,'title':'Synthetic image layout'}
+        route=f'/api/media-layouts/{pid}/{vid}/rule-2'
+        self.assertEqual(call('PUT',route,layout,token)[0],200)
+        self.assertEqual(call('GET',route,token=token)[1]['data'],layout)
+        self.assertEqual(call('GET',f'/api/media-layouts/{pid}/99999/rule-2',token=token)[0],404)
+        self.assertEqual(call('PUT',route,{**layout,'placements':[99999]},token)[0],422)
+        self.assertEqual(call('DELETE',f'/api/resources/media-records/{record["id"]}',token=token)[0],200)
+        archived=call('GET','/api/resources/media-records',token=token)[1]['data']
+        self.assertEqual(next(item for item in archived if item['id']==record['id'])['status'],'Archived')
+        self.assertTrue((self.folder/'uploads'/record['url'].split('/')[-1]).exists())
+        self.assertEqual(call('PUT',route,layout,token)[0],422)
+        self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',{'status':'Uploaded'},token)[0],200)
+        final={'indication':'Synthetic test','no_of_fetuses':'1','lmp':{'edd':'2027-01-01'},'impression':{'primary_consultant':'Synthetic consultant','final_impression':'Test only','header_comments':'Synthetic header','disclaimer_comments':'Synthetic disclaimer','report_completed':True}}
+        code,result=call('POST','/api/scans',{'patient_id':pid,'visit_id':vid,'scan_type':'Fetal Echo','fetal_echo_report':final},self.l3)
+        self.assertEqual(code,200,result)
+        self.assertEqual(call('DELETE',f'/api/resources/media-records/{record["id"]}',token=token)[0],409)
+        self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',{'status':'Archived'},token)[0],409)
+        self.assertEqual(call('PUT',route,layout,token)[0],409)
+        self.assertEqual(upload('locked.png',image)[0],409)
+        self.assertEqual(call('GET',route,token=token)[1]['data'],layout)
 
     def test_contact_only_updates_and_identity_locks_for_all_roles(self):
         patient={'patient_id':'TEST-CONTACT-ONLY','first_name':'Dummy','last_name':'Contact','dob':'2000-01-01','gender':'F','street':'Test','state':'Tamil Nadu','country':'India','phone2':'1234567890','family_doctor':'Self'}

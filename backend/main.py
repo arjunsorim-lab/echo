@@ -459,6 +459,11 @@ def init_db():
     if 'request_id' not in visit_columns:
         c.execute('ALTER TABLE visits ADD COLUMN request_id TEXT')
     c.execute('CREATE UNIQUE INDEX IF NOT EXISTS visit_request_once ON visits(patient_id, request_id)')
+    c.execute('''CREATE TABLE IF NOT EXISTS media_layouts (
+        patient_id INTEGER NOT NULL, visit_id INTEGER NOT NULL, kind TEXT NOT NULL,
+        data TEXT NOT NULL, updated_at TEXT NOT NULL,
+        PRIMARY KEY(patient_id, visit_id, kind)
+    )''')
     conn.commit()
     conn.close()
 
@@ -1450,10 +1455,12 @@ def update_resource(resource: str, item_id: int, data: dict):
     table = _normalize_table_name(resource)
     cursor = conn.cursor()
     if table == 'media_records':
+        conn.execute('BEGIN IMMEDIATE')
         existing = conn.execute('SELECT * FROM media_records WHERE id = ?', (item_id,)).fetchone()
         if not existing:
             conn.close()
             raise HTTPException(404, 'Media record not found.')
+        _guard_media_visit(conn, existing['visit_id'])
         for field in ('patient_id', 'visit_id', 'url', 'data_url', 'type', 'size'):
             if field in data and str(data[field] or '') != str(existing[field] or ''):
                 conn.close()
@@ -1484,6 +1491,17 @@ def update_resource(resource: str, item_id: int, data: dict):
 def delete_resource(resource: str, item_id: int):
     conn = get_db()
     table = _normalize_table_name(resource)
+    if table == 'media_records':
+        conn.execute('BEGIN IMMEDIATE')
+        record = conn.execute('SELECT * FROM media_records WHERE id = ?', (item_id,)).fetchone()
+        if not record:
+            conn.close()
+            raise HTTPException(404, 'Media record not found.')
+        _guard_media_visit(conn, record['visit_id'])
+        conn.execute("UPDATE media_records SET status = 'Archived' WHERE id = ?", (item_id,))
+        conn.commit()
+        conn.close()
+        return {'success': True, 'message': 'Media archived. The original file is preserved.'}
     cursor = conn.cursor()
     cursor.execute(f'DELETE FROM {table} WHERE id = ?', (item_id,))
     conn.commit()
@@ -1491,9 +1509,54 @@ def delete_resource(resource: str, item_id: int):
     return {"success": True, "message": "Resource deleted successfully"}
 
 # Media Upload Endpoint
+def _media_layout_context(patient_id, visit_id, kind, mutable=False):
+    if kind not in ('compare', 'rule-2', 'rule-3', 'rule-4'):
+        raise HTTPException(422, 'Unknown image layout.')
+    conn = get_db()
+    if not conn.execute('SELECT 1 FROM visits WHERE id = ? AND patient_id = ?', (visit_id, patient_id)).fetchone():
+        conn.close()
+        raise HTTPException(404, 'Patient visit not found.')
+    if mutable:
+        conn.execute('BEGIN IMMEDIATE')
+        _guard_media_visit(conn, visit_id)
+    return conn
+
+@app.get('/api/media-layouts/{patient_id}/{visit_id}/{kind}')
+def get_media_layout(patient_id: int, visit_id: int, kind: str):
+    conn = _media_layout_context(patient_id, visit_id, kind)
+    row = conn.execute('SELECT data FROM media_layouts WHERE patient_id = ? AND visit_id = ? AND kind = ?', (patient_id, visit_id, kind)).fetchone()
+    conn.close()
+    return {'data': json.loads(row['data']) if row else None}
+
+@app.put('/api/media-layouts/{patient_id}/{visit_id}/{kind}')
+def save_media_layout(patient_id: int, visit_id: int, kind: str, data: dict):
+    conn = _media_layout_context(patient_id, visit_id, kind, True)
+    slots = data.get('placements', [])
+    columns = data.get('columns', 2)
+    title = data.get('title', '')
+    if not isinstance(slots, list) or len(slots) > 16 or type(columns) is not int or not 1 <= columns <= 4 or not isinstance(title, str) or len(title) > 160:
+        conn.close()
+        raise HTTPException(422, 'Invalid image layout.')
+    for media_id in slots:
+        if media_id is not None and (type(media_id) is not int or not conn.execute("SELECT 1 FROM media_records WHERE id = ? AND patient_id = ? AND visit_id = ? AND status != 'Archived'", (media_id, patient_id, visit_id)).fetchone()):
+            conn.close()
+            raise HTTPException(422, 'Layout images must be active media from this patient visit.')
+    saved = {'placements': slots, 'columns': columns, 'title': title}
+    conn.execute('INSERT INTO media_layouts VALUES (?, ?, ?, ?, ?) ON CONFLICT(patient_id,visit_id,kind) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at', (patient_id, visit_id, kind, json.dumps(saved), datetime.now().isoformat()))
+    conn.commit()
+    conn.close()
+    return {'success': True, 'data': saved}
+
+def _guard_media_visit(conn, visit_id, close=True):
+    if visit_id and conn.execute("SELECT 1 FROM scans WHERE visit_id = ? AND lower(status) = 'completed'", (visit_id,)).fetchone():
+        if close:
+            conn.close()
+        raise HTTPException(409, 'Media for a visit with a completed report is read-only.')
+
 @app.post('/api/media-upload')
 async def upload_media(file: UploadFile = File(...), patient_id: Optional[int] = Form(None), visit_id: Optional[int] = Form(None)):
     conn = get_db()
+    _guard_media_visit(conn, visit_id)
     if patient_id is not None and not conn.execute('SELECT 1 FROM patients WHERE id = ?', (patient_id,)).fetchone():
         conn.close()
         raise HTTPException(422, 'Select an existing patient.')
@@ -1525,6 +1588,8 @@ async def upload_media(file: UploadFile = File(...), patient_id: Optional[int] =
         if not size:
             raise HTTPException(422, 'The file is empty.')
         url = f'/uploads/{filename}'
+        conn.execute('BEGIN IMMEDIATE')
+        _guard_media_visit(conn, visit_id, close=False)
         cursor = conn.execute('INSERT INTO media_records (patient_id, visit_id, name, type, size, status, url) VALUES (?, ?, ?, ?, ?, ?, ?)', (patient_id, visit_id, name, formats[extension], size, 'Uploaded', url))
         record = dict(conn.execute('SELECT * FROM media_records WHERE id = ?', (cursor.lastrowid,)).fetchone())
         conn.commit()
