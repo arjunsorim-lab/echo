@@ -72,13 +72,18 @@ def install(app, base_dir):
         finally:
             actor.reset(mark)
 
+    trusted_proxies_raw = os.environ.get('ECHOAI_TRUSTED_PROXIES', '')
+    trusted_proxies = {ip.strip() for ip in trusted_proxies_raw.split(',') if ip.strip()}
+
     @app.post('/api/auth/login')
     def login(data: dict, request: Request):
+        peer = request.client.host if request.client else 'unknown'
         forwarded = request.headers.get('x-forwarded-for')
-        if forwarded:
+        # Only trust X-Forwarded-For if the direct peer is explicitly configured as a trusted proxy
+        if forwarded and peer in trusted_proxies:
             client = forwarded.split(',')[0].strip()
         else:
-            client = request.client.host if request.client else 'unknown'
+            client = peer
         if sessions.blocked(client):
             raise HTTPException(429, 'Too many failed sign-in attempts. Retry in 15 minutes.')
         username = str(data.get('username') or '').strip().lower()
