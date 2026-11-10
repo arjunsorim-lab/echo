@@ -723,6 +723,9 @@ def delete_patient(patient_id: int):
     if conn.execute("SELECT 1 FROM scans WHERE patient_id = ? AND lower(status) = 'completed'", (patient_id,)).fetchone():
         conn.close()
         raise HTTPException(409, 'A patient with completed reports cannot be deleted.')
+    if conn.execute('SELECT 1 FROM media_records WHERE patient_id = ?', (patient_id,)).fetchone() or conn.execute('SELECT 1 FROM media_layouts WHERE patient_id = ?', (patient_id,)).fetchone():
+        conn.close()
+        raise HTTPException(409, 'Patients with associated media records or layouts cannot be deleted.')
     cursor = conn.cursor()
     cursor.execute('DELETE FROM visits WHERE patient_id = ?', (patient_id,))
     cursor.execute('DELETE FROM scans WHERE patient_id = ?', (patient_id,))
@@ -840,6 +843,9 @@ def delete_visit(patient_id: int, visit_id: int):
     if conn.execute("SELECT 1 FROM scans WHERE visit_id = ? AND lower(status) = 'completed'", (visit_id,)).fetchone():
         conn.close()
         raise HTTPException(409, 'Visits with completed reports cannot be deleted.')
+    if conn.execute('SELECT 1 FROM media_records WHERE visit_id = ?', (visit_id,)).fetchone() or conn.execute('SELECT 1 FROM media_layouts WHERE visit_id = ?', (visit_id,)).fetchone():
+        conn.close()
+        raise HTTPException(409, 'Visits with associated media records or layouts cannot be deleted.')
     cursor = conn.cursor()
     cursor.execute('DELETE FROM visits WHERE id = ? AND patient_id = ?', (visit_id, patient_id))
     conn.commit()
@@ -905,11 +911,13 @@ def create_scan(data: dict):
     if not conn.execute('SELECT 1 FROM patients WHERE id = ?', (data.get('patient_id'),)).fetchone():
         conn.close()
         raise HTTPException(422, 'Select an existing patient.')
-    if data.get('visit_id'):
-        visit = conn.execute('SELECT * FROM visits WHERE id = ? AND patient_id = ?', (data['visit_id'], data.get('patient_id'))).fetchone()
-        if not visit or (visit['visit_type'] in ('Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound') and visit['visit_type'] != data.get('scan_type')):
-            conn.close()
-            raise HTTPException(422, 'Report must match the selected patient, visit and scan type.')
+    if not data.get('visit_id'):
+        conn.close()
+        raise HTTPException(422, 'Clinical reports require a valid patient visit.')
+    visit = conn.execute('SELECT * FROM visits WHERE id = ? AND patient_id = ?', (data['visit_id'], data.get('patient_id'))).fetchone()
+    if not visit or (visit['visit_type'] in ('Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound') and visit['visit_type'] != data.get('scan_type')):
+        conn.close()
+        raise HTTPException(422, 'Report must match the selected patient, visit and scan type.')
 
     patient_id = data.get('patient_id')
     if data.get('visit_id'):

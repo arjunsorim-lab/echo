@@ -70,6 +70,33 @@ export function useSavedNavigation(report) {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
+  useEffect(() => {
+    if (!dirty) return
+    const guardInternalLink = (event) => {
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+      const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null
+      if (!anchor || (anchor.target && anchor.target !== '_self') || anchor.hasAttribute('download')) return
+      let target
+      try { target = new URL(anchor.getAttribute('href'), window.location.href) } catch { return }
+      if (!['http:', 'https:'].includes(target.protocol) || target.origin !== window.location.origin) return
+      if (target.pathname === window.location.pathname && target.search === window.location.search) return
+      if (!window.confirm('Discard unsaved report changes?')) {
+        event.preventDefault()
+        event.stopPropagation()
+      }
+    }
+    const guardPopState = () => {
+      if (dirty && !window.confirm('Discard unsaved report changes?')) {
+        window.history.pushState(null, '', window.location.href)
+      }
+    }
+    document.addEventListener('click', guardInternalLink, true)
+    window.addEventListener('popstate', guardPopState)
+    return () => {
+      document.removeEventListener('click', guardInternalLink, true)
+      window.removeEventListener('popstate', guardPopState)
+    }
+  }, [dirty])
   return { dirty, markSaved: value => setSaved(JSON.stringify(value)), navigateSection: (action, showError, errors = []) => {
     if (errors.length) { showError('Cannot advance. ' + errors.join(' ')); return }
     if (dirty) { showError('Not saved. Save this section before opening another section.'); return }
@@ -102,7 +129,7 @@ export function ClinicalPreview({ report, patient, visitId, title, onClose, stat
   const content = <div className="fixed inset-0 z-50 overflow-auto bg-slate-800/90 p-4 clinical-preview">
     <div className="no-print mx-auto mb-3 flex max-w-4xl flex-wrap gap-3"><button disabled={context.loading || Boolean(context.error) || !patient} className="primary-button" onClick={() => window.print()}>Print / Save PDF</button><button className="secondary-button" onClick={onClose}>Close preview</button>{context.loading && <span className="text-white">Loading visit details…</span>}{context.error && <p role="alert" className="bg-white p-2 text-red-700">{context.error}</p>}</div>
     <article className="clinical-print mx-auto max-w-4xl bg-white p-10 text-slate-900">
-      <header className="mb-5 border-b pb-4"><h2 className="text-xl font-semibold">{[patient?.salutation, patient?.first_name, patient?.last_name].filter(Boolean).join(' ')}</h2><p>Patient ID: {patient?.patient_id || '—'} · {patient?.age ?? '—'} {patient?.age_unit || 'Years'} · {patient?.gender || '—'}</p><p>Visit: {visitId || '—'}{visit?.visit_date ? ` · Date: ${visit.visit_date}` : ''} · Referred by: {(visitId ? visit?.referral_doctor : patient?.family_doctor) || '—'}</p><p>Report status: {status}</p></header>
+      <header className="clinical-print-header mb-5 border-b pb-4"><h2 className="text-xl font-semibold">{[patient?.salutation, patient?.first_name, patient?.last_name].filter(Boolean).join(' ')}</h2><p>Patient ID: {patient?.patient_id || '—'} · {patient?.age ?? '—'} {patient?.age_unit || 'Years'} · {patient?.gender || '—'}</p><p>Visit: {visitId || '—'}{visit?.visit_date ? ` · Date: ${visit.visit_date}` : ''} · Referred by: {(visitId ? visit?.referral_doctor : patient?.family_doctor) || '—'}</p><p>Report status: {status}</p></header>
       <h1 className="mb-3 text-center text-2xl font-bold">{title}</h1><p className="mb-5"><strong>Indication: </strong>{report.indication || '—'}</p>
       {report.impression?.first_line && <p className="mb-3 whitespace-pre-wrap">{report.impression.first_line}</p>}
       {report.impression?.header_comments && <p className="mb-3 whitespace-pre-wrap">{report.impression.header_comments}</p>}

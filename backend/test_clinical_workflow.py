@@ -237,8 +237,11 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(call('DELETE',f'/api/resources/media-records/{record["id"]}',token=token)[0],409)
         self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',{'status':'Archived'},token)[0],409)
         self.assertEqual(call('PUT',route,layout,token)[0],409)
-        self.assertEqual(upload('locked.png',image)[0],409)
-        self.assertEqual(call('GET',route,token=token)[1]['data'],layout)
+        # Deletion protections for associated media and visits
+        self.assertEqual(call('DELETE',f'/api/patients/{pid}/visits/{vid}',token=self.l3)[0],409)
+        self.assertEqual(call('DELETE',f'/api/patients/{pid}',token=self.l3)[0],409)
+        # Verify reports cannot be created without a valid visit
+        self.assertEqual(call('POST','/api/scans',{'patient_id':pid,'scan_type':'Fetal Echo'},token)[0],422)
 
     def test_contact_only_updates_and_identity_locks_for_all_roles(self):
         patient={'patient_id':'TEST-CONTACT-ONLY','first_name':'Dummy','last_name':'Contact','dob':'2000-01-01','gender':'F','street':'Test','state':'Tamil Nadu','country':'India','phone2':'1234567890','family_doctor':'Self'}

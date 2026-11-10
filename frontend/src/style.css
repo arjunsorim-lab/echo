@@ -390,7 +390,7 @@
   .no-print,
   .no-print *,
   aside,
-  header,
+  header:not(.clinical-print-header),
   nav,
   .report-editor-form,
   .preview-modal-toolbar,
@@ -478,6 +478,14 @@
     background: #ffffff !important;
     box-shadow: none !important;
     border: none !important;
+  }
+
+  /* Clinical report header must survive the application chrome reset. */
+  .clinical-print header,
+  .clinical-print-header,
+  .clinical-print header * {
+    display: block !important;
+    visibility: visible !important;
   }
 
   .report-paper-preview,

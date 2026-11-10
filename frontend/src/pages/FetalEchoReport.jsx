@@ -546,6 +546,10 @@ function FetalEchoReport() {
       setStatusMessage('Select a patient before saving this fetal echo report.')
       return
     }
+    if (!selectedVisitId) {
+      setStatusMessage('Select or create a patient visit before saving this fetal echo report.')
+      return
+    }
 
     setIsSaving(true)
     setStatusMessage('')

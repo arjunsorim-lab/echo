@@ -421,6 +421,10 @@ function PediatricEchoReport() {
       setStatusMessage('Select a patient before saving this pediatric echo report.')
       return
     }
+    if (!selectedVisitId) {
+      setStatusMessage('Select or create a patient visit before saving this pediatric echo report.')
+      return
+    }
 
     setIsSaving(true)
     setStatusMessage('')

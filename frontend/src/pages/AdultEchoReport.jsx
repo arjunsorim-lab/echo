@@ -550,6 +550,10 @@ function AdultEchoReport() {
       setStatusMessage('Select a patient before saving this adult echo report.')
       return false
     }
+    if (!selectedVisitId) {
+      setStatusMessage('Select or create a patient visit before saving this adult echo report.')
+      return false
+    }
 
     setIsSaving(true)
     setStatusMessage('')
