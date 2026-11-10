@@ -455,6 +455,7 @@ function PediatricEchoReport() {
           if (selectedVisitId) query.set('visitId', selectedVisitId)
           navigate(`/pediatric-echo-report/${nextScanId}?${query.toString()}`, { replace: true })
         }
+        return true
       }
     } catch (error) {
       console.error('Error saving pediatric echo report:', error)
@@ -462,6 +463,17 @@ function PediatricEchoReport() {
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const step = activeMainTab === 'impression' ? scanTabs.length : scanTabs.findIndex(tab => tab.id === activeScanTab)
+  const changeStep = index => {
+    setActiveMainTab(index === scanTabs.length ? 'impression' : 'scan')
+    if (index < scanTabs.length) setActiveScanTab(scanTabs[index].id)
+  }
+  const saveAndNext = async () => {
+    const errors = reportErrors(report, false, false, true)
+    if (errors.length) { setStatusMessage('Cannot advance. ' + errors.join(' ')); return }
+    if (await handleSave()) changeStep(step + 1)
   }
 
   const handleDelete = async () => {
@@ -668,7 +680,7 @@ function PediatricEchoReport() {
       {completionDialog}
       <DerivedStatus report={report} />
       <FindingNotes report={report} updateReport={updateReport} />
-      <ClinicalFooter onSave={handleSave} saving={isSaving} locked={locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} />
+      <ClinicalFooter onSave={handleSave} saving={isSaving} locked={locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} onBack={step > 0 ? () => navigateSection(() => changeStep(step - 1), setStatusMessage) : undefined} onNext={step >= 0 && step < scanTabs.length ? saveAndNext : undefined} />
     </div>
   )
 }

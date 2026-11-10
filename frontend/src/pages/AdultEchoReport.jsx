@@ -606,6 +606,17 @@ function AdultEchoReport() {
     saveReport()
   }
 
+  const step = activeMainTab === 'impression' ? scanTabs.length : scanTabs.findIndex(tab => tab.id === activeScanTab)
+  const changeStep = index => {
+    setActiveMainTab(index === scanTabs.length ? 'impression' : 'scan')
+    if (index < scanTabs.length) setActiveScanTab(scanTabs[index].id)
+  }
+  const saveAndNext = async () => {
+    const errors = reportErrors(report, false, false, true)
+    if (errors.length) { setStatusMessage('Cannot advance. ' + errors.join(' ')); return }
+    if (await saveReport()) changeStep(step + 1)
+  }
+
   const handleDelete = async () => {
     if (locked) { setStatusMessage('Completed reports are read-only.'); return }
     if (!savedScanId) { setStatusMessage('No saved report to delete.'); return }
@@ -797,7 +808,7 @@ function AdultEchoReport() {
       {completionDialog}
       <DerivedStatus report={report} />
       <FindingNotes report={report} updateReport={updateReport} />
-      <ClinicalFooter onSave={handleSave} saving={isSaving} locked={locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} />
+      <ClinicalFooter onSave={handleSave} saving={isSaving} locked={locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} onBack={step > 0 ? () => navigateSection(() => changeStep(step - 1), setStatusMessage) : undefined} onNext={step >= 0 && step < scanTabs.length ? saveAndNext : undefined} />
     </div>
   )
 }
