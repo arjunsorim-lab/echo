@@ -1534,7 +1534,16 @@ def save_media_layout(patient_id: int, visit_id: int, kind: str, data: dict):
     slots = data.get('placements', [])
     columns = data.get('columns', 2)
     title = data.get('title', '')
-    if not isinstance(slots, list) or len(slots) > 16 or type(columns) is not int or not 1 <= columns <= 4 or not isinstance(title, str) or len(title) > 160:
+    settings = data.get('print_settings')
+    invalid = not isinstance(slots, list) or len(slots) > 16 or type(columns) is not int or not 1 <= columns <= 4 or not isinstance(title, str) or len(title) > 160
+    if not invalid and settings is not None:
+        # Supported print settings: image box width/height in pixels and rows per printed page.
+        if not isinstance(settings, dict) or set(settings) != {'width', 'height', 'rows'}:
+            invalid = True
+        else:
+            width, height, rows = settings['width'], settings['height'], settings['rows']
+            invalid = any(type(value) is not int or not low <= value <= high for value, low, high in ((width, 60, 1200), (height, 60, 1200), (rows, 1, 6)))
+    if invalid:
         conn.close()
         raise HTTPException(422, 'Invalid image layout.')
     for media_id in slots:
@@ -1542,6 +1551,8 @@ def save_media_layout(patient_id: int, visit_id: int, kind: str, data: dict):
             conn.close()
             raise HTTPException(422, 'Layout images must be active media from this patient visit.')
     saved = {'placements': slots, 'columns': columns, 'title': title}
+    if settings is not None:
+        saved['print_settings'] = {'width': settings['width'], 'height': settings['height'], 'rows': settings['rows']}
     conn.execute('INSERT INTO media_layouts VALUES (?, ?, ?, ?, ?) ON CONFLICT(patient_id,visit_id,kind) DO UPDATE SET data=excluded.data, updated_at=excluded.updated_at', (patient_id, visit_id, kind, json.dumps(saved), datetime.now().isoformat()))
     conn.commit()
     conn.close()

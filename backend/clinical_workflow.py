@@ -25,6 +25,20 @@ def password_hash(password, salt=None):
 def verify(password, stored):
     return secrets.compare_digest(password_hash(password, stored.split(':')[0]), stored)
 
+def forwarded_client(peer, forwarded, trusted_proxies):
+    """Resolve the client address, trusting X-Forwarded-For only from configured proxies.
+
+    Proxy chains append to the right, so walk from the right and skip trusted hops. This
+    keeps a client-supplied left-hand entry from spoofing the rate-limit identity.
+    """
+    if not forwarded or peer not in trusted_proxies:
+        return peer
+    hops = [hop.strip() for hop in forwarded.split(',') if hop.strip()]
+    for hop in reversed(hops):
+        if hop not in trusted_proxies:
+            return hop
+    return hops[0] if hops else peer
+
 def install(app, base_dir):
     path = os.environ.get('ECHOAI_USERS_PATH', os.path.join(base_dir, '.workflow-users.json'))
     cookie_name = os.environ.get('ECHOAI_SESSION_COOKIE', 'echoai_session')
@@ -78,12 +92,7 @@ def install(app, base_dir):
     @app.post('/api/auth/login')
     def login(data: dict, request: Request):
         peer = request.client.host if request.client else 'unknown'
-        forwarded = request.headers.get('x-forwarded-for')
-        # Only trust X-Forwarded-For if the direct peer is explicitly configured as a trusted proxy
-        if forwarded and peer in trusted_proxies:
-            client = forwarded.split(',')[0].strip()
-        else:
-            client = peer
+        client = forwarded_client(peer, request.headers.get('x-forwarded-for'), trusted_proxies)
         if sessions.blocked(client):
             raise HTTPException(429, 'Too many failed sign-in attempts. Retry in 15 minutes.')
         username = str(data.get('username') or '').strip().lower()

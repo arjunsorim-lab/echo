@@ -39,17 +39,49 @@ class WorkflowTests(unittest.TestCase):
         for role in ('L1','L2'):
             cls.call('POST','/api/workflow/users',{'name':role+' Test','username':role.lower(),'password':'Workflow-test-only!42','role':role},cls.l3)
             cls.roles[role]=cls.call('POST','/api/auth/login',{'username':role.lower(),'password':'Workflow-test-only!42'})[1]['token']
+        cls.source=source
+        cls.extra_servers=[]
+        cls.trusted_proxy=cls.start_extra_server('trusted-proxy','127.0.0.1,10.0.0.5,10.0.0.6')
+        cls.untrusted_proxy=cls.start_extra_server('untrusted-proxy','10.9.9.9')
+
+    @classmethod
+    def start_extra_server(cls, name, trusted_proxies):
+        """Start a deployment-style uvicorn process with its own rate-limit store."""
+        folder=cls.folder/name
+        folder.mkdir()
+        sqlite3.connect(folder/'test.db').close()
+        sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1];sock.close()
+        env={**os.environ,'DB_PATH':str(folder/'test.db'),'ECHOAI_USERS_PATH':str(cls.folder/'users.json'),'ECHOAI_SESSIONS_PATH':str(folder/'sessions.db'),'ECHOAI_PASSWORD':'Workflow-test-only!42','PORT':str(port),'UPLOADS_DIR':str(folder/'uploads'),'ECHOAI_TRUSTED_PROXIES':trusted_proxies}
+        log=open(folder/'server.log','w')
+        # Match the Docker entrypoint, but leave forwarded-address resolution to the
+        # application so the configured trusted-proxy rules are what is exercised.
+        process=subprocess.Popen([sys.executable,'-m','uvicorn','main:app','--host','127.0.0.1','--port',str(port),'--no-proxy-headers'],cwd=cls.source,env=env,stdout=log,stderr=log)
+        base=f'http://127.0.0.1:{port}'
+        for _ in range(100):
+            try:
+                with urllib.request.urlopen(base+'/api/health',timeout=1) as response:response.read()
+                break
+            except Exception:
+                time.sleep(.1)
+        else:
+            process.terminate();process.wait(timeout=10);log.close()
+            raise RuntimeError(name+' test server did not start')
+        cls.extra_servers.append((process,log,base))
+        return base
 
     @classmethod
     def tearDownClass(cls):
+        for process,log,_ in reversed(cls.extra_servers):
+            process.terminate();process.wait(timeout=10);log.close()
         cls.server.terminate();cls.server.wait(timeout=10);cls.log.close();cls.tmp.cleanup()
 
     @classmethod
-    def call(cls, method, route, data=None, token=None):
+    def call(cls, method, route, data=None, token=None, headers=None, base=None):
         body=None if data is None else json.dumps(data).encode()
-        headers={'Content-Type':'application/json'}
-        if token:headers['Authorization']='Bearer '+token
-        request=urllib.request.Request(cls.base+route,data=body,headers=headers,method=method)
+        request_headers={'Content-Type':'application/json'}
+        if token:request_headers['Authorization']='Bearer '+token
+        if headers:request_headers.update(headers)
+        request=urllib.request.Request((base or cls.base)+route,data=body,headers=request_headers,method=method)
         try:
             with urllib.request.urlopen(request,timeout=10) as r:return r.status,json.load(r)
         except urllib.error.HTTPError as e:
@@ -220,6 +252,46 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(self.call('GET',f'/api/patients/{pid}/visits',token=token)[1]['data'],[])
             self.assertEqual(self.call('GET',f'/api/scans/patient/{pid}',token=token)[1]['data'],[])
 
+    def test_media_layout_print_settings_round_trip_and_validation(self):
+        call=self.call;token=self.roles['L1']
+        patient={'patient_id':'TEST-PRINT-SETTINGS','first_name':'Dummy','last_name':'Print','age':'30','gender':'F','street':'Test','state':'Tamil Nadu','country':'India','phone1':'1234567890','family_doctor':'Self'}
+        pid=call('POST','/api/patients',patient,token)[1]['data']['id']
+        vid=call('POST',f'/api/patients/{pid}/visits',{'scan_type':'Fetal Echo','visit_date':'2026-11-10T10:00'},token)[1]['data']['id']
+        route=f'/api/media-layouts/{pid}/{vid}/rule-3'
+        layout={'placements':[None]*9,'columns':2,'title':'Synthetic print layout','print_settings':{'width':600,'height':450,'rows':4}}
+        self.assertEqual(call('PUT',route,layout,token)[0],200)
+        self.assertEqual(call('GET',route,token=token)[1]['data'],layout)
+        for invalid in ({'width':10,'height':450,'rows':4},{'width':600,'height':450,'rows':0},{'width':600,'height':450},{'width':'600','height':450,'rows':4}):
+            self.assertEqual(call('PUT',route,{**layout,'print_settings':invalid},token)[0],422)
+
+    def test_proxy_trusted_hop_chain_and_spoofed_headers(self):
+        base=self.trusted_proxy
+        def attempt(forwarded):
+            return self.call('POST','/api/auth/login',{'username':'missing','password':'invalid'},headers={'X-Forwarded-For':forwarded},base=base)[0]
+        for _ in range(10):
+            self.assertEqual(attempt('198.51.100.10'),401)
+        self.assertEqual(attempt('198.51.100.10'),429)
+        self.assertEqual(attempt('198.51.100.11'),401)
+        # The trusted proxy appends the real client; the left-hand entry is client-supplied.
+        for _ in range(10):
+            self.assertEqual(attempt('1.2.3.4, 198.51.100.20'),401)
+        self.assertEqual(attempt('1.2.3.4, 198.51.100.20'),429)
+        self.assertEqual(attempt('1.2.3.4, 198.51.100.21'),401)
+        # Multi-proxy chain: trusted hops on the right are skipped.
+        for _ in range(10):
+            self.assertEqual(attempt('198.51.100.30, 10.0.0.6, 10.0.0.5'),401)
+        self.assertEqual(attempt('198.51.100.30, 10.0.0.6, 10.0.0.5'),429)
+        self.assertEqual(attempt('198.51.100.31, 10.0.0.6, 10.0.0.5'),401)
+
+    def test_proxy_untrusted_peer_ignores_spoofed_headers(self):
+        base=self.untrusted_proxy
+        def attempt(forwarded):
+            return self.call('POST','/api/auth/login',{'username':'missing','password':'invalid'},headers={'X-Forwarded-For':forwarded},base=base)[0]
+        for index in range(10):
+            self.assertEqual(attempt(f'198.51.100.{index+1}'),401)
+        # Every attempt was attributed to the direct peer, so a new header does not reset the limit.
+        self.assertEqual(attempt('203.0.113.99'),429)
+
     def test_z_logout_and_login_abuse_protection(self):
         code, result = self.call('POST', '/api/auth/login', {'username':'l1','password':'Workflow-test-only!42'})
         self.assertEqual(code, 200)
@@ -230,5 +302,46 @@ class WorkflowTests(unittest.TestCase):
         for _ in range(10):
             self.assertEqual(self.call('POST', '/api/auth/login', {'username':'missing','password':'invalid'})[0], 401)
         self.assertEqual(self.call('POST', '/api/auth/login', {'username':'l1','password':'Workflow-test-only!42'})[0], 429)
+
+    def test_proxy_forwarded_for_trust_and_spoofing(self):
+        """Verify that:
+        1. When ECHOAI_TRUSTED_PROXIES is not set (default), X-Forwarded-For headers are ignored.
+        2. When a trusted proxy IP is configured, requests from that peer use the client IP from X-Forwarded-For.
+        3. A multi-proxy chain (e.g. client, proxy1, proxy2) correctly isolates rate limits to the originating client.
+        """
+        import session_store
+        with tempfile.TemporaryDirectory() as folder:
+            path = os.path.join(folder, 'sessions.db')
+            store = session_store.SessionStore(path)
+            # Scenario 1: untrusted peer cannot spoof X-Forwarded-For
+            # Direct peer is 192.0.2.1, attacker claims to be 10.0.0.1
+            trusted = {'10.200.0.1'}  # Only 10.200.0.1 is trusted
+            def resolve_client(peer, forwarded):
+                if forwarded and peer in trusted:
+                    return forwarded.split(',')[0].strip()
+                return peer
+
+            # An attacker connecting directly from 192.0.2.1 sends varying X-Forwarded-For
+            attacker_peer = '192.0.2.1'
+            for i in range(10):
+                client = resolve_client(attacker_peer, f'10.0.0.{i}')
+                # Since attacker is NOT in trusted, client resolves to attacker_peer every time
+                self.assertEqual(client, attacker_peer)
+                store.failed(client)
+            # Attacker peer is now blocked
+            self.assertTrue(store.blocked(attacker_peer))
+
+            # Scenario 2: trusted proxy forwards genuine client IPs
+            proxy_peer = '10.200.0.1'
+            real_client = '203.0.113.42'
+            for _ in range(10):
+                resolved = resolve_client(proxy_peer, f'{real_client}, 10.100.0.1')
+                self.assertEqual(resolved, real_client)
+                store.failed(resolved)
+            # The real client is blocked, but another client through the same proxy is NOT
+            self.assertTrue(store.blocked(real_client))
+            other_client = '203.0.113.99'
+            other_resolved = resolve_client(proxy_peer, other_client)
+            self.assertFalse(store.blocked(other_resolved))
 
 if __name__=='__main__':unittest.main(verbosity=2)

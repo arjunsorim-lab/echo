@@ -583,6 +583,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '', vi
         mediaRecords={records}
         patient={patient}
         visitId={visitId}
+        visitDate={visitDate}
       />
       <OrganEditingModal
         open={isOrganEditingOpen}
@@ -598,7 +599,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '', vi
         visitId={visitId}
         visitDate={visitDate}
       />
-      {printImages && <MediaPrintPreview images={printImages} columns={columns} title={`${patientName} — Visit ${visitId}`} onClose={() => setPrintImages(null)} />}
+      {printImages && <MediaPrintPreview images={printImages} columns={columns} title="Patient images" patient={patient} visitId={visitId} visitDate={visitDate} onClose={() => setPrintImages(null)} />}
     </div>
   )
 }

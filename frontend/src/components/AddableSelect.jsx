@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, Plus, X } from 'lucide-react'
 import { customOptionService } from '../api/customOptionService'
 
-export default function AddableSelect({ field, value, onChange, options = [], className = 'field-control' }) {
+export default function AddableSelect({ field, value, onChange, options = [], className = 'field-control', required, 'aria-required': ariaRequired, id, name }) {
   const [customOptions, setCustomOptions] = useState([])
   const [isAdding, setIsAdding] = useState(false)
   const [newValue, setNewValue] = useState('')
@@ -44,7 +44,15 @@ export default function AddableSelect({ field, value, onChange, options = [], cl
   return (
     <div>
       <div className="flex gap-1">
-        <select className={className} value={value || ''} onChange={(event) => onChange(event.target.value)}>
+        <select
+          className={className}
+          value={value || ''}
+          onChange={(event) => onChange(event.target.value)}
+          required={required}
+          aria-required={ariaRequired ?? required ?? undefined}
+          id={id}
+          name={name}
+        >
           <option value="">Select</option>
           {allOptions.map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
