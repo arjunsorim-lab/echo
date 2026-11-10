@@ -159,29 +159,29 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                      <label className={labelClass}>Patient ID *</label>
-                      <input type="text" className={inputClass} value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })} required placeholder="e.g., TM0012026" />
+                      <label className={labelClass + ' required'}>Patient ID</label>
+                      <input type="text" className={inputClass} value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })} required aria-required="true" placeholder="e.g., TM0012026" />
                     </div>
                     <div>
                       <label className={labelClass}>Salutation</label>
                       <AddableSelect field="patient_salutation" className={selectClass} options={salutations} value={formData.salutation} onChange={(value) => setFormData({ ...formData, salutation: value })} />
                     </div>
                     <div>
-                      <label className={labelClass}>First Name *</label>
-                      <input type="text" className={inputClass} value={formData.first_name} onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} required />
+                      <label className={labelClass + ' required'}>First Name</label>
+                      <input type="text" className={inputClass} value={formData.first_name} onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} required aria-required="true" />
                     </div>
                     <div>
-                      <label className={labelClass}>Surname / Initial *</label>
-                      <input type="text" className={inputClass} value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} />
+                      <label className={labelClass + ' required'}>Surname / Initial</label>
+                      <input type="text" className={inputClass} value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} required aria-required="true" />
                     </div>
                     <div>
                       <label className={labelClass}>Middle Name</label>
                       <input type="text" className={inputClass} value={formData.middle_name} onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })} />
                     </div>
                     <div>
-                      <label className={labelClass}>Date of Birth (or age) *</label>
+                      <label className={labelClass + ' required'}>Date of Birth (or age)</label>
                       <div className="relative">
-                        <input type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} />
+                        <input type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} aria-required="true" />
                         <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                       </div>
                       {formData.dob && formData.age && (
@@ -192,8 +192,8 @@ function NewPatient() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className={labelClass}>Age (or DOB) *</label>
-                        <input type="number" className={inputClass} value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="Age" />
+                        <label className={labelClass + ' required'}>Age (or DOB)</label>
+                        <input type="number" className={inputClass} value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="Age" aria-required="true" onWheel={(e) => e.currentTarget.blur()} />
                       </div>
                       <div>
                         <label className={labelClass}>Unit</label>
@@ -213,11 +213,11 @@ function NewPatient() {
                       </div>
                     </div>
                     <div>
-                      <label className={labelClass}>Gender *</label>
+                      <label className={labelClass + ' required'}>Gender</label>
                       <div className="flex items-center gap-3 mt-2">
                         {['M', 'F', 'UA'].map(g => (
                           <label key={g} className="flex items-center gap-1.5 cursor-pointer">
-                            <input type="radio" name="gender" value={g} checked={formData.gender === g} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className="w-4 h-4 text-teal-600 focus:ring-teal-500" />
+                            <input type="radio" name="gender" value={g} checked={formData.gender === g} onChange={(e) => setFormData({ ...formData, gender: e.target.value })} className="w-4 h-4 text-teal-600 focus:ring-teal-500" required aria-required="true" />
                             <span className="text-sm text-slate-700">{g}</span>
                           </label>
                         ))}
@@ -245,8 +245,8 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="lg:col-span-2">
-                      <label className={labelClass}>Street Address *</label>
-                      <input type="text" className={inputClass} value={formData.street} onChange={(e) => setFormData({ ...formData, street: e.target.value })} />
+                      <label className={labelClass + ' required'}>Street Address</label>
+                      <input type="text" className={inputClass} value={formData.street} onChange={(e) => setFormData({ ...formData, street: e.target.value })} required aria-required="true" />
                     </div>
                     <div>
                       <label className={labelClass}>Taluk</label>
@@ -270,13 +270,13 @@ function NewPatient() {
                       {zipLookupStatus === 'notfound' && <p className="mt-1 text-xs text-amber-500 font-medium">Pincode not in database — fill manually</p>}
                     </div>
                     <div>
-                      <label className={labelClass}>Country *</label>
-                      <AddableSelect field="patient_country" className={selectClass} options={countries} value={formData.country} onChange={handleCountryChange} />
+                      <label className={labelClass + ' required'}>Country</label>
+                      <AddableSelect field="patient_country" className={selectClass} options={countries} value={formData.country} onChange={handleCountryChange} required aria-required="true" />
                       {dialCode && <p className="mt-1 text-xs text-slate-500">Dial code: <span className="font-semibold text-slate-700">{dialCode}</span></p>}
                     </div>
                     <div>
-                      <label className={labelClass}>State *</label>
-                      <AddableSelect field="patient_state" className={selectClass} options={availableStates} value={formData.state} onChange={handleStateChange} />
+                      <label className={labelClass + ' required'}>State</label>
+                      <AddableSelect field="patient_state" className={selectClass} options={availableStates} value={formData.state} onChange={handleStateChange} required aria-required="true" />
                     </div>
                     <div>
                       <label className={labelClass}>District/City</label>
@@ -296,7 +296,7 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                      <label className={labelClass}>Phone 1 (one phone required)</label>
+                      <label className={labelClass + ' required'}>Phone (at least one required)</label>
                       <input type="tel" className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} />
                     </div>
                     <div>
@@ -345,7 +345,7 @@ function NewPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Referral Doctor / Institute *</label>
+                      <label className={labelClass + ' required'}>Referral Doctor / Institute</label>
                       <div className="flex gap-2">
                         <input
                           type="text"
@@ -353,6 +353,7 @@ function NewPatient() {
                           value={formData.family_doctor}
                           onChange={(e) => setFormData({ ...formData, family_doctor: e.target.value })}
                           list="referral-options" placeholder="Doctor, institute or Self"
+                          required aria-required="true"
                         />
                         <datalist id="referral-options"><option value="Self" /></datalist>
                         <button

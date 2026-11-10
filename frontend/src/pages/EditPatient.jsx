@@ -243,13 +243,13 @@ function EditPatient() {
                 <div className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                      <label className={labelClass}>Patient ID *</label>
+                      <label className={labelClass + ' required'}>Patient ID</label>
                       <input
                         type="text"
                         className={inputClass}
                         readOnly aria-readonly="true" title="Locked after registration" value={formData.patient_id}
                         onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })}
-                        required
+                        required aria-required="true"
                         placeholder="e.g., TM00100"
                       />
                     </div>
@@ -264,13 +264,13 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>First Name *</label>
+                      <label className={labelClass + ' required'}>First Name</label>
                       <input
                         type="text"
                         className={inputClass}
                         readOnly aria-readonly="true" title="Locked after registration" value={formData.first_name}
                         onChange={(e) => setFormData({ ...formData, first_name: e.target.value })}
-                        required
+                        required aria-required="true"
                       />
                     </div>
                     <div>

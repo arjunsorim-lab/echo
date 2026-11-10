@@ -1629,4 +1629,13 @@ def serve_frontend(full_path: str):
 
 if __name__ == '__main__':
     import uvicorn
-    uvicorn.run(app, host=os.environ.get('HOST', '127.0.0.1'), port=int(os.environ.get('PORT', '8002')))
+    trusted_hosts = os.environ.get('ECHOAI_TRUSTED_PROXIES', '')
+    proxy_headers = bool(trusted_hosts.strip())
+    forwarded_allow_ips = trusted_hosts if proxy_headers else None
+    uvicorn.run(
+        app,
+        host=os.environ.get('HOST', '127.0.0.1'),
+        port=int(os.environ.get('PORT', '8002')),
+        proxy_headers=proxy_headers,
+        forwarded_allow_ips=forwarded_allow_ips,
+    )
