@@ -317,6 +317,7 @@ function EditPatient() {
                           value={formData.age}
                           onChange={(e) => setFormData({ ...formData, age: e.target.value })}
                           placeholder="Age"
+                          onWheel={(e) => e.currentTarget.blur()}
                         />
                       </div>
                       <div>
@@ -392,12 +393,13 @@ function EditPatient() {
                 <div className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="lg:col-span-2">
-                      <label className={labelClass}>Street Address</label>
+                      <label className={labelClass + ' required'}>Street Address</label>
                       <input
                         type="text"
                         className={inputClass}
                         value={formData.street}
                         onChange={(e) => setFormData({ ...formData, street: e.target.value })}
+                        required aria-required="true"
                         placeholder="House / Flat No., Street Name"
                       />
                     </div>
@@ -452,13 +454,14 @@ function EditPatient() {
                       )}
                     </div>
                     <div>
-                      <label className={labelClass}>Country</label>
+                      <label className={labelClass + ' required'}>Country</label>
                       <AddableSelect
                         field="patient_country"
                         className={selectClass}
                         options={countries}
                         value={formData.country}
                         onChange={handleCountryChange}
+                        required aria-required="true"
                       />
                       {dialCode && (
                         <p className="mt-1 text-xs text-slate-500">
@@ -468,13 +471,14 @@ function EditPatient() {
                       )}
                     </div>
                     <div>
-                      <label className={labelClass}>State</label>
+                      <label className={labelClass + ' required'}>State</label>
                       <AddableSelect
                         field="patient_state"
                         className={selectClass}
                         options={availableStates}
                         value={formData.state}
                         onChange={handleStateChange}
+                        required aria-required="true"
                       />
                     </div>
                     <div>
