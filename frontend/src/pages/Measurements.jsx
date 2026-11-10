@@ -24,95 +24,7 @@ import {
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 
-// Helper to extract physiological measurements from either structured report or text findings
-function getScanMeasurements(scan) {
-  const adult = scan.adult_echo_report || {}
-  const ped = scan.pediatric_echo_report || {}
-  const fetal = scan.fetal_echo_report || {}
-  const findings = scan.findings || ''
-
-  // Text parser fallbacks for seeded clinical records
-  const efMatch = findings.match(/LVEF:\s*(\d+)%/i)
-  const lvef = efMatch ? efMatch[1] : (adult.m_mode_measurement?.lv?.lv_ef || ped.biometry?.lvef || '62')
-
-  const laMatch = findings.match(/Left Atrium:\s*(?:Normal\s*\()?(\d+)\s*mm/i)
-  const laDim = laMatch ? laMatch[1] : (adult.m_mode_measurement?.ao_la?.la_diam_s || ped.biometry?.la || '34')
-
-  const velMatch = findings.match(/Peak velocity:\s*([\d.]+)\s*m\/s/i)
-  const aovVmax = velMatch ? velMatch[1] : (adult.doppler_measurement?.aortic_valve?.aov_vmax || '1.4')
-
-  const gradMatch = findings.match(/Mean gradient:\s*(\d+)\s*mmHg/i)
-  const aovMeanGrad = gradMatch ? gradMatch[1] : (adult.doppler_measurement?.aortic_valve?.aov_mean_grad || '4')
-
-  const avaMatch = findings.match(/AVA\):\s*([\d.]+)\s*cm²/i)
-  const aovArea = avaMatch ? avaMatch[1] : (adult.two_d_measurement?.aortic_valve?.aov_area_cont_vti || '2.8')
-
-  const paspMatch = findings.match(/PASP:\s*(\d+)\s*mmHg/i)
-  const pasp = paspMatch ? paspMatch[1] : '24'
-
-  return {
-    // 2D Measurements
-    twoD: {
-      aoAnnulus: adult.two_d_measurement?.aorta?.ao_annulus_diam_d || ped.echo_details?.tricuspid_annulus || '21',
-      sinus: adult.echo_details?.sinus || '28',
-      stj: adult.echo_details?.stj || '24',
-      ascAo: adult.echo_details?.ascending_aorta || '27',
-      aovArea: aovArea,
-      lvotDiam: adult.two_d_measurement?.aortic_valve?.lvot_diam_s || '20',
-      lvotArea: adult.two_d_measurement?.aortic_valve?.lvot_area || '3.14',
-      mvArea: adult.two_d_measurement?.mitral_valve?.mv_area_planim || '4.2',
-      tvArea: adult.two_d_measurement?.tricuspid_valve?.tv_area_planim || '6.5',
-      lvAreaD: adult.two_d_measurement?.left_ventricle?.a4c_lv_area_d || '38',
-      lvVolD: adult.two_d_measurement?.left_ventricle?.a4c_lv_vol_d || '96',
-      lvVolS: adult.two_d_measurement?.left_ventricle?.a4c_lv_vol_s || '36',
-      strokeVolume: adult.two_d_measurement?.left_ventricle?.a4c_lv_sv || '60',
-    },
-    // M-Mode & Functional
-    mMode: {
-      ivsd: adult.m_mode_measurement?.lv?.ivs_d || ped.biometry?.ivsd || '9',
-      ivss: adult.m_mode_measurement?.lv?.ivs_s || ped.biometry?.ivss || '12',
-      lvidd: adult.m_mode_measurement?.lv?.lvid_d || ped.biometry?.lvidd || '46',
-      lvids: adult.m_mode_measurement?.lv?.lvid_s || ped.biometry?.lvids || '29',
-      lvpwd: adult.m_mode_measurement?.lv?.lvpw_d || ped.biometry?.lvpwd || '9',
-      lvpws: adult.m_mode_measurement?.lv?.lvpw_s || ped.biometry?.lvpws || '13',
-      lvef: lvef,
-      lvfs: adult.m_mode_measurement?.lv?.lv_percent_fs || ped.biometry?.lvfs || '37',
-      laDim: laDim,
-      aoDim: adult.m_mode_measurement?.ao_la?.ao_diam_d || ped.biometry?.ao || '26',
-      laAoRatio: ped.biometry?.la_ao || '1.15',
-      tapse: adult.m_mode_measurement?.tricuspid_valve?.tapse || '22',
-      mapse: adult.m_mode_measurement?.mitral_valve?.mapse || '14',
-      mvEpss: adult.m_mode_measurement?.mitral_valve?.mv_epss || '5',
-    },
-    // Z-Scores
-    zScores: {
-      aoAnnulusZ: fetal.aortic?.aortic_valve?.z_score || (scan.scan_type === 'Pediatric Echo' ? '+0.4' : '+0.2'),
-      ascAoZ: fetal.aortic?.aortic_valve?.ascending_aorta_z_score || '+0.6',
-      mvAnnulusZ: fetal.aortic?.mitral_valve?.z_score || '+0.1',
-      transverseArchZ: fetal.aortic?.pulmonary_valve?.transverse_arch_z_score || '-0.3',
-      lvWidthZ: fetal.aortic?.lv?.width_z_score || '+0.5',
-      lvLengthZ: fetal.aortic?.lv?.length_z_score || '+0.3',
-      trAnnulusZ: fetal.aortic?.tricuspid_valve?.z_score || '+0.2',
-      isNormal: true,
-    },
-    // Doppler Analysis
-    doppler: {
-      aovVmax: aovVmax,
-      aovMeanGrad: aovMeanGrad,
-      aovPeakGrad: adult.doppler_measurement?.aortic_valve?.aov_peak_grad || (Math.round(4 * Math.pow(parseFloat(aovVmax) || 1.4, 2))),
-      aovVti: adult.doppler_measurement?.aortic_valve?.aov_vti || '21',
-      mvE: ped.doppler?.valve_flow?.mitral_e || fetal.doppler?.valves?.mitral_e_wave || '0.85',
-      mvA: ped.doppler?.valve_flow?.mitral_a || fetal.doppler?.valves?.mitral_a_wave || '0.60',
-      mvEA: adult.doppler_measurement?.mitral_valve?.mv_e_a || ped.doppler?.valve_flow?.mitral_e_a || '1.42',
-      tvEA: ped.doppler?.valve_flow?.tricuspid_e_a || '1.30',
-      trVmax: adult.doppler_measurement?.tricuspid_valve?.tr_vmax || '2.4',
-      trPeakGrad: adult.doppler_measurement?.tricuspid_valve?.tr_peak_grad || '23',
-      pasp: pasp,
-      lvMpi: ped.doppler?.mpi_method_1?.left_ventricle_mpi || fetal.doppler?.mpi_method_1?.lv_mpi || '0.38',
-      rvMpi: ped.doppler?.mpi_method_1?.right_ventricle_mpi || fetal.doppler?.mpi_method_1?.rv_mpi || '0.36',
-    },
-  }
-}
+import { getScanMeasurements } from '../measurementData'
 
 export default function Measurements() {
   const navigate = useNavigate()
@@ -187,7 +99,7 @@ export default function Measurements() {
       : scan.scan_type === 'Pediatric Echo'
       ? '/pediatric-echo-report'
       : '/adult-echo-report'
-    navigate(`${route}/${scan.id}?patientId=${scan.patient_id}&visitId=${scan.visit_id || ''}&scatter=true`)
+    navigate(`${route}/${scan.id}?patientId=${scan.patient_id}&visitId=${scan.visit_id || ''}`)
   }
 
   const openInspector = (scan) => {
@@ -376,9 +288,7 @@ export default function Measurements() {
                         </td>
                         <td className="px-4 py-3.5 text-xs">
                           <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-bold border ${
-                            parseInt(m.mMode.lvef) >= 55
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                            'bg-slate-50 text-slate-700 border-slate-200'
                           }`}>
                             LVEF: {m.mMode.lvef}% (FS: {m.mMode.lvfs}%)
                           </span>
@@ -723,10 +633,10 @@ export default function Measurements() {
                     <div className="space-y-6">
                       <div className="rounded-xl border border-teal-200 bg-teal-50/50 p-4">
                         <div className="flex items-center gap-2 text-teal-800 font-bold text-sm">
-                          <CheckCircle2 className="w-4 h-4 text-teal-600" /> Normalized Pediatric & Fetal Z-Score Model
+                          <CheckCircle2 className="w-4 h-4 text-teal-600" /> Manually entered Z-scores — Pending Clinical Validation
                         </div>
                         <p className="text-xs text-teal-700 mt-1">
-                          Standard deviations relative to normal body surface area (BSA) and gestational age. Values between -2.0 and +2.0 fall within normal limits.
+                          Only stored manual values are displayed. No approved automatic model or abnormal-value thresholds are configured.
                         </p>
                       </div>
 

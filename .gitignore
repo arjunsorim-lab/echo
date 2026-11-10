@@ -42,3 +42,5 @@ backend/.workflow-users.json.tmp
 *.db-shm
 frontend/test-output/
 browser-fixture-info.json
+db.json
+backend/db.json

@@ -22,6 +22,7 @@ import FetalEchoReport from './pages/FetalEchoReport'
 import AdultEchoReport from './pages/AdultEchoReport'
 import PediatricEchoReport from './pages/PediatricEchoReport'
 import EchoScan from './pages/EchoScan'
+import EchoStudies from './pages/EchoStudies'
 import Profile from './pages/Profile'
 
 function isSignedIn() {
@@ -90,7 +91,7 @@ function App() {
           <ProtectedPage><EditReferralDoctor /></ProtectedPage>
         } />
         <Route path="/echo-studies" element={
-          <ProtectedPage><EchoScan /></ProtectedPage>
+          <ProtectedPage><EchoStudies /></ProtectedPage>
         } />
         <Route path="/fetal-echo-report" element={
           <ProtectedPage><FetalEchoReport /></ProtectedPage>

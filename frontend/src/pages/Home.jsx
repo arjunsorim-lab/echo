@@ -109,7 +109,7 @@ const pipelineSteps = [
 
 const echoStats = [
   { label: 'Scans Analyzed', value: '100+', icon: Activity, color: 'text-blue-600 bg-blue-50 border-blue-100' },
-  { label: 'Clinical Accuracy', value: '99.4%', icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+  { label: 'Clinical Validation', value: 'Pending', icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
   { label: 'Clinics', value: '10+', icon: Stethoscope, color: 'text-purple-600 bg-purple-50 border-purple-100' },
   { label: 'Reports Generated', value: '200+', icon: FileText, color: 'text-sky-600 bg-sky-50 border-sky-100' },
 ]

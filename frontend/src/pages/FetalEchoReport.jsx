@@ -1,5 +1,6 @@
+import { blankReport, mergeReport } from '../reportValidation'
 import { isDerivedPath, recalculateDerived, initializeDerived } from '../derivedMeasurements'
-import { currentUser, DerivedStatus, useDerivedDefinitions, ApprovalControls, FindingNotes, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
+import { currentUser, useCompletionConfirmation, DerivedStatus, useDerivedDefinitions, ApprovalControls, FindingNotes, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -347,6 +348,7 @@ const fetalNormalComments = {
 function FetalEchoReport() {
   const navigate = useNavigate()
   const calculationRules = useDerivedDefinitions()
+  const {confirmCompletion,completionDialog}=useCompletionConfirmation()
   const { scanId } = useParams()
   const [searchParams] = useSearchParams()
   const [patients, setPatients] = useState([])
@@ -360,7 +362,7 @@ function FetalEchoReport() {
   const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false)
   const [isExistingScansOpen, setIsExistingScansOpen] = useState(false)
   const [isReferralLetterOpen, setIsReferralLetterOpen] = useState(false)
-  const [report, setReport] = useState(() => initializeDerived(deepClone(initialReport), 'Fetal Echo'))
+  const [report, setReport] = useState(() => initializeDerived(blankReport(initialReport), 'Fetal Echo'))
   const [savedScanId, setSavedScanId] = useState(scanId || '')
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
@@ -385,6 +387,7 @@ function FetalEchoReport() {
   }, [report.echo_details])
 
   const scatterNormalComments = () => {
+    if (locked) return
     setReport((current) => ({
       ...current,
       echo_details: {
@@ -415,6 +418,7 @@ function FetalEchoReport() {
   }
 
   const toggleNormalComments = () => {
+    if (locked) return
     if (isNormalCommentsPopulated) {
       setReport((current) => ({
         ...current,
@@ -464,11 +468,7 @@ function FetalEchoReport() {
     }
   }
 
-  useEffect(() => {
-    if (searchParams.get('scatter') === 'true' || searchParams.get('autoScatter') === 'true') {
-      scatterNormalComments()
-    }
-  }, [searchParams])
+
 
   useEffect(() => {
     const fetchPatients = async () => {
@@ -478,7 +478,7 @@ function FetalEchoReport() {
           setPatients(result.data)
         }
       } catch (error) {
-        console.error('Error loading patients:', error)
+        setStatusMessage('Unable to load patients. Refresh and retry.')
       }
     }
 
@@ -498,18 +498,18 @@ function FetalEchoReport() {
         setLocked(String(scan.status).toLowerCase() === 'completed')
         setSavedScanId(scan.id)
         setSelectedVisitId(scan.visit_id || '')
-        const loadedReport = {
-          ...deepClone(initialReport),
+        const loadedReport = mergeReport(blankReport(initialReport), {
           ...(scan.fetal_echo_report || {}),
-          indication: scan.indicator || scan.fetal_echo_report?.indication || '',
+          indication: scan.indication || scan.indicator || scan.fetal_echo_report?.indication || '',
           tag: scan.tag || scan.fetal_echo_report?.tag || '',
           no_of_fetuses: scan.no_of_fetuses || scan.fetal_echo_report?.no_of_fetuses || '',
           ga_weeks: scan.ga_weeks || scan.fetal_echo_report?.ga_weeks || '',
           ga_days: scan.ga_days || scan.fetal_echo_report?.ga_days || '',
-        }
+        })
         const normalized = recalculateDerived(loadedReport, calculationRules, 'Fetal Echo')
         setReport(normalized)
         markSaved(normalized)
+        if(searchParams.get('preview')==='1')setIsReportPreviewOpen(true)
       } catch (error) {
         console.error('Error loading fetal echo scan:', error)
         setStatusMessage('Could not load this fetal echo report.')
@@ -541,6 +541,7 @@ function FetalEchoReport() {
     if (locked || isSaving) return false
     const errors = reportErrors(report, true, report.impression?.report_completed)
     if (errors.length) { setStatusMessage('Not saved. ' + errors.join(' ')); return false }
+    if (report.impression?.report_completed && !(await confirmCompletion())) return false
     if (!selectedPatientId) {
       setStatusMessage('Select a patient before saving this fetal echo report.')
       return
@@ -582,7 +583,9 @@ function FetalEchoReport() {
           if (selectedVisitId) query.set('visitId', selectedVisitId)
           navigate(`/fetal-echo-report/${nextScanId}?${query.toString()}`, { replace: true })
         }
+        return true
       }
+      setStatusMessage('Not saved. The server did not confirm the save.')
     } catch (error) {
       console.error('Error saving fetal echo report:', error)
       setStatusMessage(error.response?.data?.detail || 'Not saved. Please retry.')
@@ -600,12 +603,24 @@ function FetalEchoReport() {
   }
   const handleClear = () => {
     if (locked) { setStatusMessage('Completed reports are read-only.'); return }
-    setReport(initializeDerived(deepClone(initialReport), 'Fetal Echo'))
+    setReport(initializeDerived(blankReport(initialReport), 'Fetal Echo'))
     setStatusMessage('')
+  }
+  const step = activeMainTab === 'impression' ? scanTabs.length : scanTabs.findIndex(tab=>tab.id===activeScanTab)
+  const changeStep = index => {
+    if(index<0){setIsLmpOpen(true);return}
+    setActiveMainTab(index===scanTabs.length?'impression':'scan')
+    if(index<scanTabs.length)setActiveScanTab(scanTabs[index].id)
+  }
+  const saveAndNext = async () => {
+    const errors=reportErrors(report,true,false,true)
+    if(errors.length){setStatusMessage('Cannot advance. '+errors.join(' '));return}
+    if(await handleSave())changeStep(step+1)
   }
 
   return (
     <>
+      {completionDialog}
       <div data-locked={locked ? 'true' : 'false'} className="no-print report-editor-form min-h-0 flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-slate-100 text-sm text-slate-900">
       <div className="flex min-h-full flex-col gap-3">
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -631,7 +646,7 @@ function FetalEchoReport() {
               <ToolbarButton icon={RotateCcw} label="Clear" onClick={handleClear} />
               <ToolbarButton icon={Printer} label="Preview" onClick={() => setIsReportPreviewOpen(true)} />
               <ToolbarButton icon={FileImage} label="Images" onClick={() => setIsImagesModalOpen(true)} />
-              <ToolbarButton icon={X} label="Close" onClick={() => navigate('/search')} />
+              <ToolbarButton icon={X} label="Close" onClick={() => { if (!dirty || window.confirm('Discard unsaved report changes?')) navigate('/search') }} />
             </div>
           </div>
 
@@ -733,7 +748,7 @@ function FetalEchoReport() {
                 <TabButton
                   key={tab.id}
                   active={activeMainTab === tab.id}
-                  onClick={() => navigateSection(() => setActiveMainTab(tab.id), setStatusMessage, locked ? [] : reportErrors(report, true))}
+                  onClick={() => navigateSection(() => setActiveMainTab(tab.id), setStatusMessage, locked ? [] : reportErrors(report, true, false, true))}
                 >
                   {tab.label}
                 </TabButton>
@@ -744,7 +759,7 @@ function FetalEchoReport() {
               {activeMainTab === 'scan' ? (
                 <ScanPanel
                   activeScanTab={activeScanTab}
-                  setActiveScanTab={(tab) => navigateSection(() => setActiveScanTab(tab), setStatusMessage, locked ? [] : reportErrors(report, true))}
+                  setActiveScanTab={(tab) => navigateSection(() => setActiveScanTab(tab), setStatusMessage, locked ? [] : reportErrors(report, true, false, true))}
                   report={report}
                   updateReport={updateReport}
                   onToggleNormalComments={toggleNormalComments}
@@ -764,15 +779,16 @@ function FetalEchoReport() {
           updateReport={updateReport}
           onLmpDateChange={handleLmpDateChange}
           onClose={() => setIsLmpOpen(false)}
-          onSave={() => {
-            setIsLmpOpen(false)
-            setStatusMessage('LMP details updated.')
-          }}
+          onSave={handleSave}
+          onNext={async()=>{const errors=reportErrors({...report,indication:'Profile navigation'},true,false,true);if(errors.length){setStatusMessage('Cannot advance. '+errors.join(' '));return}if(await handleSave())setIsLmpOpen(false)}}
+          message={statusMessage}
+          saving={isSaving} locked={locked}
         />
       )}
 
       <ImagesModal
         open={isImagesModalOpen}
+        visitId={selectedVisitId}
         onClose={() => setIsImagesModalOpen(false)}
         patient={selectedPatient}
       />
@@ -793,11 +809,12 @@ function FetalEchoReport() {
       />
       <DerivedStatus report={report} />
       <FindingNotes report={report} updateReport={updateReport} />
-      <ClinicalFooter onSave={handleSave} saving={isSaving || locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} />
+      <ClinicalFooter onSave={handleSave} saving={isSaving} locked={locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} onBack={()=>navigateSection(()=>changeStep(step-1),setStatusMessage)} onNext={step<scanTabs.length ? saveAndNext : undefined} />
     </div>
     {isReportPreviewOpen && (
       <ClinicalPreview title="Fetal Echocardiography"         report={report}
         patient={selectedPatient}
+        status={dirty ? 'Unsaved changes' : locked ? 'Completed' : 'Draft / In Progress'}
         visitId={selectedVisitId}
         onClose={() => setIsReportPreviewOpen(false)}
       />
@@ -1229,7 +1246,7 @@ function ImagePanel({ activeImageTab, setActiveImageTab, report, updateReport })
   )
 }
 
-function LmpModal({ report, updateReport, onLmpDateChange, onClose, onSave }) {
+function LmpModal({ report, updateReport, onLmpDateChange, onClose, onSave, onNext, message, saving, locked }) {
   const ga = report.ga_weeks ? `${report.ga_weeks} weeks ${report.ga_days || '0'} days (entered)` : ''
 
   return (
@@ -1277,10 +1294,10 @@ function LmpModal({ report, updateReport, onLmpDateChange, onClose, onSave }) {
           </div>
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
             <button type="button" onClick={() => updateReport(['lmp'], deepClone(initialReport.lmp))} className="legacy-action-button">Delete</button>
-            <button type="button" onClick={() => { if (!reportErrors({...report, indication: report.indication || 'Profile'}, true).length) onClose() }} className="legacy-action-button">Continue</button>
-            <button type="button" onClick={onSave} className="primary-button">Save</button>
+            <button type="button" disabled={saving || locked} onClick={onNext} className="legacy-action-button">Save & next</button>
+            <button type="button" disabled={saving || locked} onClick={onSave} className="primary-button">{locked ? 'Report locked' : 'Save draft'}</button>
           </div>
-          <p role="alert" className="text-red-700">{reportErrors(report, true).join(' ')}</p>
+          <p role="status" className="text-red-700">{message}</p>
           <p className="text-center text-sm font-semibold text-slate-600">Delete button will erase current scan information alone</p>
         </div>
       </div>

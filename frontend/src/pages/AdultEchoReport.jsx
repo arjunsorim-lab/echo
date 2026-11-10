@@ -1,5 +1,6 @@
+import { blankReport, mergeReport } from '../reportValidation'
 import { isDerivedPath, recalculateDerived, initializeDerived } from '../derivedMeasurements'
-import { currentUser, DerivedStatus, useDerivedDefinitions, ApprovalControls, FindingNotes, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
+import { currentUser, useCompletionConfirmation, DerivedStatus, useDerivedDefinitions, ApprovalControls, FindingNotes, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -411,6 +412,7 @@ const adultNormalComments = {
 function AdultEchoReport() {
   const navigate = useNavigate()
   const calculationRules = useDerivedDefinitions()
+  const {confirmCompletion,completionDialog}=useCompletionConfirmation()
   const { scanId } = useParams()
   const [searchParams] = useSearchParams()
   const [patients, setPatients] = useState([])
@@ -420,7 +422,7 @@ function AdultEchoReport() {
   const [activeMainTab, setActiveMainTab] = useState('scan')
   const [activeScanTab, setActiveScanTab] = useState('echo-details')
   const [activeImageTab, setActiveImageTab] = useState('images')
-  const [report, setReport] = useState(() => initializeDerived(deepClone(initialReport), 'Adult Echo'))
+  const [report, setReport] = useState(() => initializeDerived(blankReport(initialReport), 'Adult Echo'))
   const [savedScanId, setSavedScanId] = useState(scanId || '')
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
@@ -441,6 +443,7 @@ function AdultEchoReport() {
   }, [report.echo_details])
 
   const toggleNormalComments = () => {
+    if (locked) return
     if (isNormalCommentsPopulated) {
       setReport((current) => ({
         ...current,
@@ -509,15 +512,15 @@ function AdultEchoReport() {
         setLocked(String(scan.status).toLowerCase() === 'completed')
         setSavedScanId(scan.id)
         setSelectedVisitId(scan.visit_id || '')
-        const loadedReport = {
-          ...deepClone(initialReport),
+        const loadedReport = mergeReport(blankReport(initialReport), {
           ...(scan.adult_echo_report || {}),
-          indication: scan.indicator || scan.adult_echo_report?.indication || '',
+          indication: scan.indication || scan.indicator || scan.adult_echo_report?.indication || '',
           tag: scan.tag || scan.adult_echo_report?.tag || '',
-        }
+        })
         const normalized = recalculateDerived(loadedReport, calculationRules, 'Adult Echo')
         setReport(normalized)
         markSaved(normalized)
+        if(searchParams.get('preview')==='1')setIsPreviewOpen(true)
       } catch (error) {
         console.error('Error loading adult echo scan:', error)
         setStatusMessage('Could not load this adult echo report.')
@@ -547,6 +550,7 @@ function AdultEchoReport() {
     if (locked || isSaving) return false
     const errors = reportErrors(reportToSave, false, reportToSave.impression?.report_completed)
     if (errors.length) { setStatusMessage('Not saved. ' + errors.join(' ')); return false }
+    if (reportToSave.impression?.report_completed && !(await confirmCompletion())) return false
     if (!selectedPatientId) {
       setStatusMessage('Select a patient before saving this adult echo report.')
       return false
@@ -611,11 +615,12 @@ function AdultEchoReport() {
   }
   const handleClear = () => {
     if (locked) { setStatusMessage('Completed reports are read-only.'); return }
-    setReport(initializeDerived(deepClone(initialReport), 'Adult Echo'))
+    setReport(initializeDerived(blankReport(initialReport), 'Adult Echo'))
     setStatusMessage('')
   }
 
   const handleSaveReferralLetter = async () => {
+    if (locked || isSaving) return
     const letterName = report.referral_letter.letter_name.trim() || `Referral letter ${report.referral_letter.letters.length + 1}`
     const nextLetter = {
       id: `${Date.now()}`,
@@ -653,7 +658,7 @@ function AdultEchoReport() {
               <ToolbarButton icon={RotateCcw} label="Clear" onClick={handleClear} />
               <ToolbarButton icon={Printer} label="Preview" onClick={() => setIsPreviewOpen(true)} />
               <ToolbarButton icon={FileImage} label="Images" onClick={() => setIsImagesModalOpen(true)} />
-              <ToolbarButton icon={X} label="Close" onClick={() => navigate('/search')} />
+              <ToolbarButton icon={X} label="Close" onClick={() => { if (!dirty || window.confirm('Discard unsaved report changes?')) navigate('/search') }} />
             </div>
           </div>
 
@@ -742,7 +747,7 @@ function AdultEchoReport() {
             <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
               <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-slate-50 px-3 pt-3">
                 {mainTabs.map((tab) => (
-                  <TabButton key={tab.id} active={activeMainTab === tab.id} onClick={() => navigateSection(() => setActiveMainTab(tab.id), setStatusMessage, locked ? [] : reportErrors(report, false))}>
+                  <TabButton key={tab.id} active={activeMainTab === tab.id} onClick={() => navigateSection(() => setActiveMainTab(tab.id), setStatusMessage, locked ? [] : reportErrors(report, false, false, true))}>
                     {tab.label}
                   </TabButton>
                 ))}
@@ -752,7 +757,7 @@ function AdultEchoReport() {
                 {activeMainTab === 'scan' ? (
                   <ScanPanel
                     activeScanTab={activeScanTab}
-                    setActiveScanTab={(tab) => navigateSection(() => setActiveScanTab(tab), setStatusMessage, locked ? [] : reportErrors(report, false))}
+                    setActiveScanTab={(tab) => navigateSection(() => setActiveScanTab(tab), setStatusMessage, locked ? [] : reportErrors(report, false, false, true))}
                     report={report}
                     updateReport={updateReport}
                     onToggleNormalComments={toggleNormalComments}
@@ -769,6 +774,7 @@ function AdultEchoReport() {
 
       {isPreviewOpen && (
         <ClinicalPreview title="Adult Echocardiography"           report={report}
+          status={dirty ? 'Unsaved changes' : locked ? 'Completed' : 'Draft / In Progress'}
           updateReport={updateReport}
           patient={selectedPatient}
           visitId={selectedVisitId}
@@ -777,6 +783,7 @@ function AdultEchoReport() {
       )}
       <ImagesModal
         open={isImagesModalOpen}
+        visitId={selectedVisitId}
         onClose={() => setIsImagesModalOpen(false)}
         patient={selectedPatient}
       />
@@ -787,9 +794,10 @@ function AdultEchoReport() {
         patient={selectedPatient}
         currentScanId={savedScanId || scanId}
       />
+      {completionDialog}
       <DerivedStatus report={report} />
       <FindingNotes report={report} updateReport={updateReport} />
-      <ClinicalFooter onSave={handleSave} saving={isSaving || locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} />
+      <ClinicalFooter onSave={handleSave} saving={isSaving} locked={locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} />
     </div>
   )
 }

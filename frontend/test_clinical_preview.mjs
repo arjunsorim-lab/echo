@@ -20,15 +20,19 @@ report.no_of_fetuses='1';report.ga_weeks='20';report.ga_days='0'
 report.lmp={lmp_date:'2026-06-01',edd:'',et_date:''}
 report.indication='DUMMY DATA — software review only'
 report.impression={first_line:'DUMMY SAMPLE — NOT A CLINICAL REPORT',final_impression:'Sample text for layout review. No diagnosis or clinical interpretation.',primary_consultant:'Dummy consultant',second_consultant:'',internal_comments:'SECRET_INTERNAL_NOTE',system_impression:'UNUSED_SYSTEM_IMPRESSION',header_comments:'Dummy imaging-quality comment',footer_comments:'Dummy footer'}
+report.preview_settings={report_type:'SECRET_PREVIEW_SETTING'}
+report._legacy_findings='SECRET_LEGACY_FINDINGS'
 // Formula-dependent Z-scores are deliberately absent from this requested first sample.
 function omitZ(node){for(const [k,v] of Object.entries(node)){if(k.includes('z_score'))node[k]='';else if(v&&typeof v==='object')omitZ(v)}}omitZ(report)
 report=recalculateDerived(report)
-const entry=`import React from 'react';import {renderToStaticMarkup} from 'react-dom/server';import {ClinicalPreview} from './src/components/ClinicalWorkflow.jsx';export default renderToStaticMarkup(React.createElement(ClinicalPreview,{report:${JSON.stringify(report)},patient:{id:'dummy',patient_id:'DUMMY-ONLY',first_name:'Dummy',last_name:'Patient',age:'30',gender:'F'},visitId:'DUMMY-VISIT',title:'Fetal Echocardiography',onClose:()=>{}}));`
+const entry=`import React from 'react';import {renderToStaticMarkup} from 'react-dom/server';import {ClinicalPreview} from './src/components/ClinicalWorkflow.jsx';export default renderToStaticMarkup(React.createElement(ClinicalPreview,{report:${JSON.stringify(report)},patient:{id:'dummy',patient_id:'DUMMY-ONLY',first_name:'Dummy',last_name:'Patient',age:'30',gender:'F',family_doctor:'WRONG_PATIENT_REFERRAL'},visit:{id:'DUMMY-VISIT',referral_doctor:'DUMMY REFERRAL INSTITUTE',visit_date:'2026-11-10'},status:'Dummy sample — not approved for clinical use',visitId:'DUMMY-VISIT',title:'Fetal Echocardiography',onClose:()=>{}}));`
 const result=await build({stdin:{contents:entry,resolveDir:root,loader:'jsx'},bundle:true,platform:'node',format:'esm',jsx:'automatic',write:false,banner:{js:"import {createRequire} from 'node:module';const require=createRequire(import.meta.url);"},define:{'import.meta.env.VITE_API_URL':'"/api"'}})
 const output=path.join(root,'test-output');await fs.mkdir(output,{recursive:true})
 const modulePath=path.join(output,'preview-bundle.mjs');await fs.writeFile(modulePath,result.outputFiles[0].text)
 const markup=(await import(modulePath+'?t='+Date.now())).default
 assert(!markup.includes('SECRET_INTERNAL_NOTE'));assert(!markup.includes('UNUSED_SYSTEM_IMPRESSION'))
+assert(!markup.includes('SECRET_PREVIEW_SETTING'));assert(!markup.includes('SECRET_LEGACY_FINDINGS'))
+assert(markup.includes('DUMMY REFERRAL INSTITUTE'));assert(!markup.includes('WRONG_PATIENT_REFERRAL'))
 assert(!markup.includes('SURYA'));assert(!markup.includes('1.05'))
 assert(markup.indexOf('DUMMY-ONLY')<markup.indexOf('Fetal Echocardiography'))
 assert(markup.indexOf('Fetal Echocardiography')<markup.indexOf('DUMMY DATA'))

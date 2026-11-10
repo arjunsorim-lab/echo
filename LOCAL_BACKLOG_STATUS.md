@@ -1,5 +1,7 @@
 # Local transcript backlog implementation — 9 November 2026
 
+Update 10 November: see [the current code audit](docs/review-20261110/REVIEW.md), [requirement matrix](docs/review-20261110/IMPLEMENTATION_AUDIT.csv) and [clinical-input checklist](docs/review-20261110/CLINICAL_INPUTS.md). The active review working copy is `/Users/user/Downloads/echAI/echo` on `review/fetal-workflow-validation-20261110`; the older ZIP-copy path below is historical.
+
 Working copy: `/Users/user/Downloads/echAI-3-setup/echAI/echo`.
 Source: corrected transcript backlog produced in this chat. This file records code changes, not clinical approval or completion of every backlog record.
 

@@ -81,14 +81,14 @@ export default function Reports() {
     return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages]
   }
 
-  const openReport = (scan) => {
+  const openReport = (scan, preview=false) => {
     const route = scan.scan_type === 'Fetal Echo'
       ? '/fetal-echo-report'
       : scan.scan_type === 'Pediatric Echo'
       ? '/pediatric-echo-report'
       : '/adult-echo-report'
 
-    navigate(`${route}/${scan.id}?patientId=${scan.patient_id}&visitId=${scan.visit_id || ''}&scatter=true`)
+    navigate(`${route}/${scan.id}?patientId=${scan.patient_id}&visitId=${scan.visit_id || ''}${preview ? '&preview=1' : ''}`)
   }
 
   return (
@@ -209,7 +209,7 @@ export default function Reports() {
                       </span>
                     </td>
                     <td className="px-4 py-3.5 text-xs text-slate-700 max-w-xs truncate">
-                      {report.diagnosis || report.impression || 'NORMAL SCAN AND SEGMENTAL ANATOMY.'}
+                      {report.diagnosis || report.conclusion || '—'}
                     </td>
                     <td className="px-4 py-3.5 text-xs text-slate-500">{dateStr}</td>
                     <td className="px-4 py-3.5 text-center" onClick={(e) => e.stopPropagation()}>
@@ -223,10 +223,10 @@ export default function Reports() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => openReport(report)}
+                          onClick={() => openReport(report,true)}
                           className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition"
                         >
-                          <Printer className="w-3.5 h-3.5" /> Print
+                          <Printer className="w-3.5 h-3.5" /> Print preview
                         </button>
                       </div>
                     </td>

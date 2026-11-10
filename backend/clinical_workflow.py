@@ -2,6 +2,7 @@
 import contextvars
 import hashlib
 import json
+import math
 import os
 import secrets
 import threading
@@ -173,7 +174,7 @@ def validate_patient(data):
             raise HTTPException(422, 'DOB must be a valid date on or before today.')
     if data.get('age') not in (None, ''):
         try:
-            if float(data['age']) < 0:
+            if not math.isfinite(float(data['age'])) or float(data['age']) < 0:
                 raise ValueError()
         except (ValueError, TypeError):
             raise HTTPException(422, 'Age must be a non-negative number.')
@@ -202,21 +203,34 @@ def prepare_scan(data, existing=None):
     if str(old.get('status') or '').lower() == 'completed':
         raise HTTPException(409, 'Completed reports are read-only. A correction workflow has not been approved.')
     merged = {**old, **data}
+    expected_key = dict(zip(('Adult Echo', 'Pediatric Echo', 'Fetal Echo'), REPORT_KEYS)).get(merged.get('scan_type'))
+    if any(key in data and (key != expected_key or not isinstance(data[key], dict)) for key in REPORT_KEYS):
+        raise HTTPException(422, 'Clinical report content must match the selected scan type.')
     report, key = report_object(merged)
     previous, _ = report_object(old)
     if not report:
         if str(merged.get('status', '')).lower() == 'completed':
             raise HTTPException(422, 'A clinical report is required before completion.')
         return merged
-    if not str(report.get('indication') or '').strip():
-        raise HTTPException(422, 'An indication is required before saving the clinical report.')
+    for section in ('impression', 'lmp', 'echo_details'):
+        if section in report and not isinstance(report[section], dict):
+            raise HTTPException(422, f'{section} must be an object.')
+    for flag in ('audit_done', 'report_completed'):
+        if flag in report.get('impression', {}) and not isinstance(report['impression'][flag], bool):
+            raise HTTPException(422, f'{flag} must be true or false.')
+    completing = bool(report.get('impression', {}).get('report_completed')) or str(data.get('status', '')).lower() == 'completed'
+    if completing:
+        require_role('L3')
+    # Incomplete drafts can be saved. Mandatory profile fields gate progression/completion.
+    if completing and not str(report.get('indication') or '').strip():
+        raise HTTPException(422, 'An indication is required before completion.')
     if merged.get('scan_type') == 'Fetal Echo':
         dating = report.get('lmp', {})
         transfer = dating.get('et_date') if isinstance(dating.get('et_date'), str) else ''
-        if not (dating.get('lmp_date') or dating.get('edd') or transfer) or not report.get('no_of_fetuses'):
+        if completing and (not (dating.get('lmp_date') or dating.get('edd') or transfer) or not report.get('no_of_fetuses')):
             raise HTTPException(422, 'LMP, EDD or embryo transfer date, and number of fetuses, are required.')
         count = str(report.get('no_of_fetuses', ''))
-        if not count.isdigit() or int(count) < 1:
+        if count and (not count.isdigit() or int(count) < 1):
             raise HTTPException(422, 'Number of fetuses must be a positive whole number.')
         for value in (dating.get('lmp_date'), dating.get('edd'), transfer):
             if value:
@@ -225,21 +239,32 @@ def prepare_scan(data, existing=None):
                 except (ValueError, TypeError):
                     raise HTTPException(422, 'Enter valid LMP, EDD or transfer dates.')
     report = recalculate(report, merged.get('scan_type'))
+    if old.get('findings'):
+        try:
+            json.loads(old['findings'])
+        except (ValueError, TypeError):
+            report['_legacy_findings'] = old['findings']
     impression = report.setdefault('impression', {})
     previous_imp = previous.get('impression', {})
     if impression.get('audit_done') != previous_imp.get('audit_done'):
         require_role('L2')
         impression['audited_by'] = user['name'] if impression.get('audit_done') else ''
+        impression['audited_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()) if impression.get('audit_done') else ''
     else:
         impression['audited_by'] = previous_imp.get('audited_by', '')
-    if impression.get('report_completed') or str(data.get('status', '')).lower() == 'completed':
+        impression['audited_at'] = previous_imp.get('audited_at', '')
+    if completing:
         require_role('L3')
         if not str(impression.get('primary_consultant') or '').strip() or not str(impression.get('final_impression') or '').strip():
             raise HTTPException(422, 'Primary consultant and final impression are required for completion.')
         merged['status'] = 'Completed'
         impression['report_completed'] = True
+        impression['completed_by'] = user['name']
+        impression['completed_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
     else:
-        merged['status'] = 'In Progress'
+        merged['status'] = 'Draft' if not str(report.get('indication') or '').strip() else 'In Progress'
+        impression.pop('completed_by', None)
+        impression.pop('completed_at', None)
     impression['report_title'] = TITLES.get(merged.get('scan_type'), merged.get('scan_type'))
     impression['report_typed_by'] = previous_imp.get('report_typed_by') or user['name']
     # Explicit abnormal-option mapping is deliberately limited to the literal Abnormal option.
@@ -247,7 +272,7 @@ def prepare_scan(data, existing=None):
         if not isinstance(node, dict):
             return
         for name, value in node.items():
-            if isinstance(value, str) and value.strip().lower() == 'abnormal' and not node.get(name + '_comments'):
+            if isinstance(value, str) and value.strip().lower() == 'abnormal' and not str(node.get(name + '_comments') or '').strip():
                 raise HTTPException(422, f'Add a description for abnormal finding: {name.replace("_", " ")}')
             if isinstance(value, dict):
                 abnormal_comments(value)
@@ -258,8 +283,12 @@ def prepare_scan(data, existing=None):
     merged['indication'] = report.get('indication', merged.get('indication', ''))
     merged['conclusion'] = impression.get('final_impression', merged.get('conclusion', ''))
     classification = impression.get('classification')
+    if classification not in (None, '', 'Normal', 'Abnormal', 'Ambiguous'):
+        raise HTTPException(422, 'Select Normal, Abnormal or Ambiguous, or leave classification blank.')
     if classification in ('Normal', 'Abnormal', 'Ambiguous'):
         merged.update(normal=classification == 'Normal', abnormal=classification == 'Abnormal', ambiguity=classification == 'Ambiguous')
+    elif 'classification' in impression:
+        merged.update(normal=False, abnormal=False, ambiguity=False)
     merged['primaryConsultant'] = impression.get('primary_consultant', '')
     merged['typedBy'] = impression['report_typed_by']
     merged['reviewedBy'] = impression.get('audited_by', '')

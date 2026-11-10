@@ -4,7 +4,7 @@ import ImageCompareModal from './ImageCompareModal'
 import OrganEditingModal from './OrganEditingModal'
 import TiffaTemplateModal from './TiffaTemplateModal'
 
-export default function ImagesModal({ open, onClose, patient, visitDate = '02/09/2025 10:42:46 AM' }) {
+export default function ImagesModal({ open, onClose, patient, visitDate = '', visitId = '' }) {
   const [activeTab, setActiveTab] = useState('images')
   const [isCompareOpen, setIsCompareOpen] = useState(false)
   const [isOrganEditingOpen, setIsOrganEditingOpen] = useState(false)
@@ -26,7 +26,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
   const [description, setDescription] = useState('')
 
   const [dicomConfigs, setDicomConfigs] = useState([
-    { aeTitle: 'ECHO_SCU', ipAddress: '192.168.1.100', port: '104', description: 'PACS Server' }
+
   ])
 
   const [spoolerItems, setSpoolerItems] = useState([])
@@ -37,8 +37,8 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
   if (!open) return null
 
   const patientName = patient
-    ? [patient.salutation, patient.first_name, patient.last_name].filter(Boolean).join(' ') || patient.patient_id || 'Testecho(test)'
-    : 'Testecho(test)'
+    ? [patient.salutation, patient.first_name, patient.last_name].filter(Boolean).join(' ') || patient.patient_id || 'Select patient'
+    : 'Select patient'
 
   const addDicomConfig = () => {
     if (!aeTitle || !ipAddress) return
@@ -74,7 +74,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-teal-600" />
             <h2 className="text-sm font-semibold text-slate-900">
-              Images - Patient: <span className="font-bold">{patientName}</span> Visit# 1 on {visitDate}
+              Images - Patient: <span className="font-bold">{patientName}</span> Visit# {visitId || '—'} {visitDate}
             </h2>
           </div>
           <button
@@ -86,6 +86,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
           </button>
         </div>
 
+        <p className="border-b bg-amber-50 p-3 text-sm">Temporary local preview only. Imports here are not saved to the patient record. Scanner/PACS transfer is not configured. <a className="underline" href={`/images?patientId=${encodeURIComponent(patient?.id || '')}&visitId=${encodeURIComponent(visitId)}`}>Open saved patient media</a></p>
         {/* Top Controls & Print Options Bar */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs">
           <div className="flex flex-wrap items-center gap-3">
@@ -95,10 +96,10 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                 <option>{visitDate}</option>
               </select>
             </label>
-            <button type="button" className="legacy-small-button">
+            <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">
               4 Image Per Row
             </button>
-            <button type="button" className="legacy-small-button">
+            <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">
               <RefreshCw className="mr-1 h-3 w-3" /> Refresh
             </button>
           </div>
@@ -152,7 +153,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
             <button type="button" onClick={() => { setInitialRuleMode('Rule of four'); setIsTiffaOpen(true); }} className="legacy-small-button">Rule of four</button>
             <button type="button" onClick={() => setIsOrganEditingOpen(true)} className="legacy-small-button">Organ drawing</button>
             <button type="button" onClick={() => setIsCompareOpen(true)} className="legacy-small-button">Image compare</button>
-            <button type="button" className="legacy-small-button">Export to PPT</button>
+            <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Export to PPT</button>
           </div>
         </div>
 
@@ -212,23 +213,23 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
 
               <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-2xs overflow-y-auto">
                 <div className="grid grid-cols-3 gap-2">
-                  <button type="button" className="legacy-small-button">Export</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Export</button>
                   <label className="legacy-small-button cursor-pointer justify-center">
                     Import
                     <input type="file" accept="image/*" multiple onChange={handleImageImport} className="hidden" />
                   </label>
                   <button type="button" onClick={() => setImportedImages([])} className="legacy-small-button">Delete</button>
-                  <button type="button" className="legacy-small-button">Process</button>
-                  <button type="button" className="legacy-small-button">Print</button>
-                  <button type="button" className="legacy-small-button">Send</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Process</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Print</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Send</button>
                 </div>
 
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
                   <div className="mb-2 text-xs font-semibold text-slate-700">Anonymous images</div>
                   <div className="flex flex-wrap gap-1.5">
-                    <button type="button" className="legacy-small-button text-[11px]">Image Title</button>
-                    <button type="button" className="legacy-small-button text-[11px]">Ink Save</button>
-                    <button type="button" className="legacy-small-button text-[11px]">Rule of three...</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button text-[11px]">Image Title</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button text-[11px]">Ink Save</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button text-[11px]">Rule of three...</button>
                   </div>
                 </div>
 
@@ -241,11 +242,11 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                   </label>
 
                   <div className="grid grid-cols-2 gap-1.5 pt-2">
-                    <button type="button" className="legacy-small-button">Save</button>
-                    <button type="button" className="legacy-small-button">Delete</button>
-                    <button type="button" className="legacy-small-button">Clear</button>
-                    <button type="button" className="legacy-small-button">Print</button>
-                    <button type="button" className="legacy-small-button col-span-2">Clear image</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Save</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Delete</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Clear</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Print</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button col-span-2">Clear image</button>
                   </div>
                 </div>
               </div>
@@ -264,9 +265,9 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
 
               <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-2xs">
                 <div className="flex gap-2">
-                  <button type="button" className="legacy-small-button flex-1">Export</button>
-                  <button type="button" className="legacy-small-button flex-1">Import</button>
-                  <button type="button" className="legacy-small-button flex-1">Delete</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button flex-1">Export</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button flex-1">Import</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button flex-1">Delete</button>
                 </div>
 
                 <label className="field-label">
@@ -340,7 +341,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                     <option>Custom</option>
                   </select>
                 </label>
-                <button type="button" className="legacy-small-button self-end">Add</button>
+                <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button self-end">Add</button>
               </div>
 
               <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-2xs overflow-y-auto">
@@ -400,8 +401,8 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                 </fieldset>
 
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" className="legacy-small-button">Network Ping</button>
-                  <button type="button" className="legacy-small-button">Dicom Ping</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Network Ping</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Dicom Ping</button>
                 </div>
               </div>
 

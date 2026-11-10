@@ -1,10 +1,12 @@
 """Integration checks run against a temporary copy; never writes the clinical database."""
 import copy
+import base64
 import json
 import os
 from pathlib import Path
 import shutil
 import socket
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -19,9 +21,9 @@ class WorkflowTests(unittest.TestCase):
         cls.tmp = tempfile.TemporaryDirectory(prefix='echo-workflow-test-')
         cls.folder = Path(cls.tmp.name)
         source = Path(__file__).parent
-        shutil.copy2(source / 'echo.db', cls.folder / 'test.db')
+        sqlite3.connect(cls.folder / 'test.db').close()
         sock = socket.socket(); sock.bind(('127.0.0.1', 0)); cls.port = sock.getsockname()[1]; sock.close()
-        env = {**os.environ, 'DB_PATH':str(cls.folder/'test.db'), 'ECHOAI_USERS_PATH':str(cls.folder/'users.json'), 'ECHOAI_PASSWORD':'Workflow-test-only!42', 'PORT':str(cls.port), 'UPLOADS_DIR':str(cls.folder/'uploads')}
+        env = {**os.environ, 'DB_PATH':str(cls.folder/'test.db'), 'ECHOAI_USERS_PATH':str(cls.folder/'users.json'), 'ECHOAI_PASSWORD':'Workflow-test-only!42', 'PORT':str(cls.port), 'UPLOADS_DIR':str(cls.folder/'uploads'), 'ECHOAI_MAX_UPLOAD_BYTES':'1024'}
         cls.log = open(cls.folder/'server.log', 'w')
         cls.server = subprocess.Popen([sys.executable, 'main.py'], cwd=source, env=env, stdout=cls.log, stderr=cls.log)
         cls.base=f'http://127.0.0.1:{cls.port}'
@@ -110,6 +112,73 @@ class WorkflowTests(unittest.TestCase):
                 code,result=call('PUT',f'/api/scans/{sid}',{key:report},l1);self.assertEqual(code,200,result)
                 self.assertEqual(result['data'][key]['impression']['internal_comments'],'INTERNAL-NOT-FOR-PATIENT')
                 self.assertEqual(result['data']['status'],'In Progress')
+
+    def test_draft_validation_and_report_type_integrity(self):
+        call=self.call;l1=self.roles['L1'];l3=self.roles['L3']
+        patient={'patient_id':'TEST-DRAFT','first_name':'Dummy','last_name':'Draft','age':'30','gender':'F','street':'Test','state':'Tamil Nadu','country':'India','phone1':'1234567890','family_doctor':'Self'}
+        pid=call('POST','/api/patients',patient,l1)[1]['data']['id']
+        vid=call('POST',f'/api/patients/{pid}/visits',{'scan_type':'Fetal Echo','visit_date':'2026-11-10T09:00'},l1)[1]['data']['id']
+        report={'indication':'','lmp':{},'no_of_fetuses':'','doppler':{'mpi_method_1':{'rv_mpi':'999','rv_ict':'12'}},'impression':{}}
+        code,result=call('POST','/api/scans',{'patient_id':pid,'visit_id':vid,'scan_type':'Fetal Echo','fetal_echo_report':report},l1)
+        self.assertEqual(code,200,result);sid=result['data']['id']
+        self.assertEqual(result['data']['status'],'Draft');self.assertEqual(result['data']['normal'],0)
+        saved=call('GET',f'/api/scans/{sid}',token=l1)[1]['data']['fetal_echo_report']
+        self.assertEqual(saved['doppler']['mpi_method_1']['rv_mpi'],'');self.assertEqual(saved['doppler']['mpi_method_1']['rv_ict'],'12')
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':{**report,'lmp':{'lmp_date':'2026-02-30'}}},l1)[0],422)
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'adult_echo_report':report},l1)[0],422)
+        for invalid in ({'impression':None},{'impression':{'report_completed':'false'}},{'impression':{'classification':'Unknown'}},{'no_of_fetuses':'0'}):
+            self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':{**report,**invalid}},l1)[0],422)
+        report['impression']={'report_completed':True,'primary_consultant':'Dummy','final_impression':'Test only'}
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l1)[0],403)
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l3)[0],422)
+        report.update(indication='Test only',lmp={'edd':'2027-01-01'},no_of_fetuses='1')
+        report['echo_details']={'situs':'Abnormal','situs_comments':'   '}
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l3)[0],422)
+        report['echo_details']['situs_comments']='Dummy description'
+        code,result=call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l3);self.assertEqual(code,200,result)
+        self.assertEqual(result['data']['fetal_echo_report']['impression']['completed_by'],'Dr Shanthi')
+        self.assertTrue(result['data']['fetal_echo_report']['impression']['completed_at'])
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'status':'Draft'},l3)[0],409)
+
+    def test_visit_report_integrity(self):
+        call=self.call;token=self.l3
+        patient={'patient_id':'TEST-VISIT-LOCK','first_name':'Dummy','last_name':'Visit','age':'30','gender':'F','street':'Test','state':'Tamil Nadu','country':'India','phone1':'1234567890','family_doctor':'Self'}
+        pid=call('POST','/api/patients',patient,token)[1]['data']['id']
+        vid=call('POST',f'/api/patients/{pid}/visits',{'scan_type':'Adult Echo','visit_date':'2026-11-10T10:00'},token)[1]['data']['id']
+        sid=call('POST','/api/scans',{'patient_id':pid,'visit_id':vid,'scan_type':'Adult Echo'},token)[1]['data']['id']
+        self.assertEqual(call('DELETE',f'/api/patients/{pid}/visits/{vid}',token=token)[0],409)
+        self.assertEqual(call('PUT',f'/api/patients/{pid}/visits/{vid}',{'visit_type':'Fetal Echo'},token)[0],409)
+        self.assertEqual(call('DELETE',f'/api/scans/{sid}',token=token)[0],200)
+        self.assertEqual(call('DELETE',f'/api/patients/{pid}/visits/{vid}',token=token)[0],200)
+
+    def test_media_upload_storage_matching_and_auth(self):
+        token=self.roles['L1'];call=self.call
+        patient={'patient_id':'TEST-MEDIA','first_name':'Dummy','last_name':'Media','age':'30','gender':'F','street':'Test','state':'Tamil Nadu','country':'India','phone1':'1234567890','family_doctor':'Self'}
+        pid=call('POST','/api/patients',patient,token)[1]['data']['id']
+        vid=call('POST',f'/api/patients/{pid}/visits',{'scan_type':'Fetal Echo','visit_date':'2026-11-10T10:00'},token)[1]['data']['id']
+        image=base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=')
+        def upload(name,content,visit=vid):
+            boundary='echo-test-boundary'
+            body=(f'--{boundary}\r\nContent-Disposition: form-data; name="patient_id"\r\n\r\n{pid}\r\n--{boundary}\r\nContent-Disposition: form-data; name="visit_id"\r\n\r\n{visit}\r\n--{boundary}\r\nContent-Disposition: form-data; name="file"; filename="{name}"\r\nContent-Type: image/png\r\n\r\n').encode()+content+f'\r\n--{boundary}--\r\n'.encode()
+            req=urllib.request.Request(self.base+'/api/media-upload',data=body,headers={'Authorization':'Bearer '+token,'Content-Type':'multipart/form-data; boundary='+boundary},method='POST')
+            try:
+                with urllib.request.urlopen(req) as r:return r.status,json.load(r)
+            except urllib.error.HTTPError as e:
+                with e:return e.code,json.load(e)
+        code,result=upload('../../dummy.png',image);self.assertEqual(code,200,result);record=result['data']
+        self.assertEqual(str(record['patient_id']),str(pid));self.assertEqual(str(record['visit_id']),str(vid))
+        self.assertTrue(record['url'].startswith('/uploads/'));self.assertNotIn('..',record['url'])
+        self.assertNotEqual(record['url'],upload('../../dummy.png',image)[1]['data']['url'])
+        with urllib.request.urlopen(urllib.request.Request(self.base+record['url'],headers={'Authorization':'Bearer '+token})) as r:self.assertEqual(r.read(),image)
+        with self.assertRaises(urllib.error.HTTPError) as blocked:urllib.request.urlopen(self.base+record['url'])
+        self.assertEqual(blocked.exception.code,401)
+        blocked.exception.close()
+        self.assertEqual(upload('evil.html',b'<script>bad</script>')[0],415)
+        self.assertEqual(upload('bad.png',b'not an image')[0],415)
+        self.assertEqual(upload('dummy.png',image,999999)[0],422)
+        self.assertEqual(upload('large.png',image+b'x'*2048)[0],413)
+        records=call('GET','/api/resources/media-records',token=token)[1]['data']
+        self.assertEqual(len(records),2)
 
     def test_contact_only_updates_and_identity_locks_for_all_roles(self):
         patient={'patient_id':'TEST-CONTACT-ONLY','first_name':'Dummy','last_name':'Contact','dob':'2000-01-01','gender':'F','street':'Test','state':'Tamil Nadu','country':'India','phone2':'1234567890','family_doctor':'Self'}

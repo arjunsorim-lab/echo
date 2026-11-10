@@ -1,5 +1,6 @@
+import { blankReport, mergeReport } from '../reportValidation'
 import { isDerivedPath, recalculateDerived, initializeDerived } from '../derivedMeasurements'
-import { currentUser, DerivedStatus, useDerivedDefinitions, ApprovalControls, FindingNotes, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
+import { currentUser, useCompletionConfirmation, DerivedStatus, useDerivedDefinitions, ApprovalControls, FindingNotes, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
 import { Fragment, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -265,6 +266,7 @@ const pediatricNormalComments = {
 function PediatricEchoReport() {
   const navigate = useNavigate()
   const calculationRules = useDerivedDefinitions()
+  const {confirmCompletion,completionDialog}=useCompletionConfirmation()
   const { scanId } = useParams()
   const [searchParams] = useSearchParams()
   const [patients, setPatients] = useState([])
@@ -273,7 +275,7 @@ function PediatricEchoReport() {
   const [activeMainTab, setActiveMainTab] = useState('scan')
   const [activeScanTab, setActiveScanTab] = useState('echo-details')
   const [activeImageTab, setActiveImageTab] = useState('images')
-  const [report, setReport] = useState(() => initializeDerived(deepClone(initialReport), 'Pediatric Echo'))
+  const [report, setReport] = useState(() => initializeDerived(blankReport(initialReport), 'Pediatric Echo'))
   const [savedScanId, setSavedScanId] = useState(scanId || '')
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
@@ -296,6 +298,7 @@ function PediatricEchoReport() {
   }, [report.echo_details])
 
   const scatterNormalComments = () => {
+    if (locked) return
     setReport((current) => ({
       ...current,
       echo_details: {
@@ -312,6 +315,7 @@ function PediatricEchoReport() {
   }
 
   const toggleNormalComments = () => {
+    if (locked) return
     if (isNormalCommentsPopulated) {
       setReport((current) => ({
         ...current,
@@ -344,11 +348,7 @@ function PediatricEchoReport() {
     }
   }
 
-  useEffect(() => {
-    if (searchParams.get('scatter') === 'true' || searchParams.get('autoScatter') === 'true') {
-      scatterNormalComments()
-    }
-  }, [searchParams])
+
 
   useEffect(() => {
     const fetchPatients = async () => {
@@ -358,7 +358,7 @@ function PediatricEchoReport() {
           setPatients(result.data)
         }
       } catch (error) {
-        console.error('Error loading patients:', error)
+        setStatusMessage('Unable to load patients. Refresh and retry.')
       }
     }
 
@@ -378,15 +378,15 @@ function PediatricEchoReport() {
         setLocked(String(scan.status).toLowerCase() === 'completed')
         setSavedScanId(scan.id)
         setSelectedVisitId(scan.visit_id || '')
-        const loadedReport = {
-          ...deepClone(initialReport),
+        const loadedReport = mergeReport(blankReport(initialReport), {
           ...(scan.pediatric_echo_report || {}),
-          indication: scan.indicator || scan.pediatric_echo_report?.indication || '',
+          indication: scan.indication || scan.indicator || scan.pediatric_echo_report?.indication || '',
           tag: scan.tag || scan.pediatric_echo_report?.tag || '',
-        }
+        })
         const normalized = recalculateDerived(loadedReport, calculationRules, 'Pediatric Echo')
         setReport(normalized)
         markSaved(normalized)
+        if(searchParams.get('preview')==='1')setIsPreviewOpen(true)
       } catch (error) {
         console.error('Error loading pediatric echo scan:', error)
         setStatusMessage('Could not load this pediatric echo report.')
@@ -416,6 +416,7 @@ function PediatricEchoReport() {
     if (locked || isSaving) return false
     const errors = reportErrors(report, false, report.impression?.report_completed)
     if (errors.length) { setStatusMessage('Not saved. ' + errors.join(' ')); return false }
+    if (report.impression?.report_completed && !(await confirmCompletion())) return false
     if (!selectedPatientId) {
       setStatusMessage('Select a patient before saving this pediatric echo report.')
       return
@@ -472,7 +473,7 @@ function PediatricEchoReport() {
   }
   const handleClear = () => {
     if (locked) { setStatusMessage('Completed reports are read-only.'); return }
-    setReport(initializeDerived(deepClone(initialReport), 'Pediatric Echo'))
+    setReport(initializeDerived(blankReport(initialReport), 'Pediatric Echo'))
     setStatusMessage('')
   }
 
@@ -507,7 +508,7 @@ function PediatricEchoReport() {
               <ToolbarButton icon={RotateCcw} label="Clear" onClick={handleClear} />
               <ToolbarButton icon={Printer} label="Preview" onClick={() => setIsPreviewOpen(true)} />
               <ToolbarButton icon={FileImage} label="Images" onClick={() => setIsImagesModalOpen(true)} />
-              <ToolbarButton icon={X} label="Close" onClick={() => navigate('/search')} />
+              <ToolbarButton icon={X} label="Close" onClick={() => { if (!dirty || window.confirm('Discard unsaved report changes?')) navigate('/search') }} />
             </div>
           </div>
 
@@ -602,7 +603,7 @@ function PediatricEchoReport() {
           <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
             <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-slate-50 px-3 pt-3">
               {mainTabs.map((tab) => (
-                <TabButton key={tab.id} active={activeMainTab === tab.id} onClick={() => navigateSection(() => setActiveMainTab(tab.id), setStatusMessage, locked ? [] : reportErrors(report, false))}>
+                <TabButton key={tab.id} active={activeMainTab === tab.id} onClick={() => navigateSection(() => setActiveMainTab(tab.id), setStatusMessage, locked ? [] : reportErrors(report, false, false, true))}>
                   {tab.label}
                 </TabButton>
               ))}
@@ -612,7 +613,7 @@ function PediatricEchoReport() {
               {activeMainTab === 'scan' ? (
                 <ScanPanel
                   activeScanTab={activeScanTab}
-                  setActiveScanTab={(tab) => navigateSection(() => setActiveScanTab(tab), setStatusMessage, locked ? [] : reportErrors(report, false))}
+                  setActiveScanTab={(tab) => navigateSection(() => setActiveScanTab(tab), setStatusMessage, locked ? [] : reportErrors(report, false, false, true))}
                   report={report}
                   updateReport={updateReport}
                   onToggleNormalComments={toggleNormalComments}
@@ -636,6 +637,7 @@ function PediatricEchoReport() {
       )}
       {isPreviewOpen && (
         <ClinicalPreview title="Paediatric Echocardiography"           report={report}
+          status={dirty ? 'Unsaved changes' : locked ? 'Completed' : 'Draft / In Progress'}
           updateReport={updateReport}
           patient={selectedPatient}
           visitId={selectedVisitId}
@@ -644,6 +646,7 @@ function PediatricEchoReport() {
       )}
       <ImagesModal
         open={isImagesModalOpen}
+        visitId={selectedVisitId}
         onClose={() => setIsImagesModalOpen(false)}
         patient={selectedPatient}
       />
@@ -662,9 +665,10 @@ function PediatricEchoReport() {
         report={report}
         scanId={savedScanId || scanId}
       />
+      {completionDialog}
       <DerivedStatus report={report} />
       <FindingNotes report={report} updateReport={updateReport} />
-      <ClinicalFooter onSave={handleSave} saving={isSaving || locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} />
+      <ClinicalFooter onSave={handleSave} saving={isSaving} locked={locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} />
     </div>
   )
 }

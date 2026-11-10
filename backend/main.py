@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Query
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
@@ -9,6 +9,7 @@ import json
 from datetime import datetime, date
 import os
 import shutil
+import secrets
 from clinical_workflow import install as install_workflow, validate_patient, prepare_scan, require_role, contact_payload, serialize_contact
 
 app = FastAPI(title="Echo AI Backend", version="1.0.0")
@@ -36,8 +37,7 @@ install_workflow(app, BASE_DIR)
 def prepare_runtime_storage():
     os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
     os.makedirs(UPLOADS_DIR, exist_ok=True)
-    if DB_PATH != DEFAULT_DB_PATH and not os.path.exists(DB_PATH):
-        shutil.copy2(DEFAULT_DB_PATH, DB_PATH)
+    # SQLite initializes an empty database; never copy patient records into a new environment.
 
 class SQLiteConn:
     def __init__(self, path, timeout=60.0):
@@ -714,6 +714,7 @@ def update_patient(patient_id: int, data: dict):
 def delete_patient(patient_id: int):
     require_role('L3')
     conn = get_db()
+    conn.execute('BEGIN IMMEDIATE')
     if conn.execute("SELECT 1 FROM scans WHERE patient_id = ? AND lower(status) = 'completed'", (patient_id,)).fetchone():
         conn.close()
         raise HTTPException(409, 'A patient with completed reports cannot be deleted.')
@@ -743,6 +744,7 @@ def get_visits(patient_id: int):
 @app.post('/api/patients/{patient_id}/visits')
 def add_visit(patient_id: int, data: dict):
     conn = get_db()
+    conn.execute('BEGIN IMMEDIATE')
     cursor = conn.cursor()
     request_id = data.get('request_id')
     if request_id:
@@ -791,6 +793,7 @@ def add_visit(patient_id: int, data: dict):
 @app.put('/api/patients/{patient_id}/visits/{visit_id}')
 def update_visit(patient_id: int, visit_id: int, data: dict):
     conn = get_db()
+    conn.execute('BEGIN IMMEDIATE')
     cursor = conn.cursor()
     previous = conn.execute('SELECT * FROM visits WHERE id = ? AND patient_id = ?', (visit_id, patient_id)).fetchone()
     if not previous:
@@ -800,6 +803,9 @@ def update_visit(patient_id: int, visit_id: int, data: dict):
         conn.close()
         raise HTTPException(409, 'Visits with completed reports are read-only.')
     data = {**dict(previous), **data}
+    if data.get('visit_type') != previous['visit_type'] and conn.execute('SELECT 1 FROM scans WHERE visit_id = ?', (visit_id,)).fetchone():
+        conn.close()
+        raise HTTPException(409, 'A visit with a report cannot change scan type.')
 
     cursor.execute('''
         UPDATE visits SET
@@ -822,6 +828,10 @@ def update_visit(patient_id: int, visit_id: int, data: dict):
 def delete_visit(patient_id: int, visit_id: int):
     require_role('L3')
     conn = get_db()
+    conn.execute('BEGIN IMMEDIATE')
+    if conn.execute('SELECT 1 FROM scans WHERE visit_id = ?', (visit_id,)).fetchone():
+        conn.close()
+        raise HTTPException(409, 'Delete unfinished reports first. Visits with reports cannot be deleted.')
     if conn.execute("SELECT 1 FROM scans WHERE visit_id = ? AND lower(status) = 'completed'", (visit_id,)).fetchone():
         conn.close()
         raise HTTPException(409, 'Visits with completed reports cannot be deleted.')
@@ -885,7 +895,11 @@ def get_scans_by_patient(patient_id: int):
 def create_scan(data: dict):
     data = prepare_scan(data)
     conn = get_db()
+    conn.execute('BEGIN IMMEDIATE')
     cursor = conn.cursor()
+    if not conn.execute('SELECT 1 FROM patients WHERE id = ?', (data.get('patient_id'),)).fetchone():
+        conn.close()
+        raise HTTPException(422, 'Select an existing patient.')
     if data.get('visit_id'):
         visit = conn.execute('SELECT * FROM visits WHERE id = ? AND patient_id = ?', (data['visit_id'], data.get('patient_id'))).fetchone()
         if not visit or (visit['visit_type'] in ('Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound') and visit['visit_type'] != data.get('scan_type')):
@@ -917,7 +931,7 @@ def create_scan(data: dict):
     abnormal = 1 if data.get('abnormal') else 0
     ambiguity = 1 if data.get('ambiguity') else 0
     growthAbnormality = 1 if data.get('growthAbnormality') else 0
-    normal = 1 if data.get('normal', True) else 0
+    normal = 1 if data.get('normal', False) else 0
     normalVariant = 1 if data.get('normalVariant') else 0
     indication = data.get('indication', '')
     diagnosis = data.get('diagnosis', '')
@@ -950,6 +964,7 @@ def create_scan(data: dict):
 @app.put('/api/scans/{scan_id}')
 def update_scan(scan_id: int, data: dict):
     conn = get_db()
+    conn.execute('BEGIN IMMEDIATE')
     cursor = conn.cursor()
     existing = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
     if not existing:
@@ -1002,6 +1017,7 @@ def update_scan(scan_id: int, data: dict):
 def delete_scan(scan_id: int):
     require_role('L3')
     conn = get_db()
+    conn.execute('BEGIN IMMEDIATE')
     existing = conn.execute('SELECT status FROM scans WHERE id = ?', (scan_id,)).fetchone()
     if existing and str(existing['status']).lower() == 'completed':
         conn.close()
@@ -1464,19 +1480,51 @@ def delete_resource(resource: str, item_id: int):
 
 # Media Upload Endpoint
 @app.post('/api/media-upload')
-async def upload_media(file: UploadFile = File(...)):
+async def upload_media(file: UploadFile = File(...), patient_id: Optional[int] = Form(None), visit_id: Optional[int] = Form(None)):
+    conn = get_db()
+    if patient_id is not None and not conn.execute('SELECT 1 FROM patients WHERE id = ?', (patient_id,)).fetchone():
+        conn.close()
+        raise HTTPException(422, 'Select an existing patient.')
+    if visit_id is not None and not conn.execute('SELECT 1 FROM visits WHERE id = ? AND patient_id = ?', (visit_id, patient_id)).fetchone():
+        conn.close()
+        raise HTTPException(422, 'The visit must belong to the selected patient.')
+    # Only passive browser formats are supported. DICOM decoding/ingestion is not implemented.
+    formats = {'.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp', '.pdf': 'application/pdf', '.mp4': 'video/mp4', '.webm': 'video/webm'}
+    name = os.path.basename((file.filename or '').replace('\\', '/'))
+    extension = os.path.splitext(name)[1].lower()
+    if extension not in formats:
+        conn.close()
+        raise HTTPException(415, 'Supported files: PNG, JPEG, WebP, PDF, MP4 and WebM. DICOM import is not configured.')
+    filename = secrets.token_hex(20) + extension
+    file_path = os.path.join(UPLOADS_DIR, filename)
     try:
         os.makedirs(UPLOADS_DIR, exist_ok=True)
-
-        file_path = os.path.join(UPLOADS_DIR, file.filename)
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
-            buffer.write(content)
-
-        rel_path = f"uploads/{file.filename}"
-        return {"success": True, "data": {"filename": file.filename, "path": rel_path, "url": rel_path}}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        size = 0
+        with open(file_path, 'xb') as buffer:
+            while chunk := await file.read(65536):
+                size += len(chunk)
+                if size > int(os.environ.get('ECHOAI_MAX_UPLOAD_BYTES', '20971520')):
+                    raise HTTPException(413, 'File exceeds the configured upload limit.')
+                if size == len(chunk):
+                    valid = {'.png': chunk.startswith(b'\x89PNG\r\n\x1a\n'), '.jpg': chunk.startswith(b'\xff\xd8\xff'), '.jpeg': chunk.startswith(b'\xff\xd8\xff'), '.pdf': chunk.startswith(b'%PDF-'), '.webp': chunk.startswith(b'RIFF') and chunk[8:12] == b'WEBP', '.mp4': chunk[4:8] == b'ftyp', '.webm': chunk.startswith(b'\x1a\x45\xdf\xa3')}[extension]
+                    if not valid:
+                        raise HTTPException(415, 'File contents do not match a supported format.')
+                buffer.write(chunk)
+        if not size:
+            raise HTTPException(422, 'The file is empty.')
+        url = f'/uploads/{filename}'
+        cursor = conn.execute('INSERT INTO media_records (patient_id, visit_id, name, type, size, status, url) VALUES (?, ?, ?, ?, ?, ?, ?)', (patient_id, visit_id, name, formats[extension], size, 'Uploaded', url))
+        record = dict(conn.execute('SELECT * FROM media_records WHERE id = ?', (cursor.lastrowid,)).fetchone())
+        conn.commit()
+        return {'success': True, 'data': {**record, 'filename': name, 'path': url}}
+    except Exception:
+        conn.rollback()
+        if os.path.exists(file_path):
+            os.remove(file_path)
+        raise
+    finally:
+        conn.close()
+        await file.close()
 
 app.mount('/uploads', StaticFiles(directory=UPLOADS_DIR, check_dir=False), name='uploads')
 
