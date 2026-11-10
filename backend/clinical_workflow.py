@@ -74,7 +74,11 @@ def install(app, base_dir):
 
     @app.post('/api/auth/login')
     def login(data: dict, request: Request):
-        client = request.client.host if request.client else 'unknown'
+        forwarded = request.headers.get('x-forwarded-for')
+        if forwarded:
+            client = forwarded.split(',')[0].strip()
+        else:
+            client = request.client.host if request.client else 'unknown'
         if sessions.blocked(client):
             raise HTTPException(429, 'Too many failed sign-in attempts. Retry in 15 minutes.')
         username = str(data.get('username') or '').strip().lower()
