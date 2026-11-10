@@ -309,17 +309,16 @@ class WorkflowTests(unittest.TestCase):
         2. When a trusted proxy IP is configured, requests from that peer use the client IP from X-Forwarded-For.
         3. A multi-proxy chain (e.g. client, proxy1, proxy2) correctly isolates rate limits to the originating client.
         """
+        from clinical_workflow import forwarded_client
         import session_store
         with tempfile.TemporaryDirectory() as folder:
             path = os.path.join(folder, 'sessions.db')
             store = session_store.SessionStore(path)
             # Scenario 1: untrusted peer cannot spoof X-Forwarded-For
             # Direct peer is 192.0.2.1, attacker claims to be 10.0.0.1
-            trusted = {'10.200.0.1'}  # Only 10.200.0.1 is trusted
+            trusted = {'10.200.0.1', '10.100.0.1'}
             def resolve_client(peer, forwarded):
-                if forwarded and peer in trusted:
-                    return forwarded.split(',')[0].strip()
-                return peer
+                return forwarded_client(peer, forwarded, trusted)
 
             # An attacker connecting directly from 192.0.2.1 sends varying X-Forwarded-For
             attacker_peer = '192.0.2.1'
@@ -331,17 +330,17 @@ class WorkflowTests(unittest.TestCase):
             # Attacker peer is now blocked
             self.assertTrue(store.blocked(attacker_peer))
 
-            # Scenario 2: trusted proxy forwards genuine client IPs
-            proxy_peer = '10.200.0.1'
+            # Scenario 2: a trusted multi-proxy chain forwards genuine client IPs
+            proxy_peer = '10.100.0.1'
             real_client = '203.0.113.42'
             for _ in range(10):
-                resolved = resolve_client(proxy_peer, f'{real_client}, 10.100.0.1')
+                resolved = resolve_client(proxy_peer, f'{real_client}, 10.200.0.1, 10.100.0.1')
                 self.assertEqual(resolved, real_client)
                 store.failed(resolved)
             # The real client is blocked, but another client through the same proxy is NOT
             self.assertTrue(store.blocked(real_client))
             other_client = '203.0.113.99'
-            other_resolved = resolve_client(proxy_peer, other_client)
+            other_resolved = resolve_client(proxy_peer, f'{other_client}, 10.200.0.1, 10.100.0.1')
             self.assertFalse(store.blocked(other_resolved))
 
 if __name__=='__main__':unittest.main(verbosity=2)

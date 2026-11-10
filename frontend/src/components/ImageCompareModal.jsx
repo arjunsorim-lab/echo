@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { workspaceService } from '../api/workspaceService'
 import MediaPrintPreview from './MediaPrintPreview'
+import UnsavedChangesPrompt from './UnsavedChangesPrompt'
 
 export default function ImageCompareModal({ open, onClose, images = [], mediaRecords = [], patient, visitId, visitDate = '' }) {
   const [selected, setSelected] = useState([])
@@ -10,14 +11,12 @@ export default function ImageCompareModal({ open, onClose, images = [], mediaRec
   const [busy, setBusy] = useState(false)
   const [preview, setPreview] = useState(false)
   const [ready, setReady] = useState(false)
-  // Track whether the in-memory selection differs from what was last saved/loaded
-  const savedRef = useRef({ selected: [], title: '', columns: 2 })
   const [dirty, setDirty] = useState(false)
+  const [pendingClose, setPendingClose] = useState(false)
 
   useEffect(() => {
     let active = true
-    setSelected([]); setTitle(''); setColumns(2); setPreview(false); setReady(false); setDirty(false)
-    savedRef.current = { selected: [], title: '', columns: 2 }
+    setSelected([]); setTitle(''); setColumns(2); setPreview(false); setReady(false); setDirty(false); setPendingClose(false)
     if (open && patient?.id && visitId) {
       setBusy(true)
       workspaceService.getMediaLayout(patient.id, visitId, 'compare').then(result => {
@@ -25,13 +24,12 @@ export default function ImageCompareModal({ open, onClose, images = [], mediaRec
         const layout = result.data
         setReady(true)
         if (layout) {
-          const loaded = layout.placements
+          const loaded = (layout.placements || [])
             .map(id => mediaRecords.find(item => item.id === id && item.status !== 'Archived')?.url)
             .filter(Boolean)
           setSelected(loaded)
           setTitle(layout.title)
           setColumns(layout.columns)
-          savedRef.current = { selected: loaded, title: layout.title, columns: layout.columns }
         }
         setMessage(layout ? 'Saved comparison loaded.' : 'Select images, then save the comparison.')
       }).catch(() => { if (active) setMessage('Unable to load comparison. Close and retry before saving.') })
@@ -47,33 +45,37 @@ export default function ImageCompareModal({ open, onClose, images = [], mediaRec
     : ''
 
   const toggle = url => {
-    setSelected(current => {
-      const next = current.includes(url) ? current.filter(item => item !== url) : [...current, url].slice(-16)
-      setDirty(true)
-      return next
-    })
+    setSelected(current => current.includes(url) ? current.filter(item => item !== url) : [...current, url].slice(-16))
+    setDirty(true)
   }
 
   const handleTitleChange = e => { setTitle(e.target.value); setDirty(true) }
   const handleColumnsChange = e => { setColumns(Number(e.target.value)); setDirty(true) }
 
   const save = async () => {
-    if (!ready || busy) return
+    if (!ready || busy) return false
     setBusy(true)
     try {
       const placements = selected.map(url => mediaRecords.find(item => item.url === url)?.id)
       if (placements.some(id => !id)) throw new Error('Import images to the patient visit before saving.')
       await workspaceService.saveMediaLayout(patient.id, visitId, 'compare', { placements, title, columns })
-      savedRef.current = { selected: [...selected], title, columns }
       setDirty(false)
       setMessage('Comparison saved to this patient visit.')
-    } catch (error) { setMessage(error.response?.data?.detail || error.message || 'Save failed.') }
-    finally { setBusy(false) }
+      return true
+    } catch (error) {
+      setMessage(error.response?.data?.detail || error.message || 'Save failed.')
+      return false
+    } finally { setBusy(false) }
   }
 
-  const handleClose = () => {
-    if (dirty && !window.confirm('You have unsaved changes to this comparison. Close and discard them?')) return
+  const requestClose = () => {
+    if (busy) return
+    if (dirty) { setPendingClose(true); return }
     onClose()
+  }
+
+  const saveAndClose = async () => {
+    if (await save()) onClose()
   }
 
   return (
@@ -83,7 +85,7 @@ export default function ImageCompareModal({ open, onClose, images = [], mediaRec
           <h2 className="mr-auto text-lg font-bold">
             Image comparison — {patientName && <span className="font-normal text-slate-600">{patientName} · </span>}Visit {visitId || '—'} {visitDate && <span className="font-normal text-slate-500 text-sm">({visitDate})</span>}
           </h2>
-          <button className="secondary-button" onClick={handleClose}>Close comparison</button>
+          <button className="secondary-button" onClick={requestClose}>Close comparison</button>
         </div>
         <div className="mb-3 flex flex-wrap gap-3">
           <label>
@@ -141,6 +143,17 @@ export default function ImageCompareModal({ open, onClose, images = [], mediaRec
           onClose={() => setPreview(false)}
         />
       )}
+      <UnsavedChangesPrompt
+        open={pendingClose}
+        title="Unsaved image comparison"
+        message="This comparison has image selections or settings that are not saved to this visit."
+        saveLabel="Save and close"
+        saving={busy}
+        saveDisabled={!ready || !patient?.id || !visitId}
+        onSave={saveAndClose}
+        onDiscard={onClose}
+        onCancel={() => setPendingClose(false)}
+      />
     </div>
   )
 }

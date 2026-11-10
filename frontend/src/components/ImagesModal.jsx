@@ -599,7 +599,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '', vi
         visitId={visitId}
         visitDate={visitDate}
       />
-      {printImages && <MediaPrintPreview images={printImages} columns={columns} title="Patient images" patient={patient} visitId={visitId} visitDate={visitDate} onClose={() => setPrintImages(null)} />}
+      {printImages && <MediaPrintPreview images={printImages} columns={columns} title="Patient images" patientId={patient?.patient_id} patientName={patientName} visitId={visitId} visitDate={visitDate} onClose={() => setPrintImages(null)} />}
     </div>
   )
 }

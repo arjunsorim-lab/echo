@@ -8,16 +8,22 @@ import { createPortal } from 'react-dom'
  *   images       – array of URL strings (null/undefined slots render as "Unassigned frame")
  *   title        – freeform layout title (e.g. template name)
  *   columns      – grid column count (1–4)
- *   onClose      – callback to dismiss the preview
+ *   rows         – optional rows per printed page; 0/omitted keeps one flowing page
+ *   imageWidth   – optional maximum image width in pixels
+ *   imageHeight  – optional maximum image height in pixels
  *   patientId    – e.g. "TM0012026"
  *   patientName  – formatted display name
  *   visitId      – visit identifier
  *   visitDate    – formatted visit date string
+ *   onClose      – callback to dismiss the preview
  */
 export default function MediaPrintPreview({
-  images,
+  images = [],
   title = 'Selected images',
   columns = 1,
+  rows = 0,
+  imageWidth,
+  imageHeight,
   onClose,
   patientId,
   patientName,
@@ -26,9 +32,27 @@ export default function MediaPrintPreview({
 }) {
   const [loaded, setLoaded] = useState(new Set())
   const [failed, setFailed] = useState(false)
+
+  const safeImages = Array.isArray(images) ? images : []
   const safeColumns = Math.max(1, Math.min(4, Number(columns) || 1))
-  const nonBlank = images.filter(Boolean)
+  const safeRows = Number(rows) > 0 ? Math.max(1, Math.min(6, Number(rows))) : 0
+  const pageSize = safeRows ? safeRows * safeColumns : Math.max(1, safeImages.length)
+  const pages = []
+  for (let start = 0; start < safeImages.length; start += pageSize) {
+    pages.push(safeImages.slice(start, start + pageSize))
+  }
+  if (!pages.length) pages.push([])
+
+  const nonBlank = safeImages.filter(Boolean)
   const allLoaded = !failed && loaded.size === new Set(nonBlank).size && nonBlank.length > 0
+  const imageStyle = {
+    width: '100%',
+    maxWidth: imageWidth ? `${imageWidth}px` : '100%',
+    maxHeight: imageHeight ? `${imageHeight}px` : '220mm',
+    objectFit: 'contain',
+    display: 'block',
+    margin: '0 auto',
+  }
 
   const content = (
     <div
@@ -59,42 +83,46 @@ export default function MediaPrintPreview({
         )}
       </div>
 
-      <article className="clinical-print mx-auto max-w-4xl bg-white p-8">
-        {/* Consistent patient/visit header — always present when identifiers are available */}
-        {(patientId || patientName || visitId) && (
-          <header className="mb-4 border-b border-slate-300 pb-3 text-sm text-slate-700">
-            <div className="flex flex-wrap gap-x-6 gap-y-1">
-              {patientId && <span><strong>Patient ID:</strong> {patientId}</span>}
-              {patientName && <span><strong>Patient:</strong> {patientName}</span>}
-              {visitId && <span><strong>Visit:</strong> {visitId}</span>}
-              {visitDate && <span><strong>Date:</strong> {visitDate}</span>}
-            </div>
-          </header>
-        )}
-
-        <h1 className="mb-4 text-xl font-bold">{title}</h1>
-
-        <div
-          className="grid gap-4"
-          style={{ gridTemplateColumns: `repeat(${safeColumns}, minmax(0, 1fr))` }}
-        >
-          {images.map((url, index) => (
-            <figure key={index} style={{ breakInside: 'avoid' }}>
-              {url ? (
-                <img
-                  src={url}
-                  alt={`Image ${index + 1}`}
-                  style={{ width: '100%', maxHeight: '220mm', objectFit: 'contain' }}
-                  onLoad={() => setLoaded((current) => new Set([...current, url]))}
-                  onError={() => setFailed(true)}
-                />
-              ) : (
-                <p className="border p-4 text-slate-500">Unassigned frame</p>
+      {pages.map((pageImages, pageIndex) => (
+        <article key={pageIndex} className="clinical-print clinical-print-page mx-auto mb-4 max-w-4xl bg-white p-8">
+          {/* Use a div, not a header: the global print stylesheet hides header elements. */}
+          <div className="clinical-print-meta mb-4 border-b border-slate-300 pb-3 text-sm text-slate-700">
+            <div className="mb-2 flex items-start justify-between gap-4">
+              <h1 className="text-xl font-bold text-slate-900">{title}</h1>
+              {pages.length > 1 && (
+                <p className="whitespace-nowrap text-xs font-medium">Page {pageIndex + 1} of {pages.length}</p>
               )}
-            </figure>
-          ))}
-        </div>
-      </article>
+            </div>
+            <dl className="grid grid-cols-1 gap-x-6 gap-y-1 sm:grid-cols-2">
+              <div className="flex gap-2"><dt className="font-semibold">Patient</dt><dd>{patientName || 'Not recorded'}</dd></div>
+              <div className="flex gap-2"><dt className="font-semibold">Patient ID</dt><dd>{patientId || 'Not recorded'}</dd></div>
+              <div className="flex gap-2"><dt className="font-semibold">Visit</dt><dd>{visitId || 'Not recorded'}</dd></div>
+              <div className="flex gap-2"><dt className="font-semibold">Visit date</dt><dd>{visitDate || 'Not recorded'}</dd></div>
+            </dl>
+          </div>
+
+          <div
+            className="grid gap-4"
+            style={{ gridTemplateColumns: `repeat(${safeColumns}, minmax(0, 1fr))` }}
+          >
+            {pageImages.map((url, index) => (
+              <figure key={`${pageIndex}-${index}`} className="clinical-print-frame" style={{ breakInside: 'avoid' }}>
+                {url ? (
+                  <img
+                    src={url}
+                    alt={`Image ${pageIndex * pageSize + index + 1}`}
+                    style={imageStyle}
+                    onLoad={() => setLoaded(current => new Set([...current, url]))}
+                    onError={() => setFailed(true)}
+                  />
+                ) : (
+                  <p className="border p-4 text-slate-500">Unassigned frame</p>
+                )}
+              </figure>
+            ))}
+          </div>
+        </article>
+      ))}
     </div>
   )
 
