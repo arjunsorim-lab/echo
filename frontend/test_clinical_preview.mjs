@@ -7,6 +7,8 @@ import { recalculateDerived } from './src/derivedMeasurements.js'
 
 const root=process.cwd()
 const source=await fs.readFile(path.join(root,'src/pages/FetalEchoReport.jsx'),'utf8')
+const adultSource=await fs.readFile(path.join(root,'src/pages/AdultEchoReport.jsx'),'utf8')
+const pediatricSource=await fs.readFile(path.join(root,'src/pages/PediatricEchoReport.jsx'),'utf8')
 const start=source.indexOf('const initialReport = '),open=source.indexOf('{',start),end=source.indexOf('\n}',open)+2
 let report=vm.runInNewContext('('+source.slice(open,end)+')')
 function fill(node,trail=''){
@@ -37,6 +39,17 @@ assert(!markup.includes('SURYA'));assert(!markup.includes('1.05'))
 assert(markup.indexOf('DUMMY-ONLY')<markup.indexOf('Fetal Echocardiography'))
 assert(markup.indexOf('Fetal Echocardiography')<markup.indexOf('DUMMY DATA'))
 assert(markup.includes('Dummy imaging-quality comment'));assert(markup.includes('Final impression'))
+for (const [name, pageSource] of [['Adult', adultSource], ['Paediatric', pediatricSource], ['Fetal', source]]) {
+  const seedMatch = pageSource.match(/const initialReport = (\{[\s\S]*?^\})/m)
+  assert(seedMatch, `${name} report seed exists`)
+  const seed = vm.runInNewContext(`(${seedMatch[1].replaceAll('defaultFinalImpression', "''").replaceAll('defaultReferralLetter', "''")})`)
+  assert.equal(seed.impression?.final_impression || '', '', `${name} report starts without a generated impression`)
+  const clinicalSeedText = JSON.stringify({ echo_details: seed.echo_details, biometry: seed.biometry, doppler: seed.doppler, m_mode_measurement: seed.m_mode_measurement, doppler_measurement: seed.doppler_measurement })
+  assert(!/Dextrocardia|Concordant|Normal|Intact|Good|None|\"(?:[0-9]+(?:\\.[0-9]+)?)(?: mm| m\/sec| bpm|%)?\"/.test(clinicalSeedText), `${name} report starts without sample findings or measurements`)
+}
+for (const pageSource of [adultSource, pediatricSource, source]) {
+  assert(!/Mr\. Ramesh Pandey|Master Reyansh Hegde|Mrs\. SURYA B|PAT000102|TM000060|TM000099|137 bpm|10\.2|10\.7|0\.9 m\/sec|NORMAL LV AND RV CONTRACTILITY|NO VALVAR REGURGITATION/.test(pageSource), 'report source has no fabricated patient or clinical fallback')
+}
 const assets=(await fs.readdir(path.join(root,'dist/assets'))).filter(f=>f.endsWith('.css'))
 const styles=(await Promise.all(assets.map(f=>fs.readFile(path.join(root,'dist/assets',f),'utf8')))).join('\n')
 const staticMarkup=markup.replace('<button class="primary-button">Print / Save PDF</button>','<button class="primary-button" onclick="window.print()">Print / Save PDF</button>').replace('<button class="secondary-button">Close preview</button>','<a class="secondary-button" href="/dashboard">Open application</a>')

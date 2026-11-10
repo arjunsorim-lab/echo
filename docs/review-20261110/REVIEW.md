@@ -13,8 +13,8 @@ Source traceability uses the existing corrected backlog in `outputs/transcript-r
 | Registration and identity | Implemented and verified for required fields, duplicate ID and five locked fields | Backend integration tests; browser registration and search. Broader demographic validation and accessibility need further review. |
 | Visits and routing | Implemented and verified for selected scan type, retry IDs and visit-linked saving | Isolated API tests; browser new fetal visit and second adult visit with separate referrals. |
 | Referral records | Basic and extended payload round-trip implemented | Backend create/fetch tests; referral preview uses the visit value. Every form permutation is not browser-tested. |
-| Fetal reports | Implemented with corrections in this review | Draft save, profile gate, Save & Next, reload, entered findings, preview, audit and completion exercised with synthetic records. Final clinical field ordering is pending. |
-| Adult/Paediatric reports | Shared workflow verified; clinical adaptation partial | Backend save tests; browser completion/reload/preview for both. All measurement controls were not exhaustively exercised. |
+| Fetal reports | Workflow safeguards verified; clinical template remains pending review | Draft save, profile gate, Save & Next, reload, entered findings, preview, audit and completion exercised with synthetic records. Fabricated preview defaults were removed in follow-up. Final clinical field ordering and print acceptance are pending. |
+| Adult/Paediatric reports | Shared workflow verified; clinical adaptation partial | Backend save tests; browser completion/reload/preview smoke checks for both. Fabricated preview defaults were removed in follow-up. All measurement controls and final layouts were not exhaustively exercised. |
 | Measurements | Fabricated fallbacks removed | Tests verify absent data stays unavailable and manual Z-scores remain stored. Explorer mappings cover a subset; clinical units/source coverage needs approval. Historical narratives were not converted into measurements. |
 | Calculations | Pending Clinical Validation | No formulas configured. Identified outputs stay unavailable/read-only; manual GA/Z-score entry is separate. |
 | Audit/completion | Implemented and verified for cumulative L1/L2/L3 actions and locks | API permission and destructive-operation tests; L1 entry, L2 audit reload, L3 confirmation/cancellation and completion reload in browser. Audit invalidation/correction policy unresolved. |
@@ -24,6 +24,17 @@ Source traceability uses the existing corrected backlog in `outputs/transcript-r
 | AI/CRM | Not implemented as clinical workflows | Routes still redirect to Dashboard; source components are placeholders. AI/CRM expansion is outside confirmed meeting scope. |
 
 ## B Changes completed
+
+### Follow-up correction after the initial review
+
+A second source audit found that legacy report templates still contained sample patient identities, prefilled normal findings, invented biometry/Doppler values, stock normal conclusions, clinician credentials and date fallbacks. The first review's statement that the final report contained only entered values was too broad. The current shared preview already omits blank report fields, but the report seed data and older print components could still introduce unsupported values. This follow-up removed those defaults across Fetal, Adult and Paediatric reports, including the normal-scan seed values; the explicit “Fill Normal Scan” action remains a deliberate user action. Empty fields now remain blank in the preview, and unprovided identity, date, credentials, disclaimer and registration details do not get substituted.
+
+Added a regression check that inspects all three initial report objects and rejects the known fabricated patient and clinical fallback content. This protects the current data paths, but does not establish clinical acceptance of the report layout.
+
+- Backend suite after the media ownership fix: 8 tests passed.
+- Frontend build after preview/default cleanup: passed; Vite still reports the existing large-chunk warning.
+- Frontend tests after preview/default cleanup: 6 tests and the sample preview assertions passed.
+- No browser-based print/PDF pagination test was run for this follow-up.
 
 - Draft saves retain incomplete profile information. Progression and completion apply required fields separately. Abnormal descriptions reject whitespace, while Not visualized remains optional.
 - Partial historical report objects merge with blank template shapes rather than crashing or gaining sample values. New adult/paediatric studies no longer inherit example measurements/normal conclusions. Query-string navigation no longer fills normal findings automatically.

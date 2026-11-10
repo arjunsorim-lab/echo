@@ -54,38 +54,38 @@ const initialReport = {
   echo_details: {
     heart_rate: '',
     cardiac_position: '',
-    pulmonary_venous_connection: 'Normal',
+    pulmonary_venous_connection: '',
     interatrial_septum: '',
-    tricuspid_valve: 'Normal',
+    tricuspid_valve: '',
     tricuspid_annulus: '',
-    tr: 'None',
+    tr: '',
     tr_pg: '',
-    mitral_valve: 'Normal',
+    mitral_valve: '',
     mitral_annulus: '',
-    mr: 'None',
-    right_ventricle: 'Normal',
-    right_ventricle_contractility: 'Good',
-    left_ventricle: 'Normal',
-    left_ventricle_contractility: 'Good',
+    mr: '',
+    right_ventricle: '',
+    right_ventricle_contractility: '',
+    left_ventricle: '',
+    left_ventricle_contractility: '',
     interventricular_septum: '',
-    great_artery_relationship: 'Normal',
-    aortic_valve: 'Normal',
-    ar: 'None',
-    as: 'None',
-    aorta: 'Normal',
+    great_artery_relationship: '',
+    aortic_valve: '',
+    ar: '',
+    as: '',
+    aorta: '',
     sinus: '',
     stj: '',
     ascending_aorta: '',
-    coronaries: 'Normal',
-    aortic_arch_side: 'Lt',
-    aortic_arch: 'normal',
-    pulmonary_valve: 'Normal',
+    coronaries: '',
+    aortic_arch_side: '',
+    aortic_arch: '',
+    pulmonary_valve: '',
     pulmonary_annulus: '',
     pr_enabled: false,
     pr: '',
     ps_enabled: false,
     ps: '',
-    main_pulmonary_artery: 'Normal',
+    main_pulmonary_artery: '',
     main_pulmonary_artery_mm: '',
     branch_pulmonary_artery: '',
     stenosis_enabled: false,
@@ -124,16 +124,16 @@ const initialReport = {
       tricuspid_e_a: '',
     },
     lv_tdi: {
-      annulus_e: '9',
-      annulus_a: '8',
-      annulus_s: '7',
+      annulus_e: '',
+      annulus_a: '',
+      annulus_s: '',
       annulus_e_e: '',
-      annulus_tdimpi: '6',
-      lateral_wall_e: '7',
-      lateral_wall_a: '6',
-      lateral_wall_s: '5',
+      annulus_tdimpi: '',
+      lateral_wall_e: '',
+      lateral_wall_a: '',
+      lateral_wall_s: '',
       lateral_wall_e_e: '',
-      lateral_wall_tdimpi: '4',
+      lateral_wall_tdimpi: '',
     },
     rv_tdi: {
       annulus_e: '',
@@ -757,10 +757,10 @@ function EchoDetailsTab({ report, updateReport, onToggleNormalComments, isNormal
             </div>
 
             <div className="space-y-3">
-              <ComboField label="Atrial situs" value={echo.atrial_situs || 'Normal'} onChange={(value) => updateReport(['echo_details', 'atrial_situs'], value)} withPlus />
-              <ComboField label="Systemic venous connection" value={echo.systemic_venous_connection || 'Normal'} onChange={(value) => updateReport(['echo_details', 'systemic_venous_connection'], value)} withPlus />
-              <ComboField label="Atria" value={echo.atria || 'Normal'} onChange={(value) => updateReport(['echo_details', 'atria'], value)} withPlus />
-              <ComboField label="Atrio-ventricular connection" value={echo.atrio_ventricular_connection || 'Normal.'} onChange={(value) => updateReport(['echo_details', 'atrio_ventricular_connection'], value)} withPlus />
+              <ComboField label="Atrial situs" value={echo.atrial_situs} onChange={(value) => updateReport(['echo_details', 'atrial_situs'], value)} withPlus />
+              <ComboField label="Systemic venous connection" value={echo.systemic_venous_connection} onChange={(value) => updateReport(['echo_details', 'systemic_venous_connection'], value)} withPlus />
+              <ComboField label="Atria" value={echo.atria} onChange={(value) => updateReport(['echo_details', 'atria'], value)} withPlus />
+              <ComboField label="Atrio-ventricular connection" value={echo.atrio_ventricular_connection} onChange={(value) => updateReport(['echo_details', 'atrio_ventricular_connection'], value)} withPlus />
               <ComboField label="Contractility" value={echo.right_ventricle_contractility} onChange={(value) => updateReport(['echo_details', 'right_ventricle_contractility'], value)} withPlus />
               <ComboField label="Contractility" value={echo.left_ventricle_contractility} onChange={(value) => updateReport(['echo_details', 'left_ventricle_contractility'], value)} withPlus />
               <ComboField label="Ventriculo-arterial connection" value={echo.ventriculo_arterial_connection || ''} onChange={(value) => updateReport(['echo_details', 'ventriculo_arterial_connection'], value)} withPlus />
@@ -1117,30 +1117,28 @@ function getDoctorProfile(consultantName) {
     if (raw) {
       const parsed = JSON.parse(raw)
       return {
-        name: consultantName || parsed.name || 'DR C.SHANTHI',
-        degrees: parsed.degree || 'MBBS, DCH, DNB(PED) FNB(PED CARDIO)',
-        signatureName: parsed.name ? parsed.name.replace(/^Dr\.?\s*/i, '') : 'C. Shanthi',
-        registrationNo: parsed.registration_no || 'PNA / 10047 / 2024.',
+        name: consultantName || parsed.name || '',
+        degrees: parsed.degree || '',
+        registrationNo: parsed.registration_no || '',
       }
     }
   } catch (e) {
     console.error('Error fetching doctor profile', e)
   }
   return {
-    name: consultantName || 'DR C.SHANTHI',
-    degrees: 'MBBS, DCH, DNB(PED) FNB(PED CARDIO)',
-    signatureName: 'C. Shanthi',
-    registrationNo: 'PNA / 10047 / 2024.',
+    name: consultantName || '',
+    degrees: '',
+    registrationNo: '',
   }
 }
 
 function PatientHeaderTable({ patient, visitId, visitDate }) {
-  const patientName = getPatientName(patient) || 'Master Reyansh Hegde'
-  const ageSex = `${patient?.age || '16'} Years / ${patient?.gender || 'M'}`
-  const patientId = patient?.patient_id || 'TM000099'
-  const visitNo = visitId || '1'
-  const refBy = patient?.family_doctor || patient?.referral_doctor || 'Dr. Sunita Kulkarni'
-  const formattedDate = formatDate(visitDate || new Date())
+  const patientName = getPatientName(patient) || '—'
+  const ageSex = [patient?.age ? `${patient.age} Years` : '', patient?.gender || ''].filter(Boolean).join(' / ') || '—'
+  const patientId = patient?.patient_id || '—'
+  const visitNo = visitId || '—'
+  const refBy = patient?.family_doctor || patient?.referral_doctor || '—'
+  const formattedDate = formatDate(visitDate) || '—'
 
   return (
     <table className="document-patient-table mb-4">
@@ -1174,13 +1172,14 @@ function ReportPreviewModal({ report, updateReport, patient, visitId, onClose })
 
   const doctor = getDoctorProfile(report.impression?.primary_consultant)
   const ed = report.echo_details || {}
+  const show = (value) => value === null || value === undefined || value === '' ? '—' : value
 
-  const patientName = getPatientName(patient) || 'Master Reyansh Hegde'
-  const ageSex = `${patient?.age || '16'} Years / ${patient?.gender || 'M'}`
-  const patientId = patient?.patient_id || 'TM000099'
-  const visitNo = visitId || '1'
-  const refBy = patient?.family_doctor || patient?.referral_doctor || 'Dr. Sunita Kulkarni'
-  const formattedDate = formatDate(patient?.visit_date || new Date())
+  const patientName = getPatientName(patient) || '—'
+  const ageSex = [patient?.age ? `${patient.age} Years` : '', patient?.gender || ''].filter(Boolean).join(' / ') || '—'
+  const patientId = patient?.patient_id || '—'
+  const visitNo = visitId || '—'
+  const refBy = patient?.family_doctor || patient?.referral_doctor || '—'
+  const formattedDate = formatDate(patient?.visit_date) || '—'
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/90 backdrop-blur-sm preview-modal-backdrop">
@@ -1297,31 +1296,31 @@ function ReportPreviewModal({ report, updateReport, patient, visitId, onClose })
               <tbody>
                 <tr>
                   <td className="row-label">Atrial Situs</td>
-                  <td>{ed.atrial_situs || 'Solitus'}</td>
+                  <td>{show(ed.atrial_situs)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Cardiac Position</td>
-                  <td>{ed.cardiac_position || 'Levocardia'}</td>
+                  <td>{show(ed.cardiac_position)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Systemic Venous Connection</td>
-                  <td>{ed.systemic_venous_connection || 'Normal'}</td>
+                  <td>{show(ed.systemic_venous_connection)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Pulmonary Venous Connection</td>
-                  <td>{ed.pulmonary_venous_connection || 'Normal'}</td>
+                  <td>{show(ed.pulmonary_venous_connection)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Atria</td>
-                  <td>{ed.atria || 'Normal'}</td>
+                  <td>{show(ed.atria)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Interatrial Septum</td>
-                  <td>{ed.interatrial_septum || 'Intact'}</td>
+                  <td>{show(ed.interatrial_septum)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Atrio-ventricular Connection</td>
-                  <td>{ed.atrio_ventricular_connection || 'Concordant'}</td>
+                  <td>{show(ed.atrio_ventricular_connection)}</td>
                 </tr>
               </tbody>
             </table>
@@ -1332,23 +1331,23 @@ function ReportPreviewModal({ report, updateReport, patient, visitId, onClose })
               <tbody>
                 <tr>
                   <td className="row-label">Tricuspid Valve</td>
-                  <td>{ed.tricuspid_valve || 'Normal'}{ed.tr ? ` | TR: ${ed.tr}` : ' | TR: None'}</td>
+                  <td>{show(ed.tricuspid_valve)}{ed.tr ? ` | TR: ${ed.tr}` : ''}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Mitral Valve</td>
-                  <td>{ed.mitral_valve || 'Normal'}{ed.mr ? ` | MR: ${ed.mr}` : ' | MR: None'}</td>
+                  <td>{show(ed.mitral_valve)}{ed.mr ? ` | MR: ${ed.mr}` : ''}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Right Ventricle</td>
-                  <td>Size: {ed.right_ventricle || 'Normal'} | Contractility: {ed.right_ventricle_contractility || 'Good'}</td>
+                  <td>{[ed.right_ventricle, ed.right_ventricle_contractility].filter(Boolean).join(' | ') || '—'}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Left Ventricle</td>
-                  <td>Size: {ed.left_ventricle || 'Normal'} | Contractility: {ed.left_ventricle_contractility || 'Good'}</td>
+                  <td>{[ed.left_ventricle, ed.left_ventricle_contractility].filter(Boolean).join(' | ') || '—'}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Interventricular Septum</td>
-                  <td>{ed.interventricular_septum || 'Intact'}</td>
+                  <td>{show(ed.interventricular_septum)}</td>
                 </tr>
               </tbody>
             </table>
@@ -1359,39 +1358,39 @@ function ReportPreviewModal({ report, updateReport, patient, visitId, onClose })
               <tbody>
                 <tr>
                   <td className="row-label">VA Connection</td>
-                  <td>Concordant</td>
+                  <td>{show(ed.ventriculo_arterial_connection)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Great Artery Relationship</td>
-                  <td>{ed.great_artery_relationship || 'Normal'}</td>
+                  <td>{show(ed.great_artery_relationship)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Aortic Valve</td>
-                  <td>{ed.aortic_valve || 'Normal'}{ed.ar ? ` | AR: ${ed.ar}` : ''}{ed.as ? ` | AS: ${ed.as}` : ''}</td>
+                  <td>{[ed.aortic_valve, ed.ar && `AR: ${ed.ar}`, ed.as && `AS: ${ed.as}`].filter(Boolean).join(' | ') || '—'}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Aorta</td>
-                  <td>{ed.aorta || 'Normal'}</td>
+                  <td>{show(ed.aorta)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Coronaries</td>
-                  <td>{ed.coronaries || 'Normal'}</td>
+                  <td>{show(ed.coronaries)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Aortic Arch</td>
-                  <td>Pos: {ed.aortic_arch_side || 'Left'} | Size: {ed.aortic_arch || 'Normal'}</td>
+                  <td>{[ed.aortic_arch_side, ed.aortic_arch].filter(Boolean).join(' | ') || '—'}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Pulmonary Valve</td>
-                  <td>{ed.pulmonary_valve || 'Normal'}{ed.pr ? ` | PR: ${ed.pr}` : ''}{ed.ps ? ` | PS: ${ed.ps}` : ''}</td>
+                  <td>{[ed.pulmonary_valve, ed.pr && `PR: ${ed.pr}`, ed.ps && `PS: ${ed.ps}`].filter(Boolean).join(' | ') || '—'}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Main Pulmonary Artery</td>
-                  <td>{ed.main_pulmonary_artery || 'Normal'}</td>
+                  <td>{show(ed.main_pulmonary_artery)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Branch Pulmonary Artery</td>
-                  <td>{ed.branch_pulmonary_artery || 'Confluent, good sized'}</td>
+                  <td>{show(ed.branch_pulmonary_artery)}</td>
                 </tr>
               </tbody>
             </table>
@@ -1410,24 +1409,24 @@ function ReportPreviewModal({ report, updateReport, patient, visitId, onClose })
               <tbody>
                 <tr>
                   <td className="row-label">Interventricular Septum (IVS)</td>
-                  <td>{report.biometry?.ivsd || '7.9 mm'}</td>
-                  <td>{report.biometry?.ivss || '1.1 mm'}</td>
+                  <td>{report.biometry?.ivsd ? `${report.biometry.ivsd} mm` : '—'}</td>
+                  <td>{report.biometry?.ivss ? `${report.biometry.ivss} mm` : '—'}</td>
                   <td rowSpan={3} className="align-middle">
                     <div className="space-y-1">
-                      <div><strong>LVFS:</strong> <span className="report-ratio-badge">{report.biometry?.lvfs || '33.33%'}</span></div>
-                      <div><strong>LVEF:</strong> <span className="report-ratio-badge">{report.biometry?.lvef || '61.36%'}</span></div>
+                      <div><strong>LVFS:</strong> <span className="report-ratio-badge">{show(report.biometry?.lvfs)}</span></div>
+                      <div><strong>LVEF:</strong> <span className="report-ratio-badge">{show(report.biometry?.lvef)}</span></div>
                     </div>
                   </td>
                 </tr>
                 <tr>
                   <td className="row-label">LV Internal Dimension (LVID)</td>
-                  <td>{report.biometry?.lvidd || '5.5 mm'}</td>
-                  <td>{report.biometry?.lvids || '3.7 mm'}</td>
+                  <td>{report.biometry?.lvidd ? `${report.biometry.lvidd} mm` : '—'}</td>
+                  <td>{report.biometry?.lvids ? `${report.biometry.lvids} mm` : '—'}</td>
                 </tr>
                 <tr>
                   <td className="row-label">LV Posterior Wall (LVPW)</td>
-                  <td>{report.biometry?.lvpwd || '1.2 mm'}</td>
-                  <td>{report.biometry?.lvpws || '1.5 mm'}</td>
+                  <td>{report.biometry?.lvpwd ? `${report.biometry.lvpwd} mm` : '—'}</td>
+                  <td>{report.biometry?.lvpws ? `${report.biometry.lvpws} mm` : '—'}</td>
                 </tr>
               </tbody>
             </table>
@@ -1446,15 +1445,15 @@ function ReportPreviewModal({ report, updateReport, patient, visitId, onClose })
               <tbody>
                 <tr>
                   <td className="row-label">Mitral Valve</td>
-                  <td>Normal Inflow</td>
-                  <td>E: {report.doppler?.valve_flow?.mitral_e || '0.9 m/sec'} | A: {report.doppler?.valve_flow?.mitral_a || '0.7 m/sec'}</td>
-                  <td>E/A: {report.doppler?.valve_flow?.mitral_e_a || '1.29'}</td>
+                  <td>{show(report.doppler?.valve_flow?.mitral_flow_pattern)}</td>
+                  <td>E: {show(report.doppler?.valve_flow?.mitral_e)} | A: {show(report.doppler?.valve_flow?.mitral_a)}</td>
+                  <td>{show(report.doppler?.valve_flow?.mitral_e_a)}</td>
                 </tr>
                 <tr>
                   <td className="row-label">Tricuspid Valve</td>
-                  <td>Normal Inflow</td>
-                  <td>E: {report.doppler?.valve_flow?.tricuspid_e || '0.7 m/sec'} | A: {report.doppler?.valve_flow?.tricuspid_a || '0.5 m/sec'}</td>
-                  <td>E/A: {report.doppler?.valve_flow?.tricuspid_e_a || '1.4'}</td>
+                  <td>{show(report.doppler?.valve_flow?.tricuspid_flow_pattern)}</td>
+                  <td>E: {show(report.doppler?.valve_flow?.tricuspid_e)} | A: {show(report.doppler?.valve_flow?.tricuspid_a)}</td>
+                  <td>{show(report.doppler?.valve_flow?.tricuspid_e_a)}</td>
                 </tr>
               </tbody>
             </table>
@@ -1462,41 +1461,23 @@ function ReportPreviewModal({ report, updateReport, patient, visitId, onClose })
             {/* Final Impression */}
             <div className="report-section-banner avoid-break">Final Impression</div>
             <div className="avoid-break my-2 p-3 bg-slate-50 border border-slate-200 rounded text-xs leading-relaxed text-black font-semibold whitespace-pre-line">
-              {report.impression?.final_impression ||
-                'Situs solitus, Levocardia\nNormal segmental anatomy\nNo shunts\nNormal valvar function\nNormal biventricular function; no LVH\nNo ventricular hypertrophy/ PAH / Effusion'}
+              {show(report.impression?.final_impression)}
             </div>
 
             {/* Doctor Signature Block */}
             <div className="mt-6 mb-3 avoid-break">
-              <div className="h-10 flex items-end">
-                <span
-                  style={{
-                    fontFamily: "'Brush Script MT', 'Dancing Script', 'Segoe Script', cursive, sans-serif",
-                    fontSize: '1.9rem',
-                    color: '#08145f',
-                    display: 'inline-block',
-                    transform: 'rotate(-2deg)',
-                  }}
-                >
-                  {doctor.signatureName}
-                </span>
-              </div>
+              {doctor.name && <div className="h-10 flex items-end text-sm font-semibold">{doctor.name}</div>}
               <div className="font-bold text-xs uppercase text-black mt-1">
                 {doctor.name} {doctor.degrees}
               </div>
             </div>
 
             {/* Disclaimer & PCPNDT */}
-            <div className="mt-4 pt-3 border-t border-slate-300 text-[11px] leading-relaxed text-slate-800 avoid-break">
+            {(report.impression?.disclaimer_comments || doctor.registrationNo) && <div className="mt-4 pt-3 border-t border-slate-300 text-[11px] leading-relaxed text-slate-800 avoid-break">
               <div className="font-bold text-black mb-1">Disclaimer</div>
-              <p className="mb-2 text-justify">
-                {report.impression?.disclaimer_comments ||
-                  'Limitation of Pediatric Echocardiography is to be understood as intention of Pediatric Echo is to rule out major cardiac defects and minor or evolving anomalies may not be detected.'}
-              </p>
-              <div className="font-semibold text-black">
-                PCPNDT registration number {doctor.registrationNo}
-              </div>
-            </div>
+              {report.impression?.disclaimer_comments && <p className="mb-2 text-justify">{report.impression.disclaimer_comments}</p>}
+              {doctor.registrationNo && <div className="font-semibold text-black">PCPNDT registration number {doctor.registrationNo}</div>}
+            </div>}
           </div>
         </div>
       </div>

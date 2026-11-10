@@ -235,7 +235,7 @@ const initialReport = {
     system_impression: '',
     final_impression: '',
     report_completed: false,
-    disclaimer_comments: 'Limitation of Fetal Echocardiography is to be understood as intention of Fetal Echo is to rule out major cardiac defects and minor or evolving anomalies may not be detected. Sometimes it may not be possible to see certian types of holes or valve problems in fetal life. In addition heart rate/ rhythm problems or heart muscle diseases usually evolve during late gestation when second trimester scan may not show such abnormality.',
+    disclaimer_comments: '',
     internal_comments: '',
     report_signed_by_l: '',
     report_signed_by_r: '',
@@ -1546,39 +1546,31 @@ function getDoctorProfile(consultantName) {
     if (saved) {
       const parsed = JSON.parse(saved)
       return {
-        name: consultantName || parsed.name || 'DR C.SHANTHI',
-        degrees: parsed.degrees || 'MBBS, DCH, DNB(PED) FNB(PED CARDIO)',
-        signatureName: parsed.name ? parsed.name.replace(/^Dr\.?\s*/i, '') : 'C. Shanthi',
-        registrationNo: parsed.registrationNo || 'PNA / 10047 / 2024.',
+        name: consultantName || parsed.name || '',
+        degrees: parsed.degrees || '',
+        registrationNo: parsed.registrationNo || '',
       }
     }
     const user = localStorage.getItem('echoai_user') || sessionStorage.getItem('echoai_user')
     if (user) {
       const parsed = JSON.parse(user)
       return {
-        name: consultantName || parsed.name || 'DR C.SHANTHI',
-        degrees: 'MBBS, DCH, DNB(PED) FNB(PED CARDIO)',
-        signatureName: parsed.name ? parsed.name.replace(/^Dr\.?\s*/i, '') : 'C. Shanthi',
-        registrationNo: 'PNA / 10047 / 2024.',
+        name: consultantName || parsed.name || '',
+        degrees: '',
+        registrationNo: '',
       }
     }
-  } catch (e) {
-    console.error('Error fetching doctor profile', e)
-  }
-  return {
-    name: consultantName || 'DR C.SHANTHI',
-    degrees: 'MBBS, DCH, DNB(PED) FNB(PED CARDIO)',
-    signatureName: 'C. Shanthi',
-    registrationNo: 'PNA / 10047 / 2024.',
-  }
+  } catch { /* Render only the report's explicitly entered consultant data. */ }
+  return { name: consultantName || '', degrees: '', registrationNo: '' }
 }
 
 function PatientHeaderTable({ patient, visitId, visitDate }) {
-  const patientName = getPatientName(patient) || 'Mrs. SURYA B'
-  const ageSex = `${patient?.age ? `${patient.age} Years` : '28 Years'} / ${patient?.gender || 'Female'}`
-  const patientId = patient?.patient_id || 'TM334'
-  const visitNo = visitId || '1'
-  const refBy = patient?.family_doctor || patient?.referral_doctor || 'Dr. SARALA GOVINDARAJAN'
+  const patientName = getPatientName(patient) || '—'
+  const age = patient?.age ? `${patient.age} Years` : ''
+  const ageSex = [age, patient?.gender].filter(Boolean).join(' / ') || '—'
+  const patientId = patient?.patient_id || '—'
+  const visitNo = visitId || '—'
+  const refBy = patient?.family_doctor || patient?.referral_doctor || '—'
 
   return (
     <table className="document-patient-table">
@@ -1615,17 +1607,14 @@ function FetalDocumentPages({ report, patient, visitId }) {
   const imp = report.impression || {}
   const doctor = getDoctorProfile(imp.primary_consultant)
 
-  const patientName = getPatientName(patient) || 'Mrs. SURYA B'
-  const ageId = `${patient?.age ? `${patient.age} Y` : '28 Y'} / ${patient?.patient_id || 'PAT000102'}`
-  const refBy = patient?.family_doctor || patient?.referral_doctor || 'Dr. SARALA GOVINDARAJAN'
-
-  const mv = parseFloat(bio.mitral_valve || 0)
-  const tv = parseFloat(bio.tricuspid_valve || 0)
-  const ratio = (mv > 0 && tv > 0) ? (tv / mv).toFixed(2) : '1.05'
-
-  const gaText = `${report.ga_weeks || '24'} Weeks${report.ga_days && report.ga_days !== '0' ? ` ${report.ga_days} Days` : ''}`
-  const indicationText = report.indication || 'Routine referral'
-  const qualityText = report.echo_details?.general?.quality || report.quality || 'Optimal'
+  const patientName = getPatientName(patient) || '—'
+  const ageId = [patient?.age ? `${patient.age} Y` : '', patient?.patient_id || ''].filter(Boolean).join(' / ') || '—'
+  const refBy = patient?.family_doctor || patient?.referral_doctor || '—'
+  const show = (value) => value === null || value === undefined || value === '' ? '—' : value
+  const gaParts = [report.ga_weeks ? `${report.ga_weeks} Weeks` : '', report.ga_days && report.ga_days !== '0' ? `${report.ga_days} Days` : ''].filter(Boolean)
+  const gaText = gaParts.join(' ') || '—'
+  const indicationText = show(report.indication)
+  const qualityText = show(report.echo_details?.general?.quality || report.quality)
 
   return (
     <div className="report-template-sheet printable-report">
@@ -1656,19 +1645,19 @@ function FetalDocumentPages({ report, patient, visitId }) {
         <tbody>
           <tr>
             <td className="row-label">Abdominal Situs</td>
-            <td>{gen.abdominal_situs || 'Solitus'}</td>
+            <td>{show(gen.abdominal_situs)}</td>
           </tr>
           <tr>
             <td className="row-label">Cardiac Situs</td>
-            <td>{gen.cardiac_views || 'Solitus'}</td>
+            <td>{show(gen.cardiac_views)}</td>
           </tr>
           <tr>
             <td className="row-label">Cardiac Position</td>
-            <td>{gen.apex || 'Levocardia'}</td>
+            <td>{show(gen.apex)}</td>
           </tr>
           <tr>
             <td className="row-label">Cardiac Axis</td>
-            <td>{gen.cardiac_axis || 'Normal'}</td>
+            <td>{show(gen.cardiac_axis)}</td>
           </tr>
         </tbody>
       </table>
@@ -1679,27 +1668,27 @@ function FetalDocumentPages({ report, patient, visitId }) {
         <tbody>
           <tr>
             <td className="row-label">Systemic Vein</td>
-            <td>{oth.systemic_veins || 'Normal'}</td>
+            <td>{show(oth.systemic_veins)}</td>
           </tr>
           <tr>
             <td className="row-label">Pulmonary Veins</td>
-            <td>{oth.pulmonary_veins || 'Normal (2 to LA)'}</td>
+            <td>{show(oth.pulmonary_veins)}</td>
           </tr>
           <tr>
             <td className="sub-label">Left Atrium</td>
-            <td>{fc.atria || 'Normal'}</td>
+            <td>{show(fc.left_atrium || fc.atria)}</td>
           </tr>
           <tr>
             <td className="sub-label">Right Atrium</td>
-            <td>{fc.atria || 'Normal'}</td>
+            <td>{show(fc.right_atrium || fc.atria)}</td>
           </tr>
           <tr>
             <td className="row-label">Inter-atrial Septum</td>
-            <td>{fc.interatrial_septum || 'Normal (Foramen Ovale in mid third of septum, flap valve in LA)'}</td>
+            <td>{show(fc.interatrial_septum)}</td>
           </tr>
           <tr>
             <td className="sub-label">Foramen-ovale flap</td>
-            <td>{fc.foramen_ovale || 'Normal flow (Right to Left )'}</td>
+            <td>{show(fc.foramen_ovale)}</td>
           </tr>
         </tbody>
       </table>
@@ -1710,31 +1699,31 @@ function FetalDocumentPages({ report, patient, visitId }) {
         <tbody>
           <tr>
             <td className="row-label">AV Junction/Crux</td>
-            <td>{fc.atrioventricular_junction || 'Concordant, normal av connection'}</td>
+            <td>{show(fc.atrioventricular_junction)}</td>
           </tr>
           <tr>
             <td className="row-label">AV Connection</td>
-            <td>Concordant</td>
+            <td>{show(fc.atrioventricular_connection)}</td>
           </tr>
           <tr>
             <td className="sub-label">Tricuspid Valve</td>
-            <td>Size: Norm | Leaflets: Norm{fc.atrioventricular_regurgitation ? ` | Regurgitation: ${fc.atrioventricular_regurgitation}` : ' | Regurgitation: None'}</td>
+            <td>{show(fc.tricuspid_valve || fc.atrioventricular_regurgitation)}</td>
           </tr>
           <tr>
             <td className="sub-label">Mitral Valve</td>
-            <td>Size: Norm | Leaflets: Norm{fc.atrioventricular_regurgitation ? ` | Regurgitation: ${fc.atrioventricular_regurgitation}` : ' | Regurgitation: None'}</td>
+            <td>{show(fc.mitral_valve || fc.atrioventricular_regurgitation)}</td>
           </tr>
           <tr>
             <td className="row-label">Right Ventricle</td>
-            <td>Size: Norm | Contractility: {fc.ventricles || 'Normal'}</td>
+            <td>{show(fc.right_ventricle || fc.ventricles)}</td>
           </tr>
           <tr>
             <td className="row-label">Left Ventricle</td>
-            <td>Size: Norm | Contractility: {fc.ventricular_function || 'Normal'}</td>
+            <td>{show(fc.left_ventricle || fc.ventricular_function)}</td>
           </tr>
           <tr>
             <td className="row-label">Interventricular Septum</td>
-            <td>{fc.interventricular_septum || 'Intact (well seen)'}</td>
+            <td>{show(fc.interventricular_septum)}</td>
           </tr>
         </tbody>
       </table>
@@ -1745,35 +1734,35 @@ function FetalDocumentPages({ report, patient, visitId }) {
         <tbody>
           <tr>
             <td className="row-label">VA Connection</td>
-            <td>Concordant</td>
+            <td>{show(ot.ventriculoarterial_connection)}</td>
           </tr>
           <tr>
             <td className="row-label">Aortic Valve</td>
-            <td>{ot.outflow_tracts || 'Normal'}</td>
+            <td>{show(ot.outflow_tracts)}</td>
           </tr>
           <tr>
             <td className="row-label">Aorta (Size/Pos)</td>
-            <td>{ot.aortic_arch || 'Normal'} | Pos: Norm</td>
+            <td>{show(ot.aortic_arch)}</td>
           </tr>
           <tr>
             <td className="row-label">Pulmonary Valve</td>
-            <td>{ot.va_valve_regurgitation ? `Regurgitation: ${ot.va_valve_regurgitation}` : 'Normal'}</td>
+            <td>{show(ot.pulmonary_valve || ot.va_valve_regurgitation)}</td>
           </tr>
           <tr>
             <td className="row-label">Main Pulm. Artery</td>
-            <td>Size: Normal | Pos: Norm</td>
+            <td>{show(ot.main_pulmonary_artery)}</td>
           </tr>
           <tr>
             <td className="row-label">Branch Pulm. Art.</td>
-            <td>{ot.branch_pulmonary_artery || 'Confluent, good sized'}</td>
+            <td>{show(ot.branch_pulmonary_artery)}</td>
           </tr>
           <tr>
             <td className="row-label">Aortic Arch</td>
-            <td>Pos: {ot.side_of_arch || 'Normal, left of trachea'} | Size: {ot.aortic_arch || 'Normal'}</td>
+            <td>{show(ot.side_of_arch)}</td>
           </tr>
           <tr>
             <td className="row-label">Ductal Arch</td>
-            <td>{ot.ductus_arteriosus || 'Normal in size and flow'}</td>
+            <td>{show(ot.ductus_arteriosus)}</td>
           </tr>
         </tbody>
       </table>
@@ -1791,30 +1780,30 @@ function FetalDocumentPages({ report, patient, visitId }) {
         <tbody>
           <tr>
             <td>Mitral Valve (LV)</td>
-            <td>{bio.mitral_valve ? `${bio.mitral_valve}` : '10.2'}</td>
+            <td>{show(bio.mitral_valve)}</td>
             <td>{bio.mitral_valve_z || '—'}</td>
           </tr>
           <tr>
             <td>Tricuspid Valve (RV)</td>
-            <td>{bio.tricuspid_valve ? `${bio.tricuspid_valve}` : '10.7'}</td>
+            <td>{show(bio.tricuspid_valve)}</td>
             <td>{bio.tricuspid_valve_z || '—'}</td>
           </tr>
           <tr>
             <td>Aortic Valve</td>
-            <td>{bio.aortic_valve ? `${bio.aortic_valve}` : '6.4'}</td>
+            <td>{show(bio.aortic_valve)}</td>
             <td>{bio.aortic_valve_z || '—'}</td>
           </tr>
           <tr>
             <td>Pulmonary Valve</td>
-            <td>{bio.pulmonary_valve ? `${bio.pulmonary_valve}` : '6.8'}</td>
+            <td>{show(bio.pulmonary_valve)}</td>
             <td>{bio.pulmonary_valve_z || '—'}</td>
           </tr>
           <tr style={{ background: '#f0f7ff' }}>
             <td colSpan={2}>
-              <strong>Calculated RV / LV Ratio</strong> (Normal ~1.0 - 1.1)
+              <strong>RV / LV Ratio</strong>
             </td>
             <td>
-              <span className="report-ratio-badge">{ratio}</span>
+              <span className="report-ratio-badge">{show(bio.rv_lv_ratio)}</span>
             </td>
           </tr>
         </tbody>
@@ -1833,43 +1822,43 @@ function FetalDocumentPages({ report, patient, visitId }) {
         <tbody>
           <tr>
             <td>Tricuspid (TV) Inflow</td>
-            <td>Biphasic</td>
-            <td>{report.doppler?.valves?.tricuspid_peak_velocity || '45 cm/s'}</td>
+            <td>{show(report.doppler?.valves?.tricuspid_flow_pattern)}</td>
+            <td>{show(report.doppler?.valves?.tricuspid_peak_velocity)}</td>
           </tr>
           <tr>
             <td>Mitral (MV) Inflow</td>
-            <td>Biphasic</td>
-            <td>{report.doppler?.valves?.mitral_peak_velocity || '42 cm/s'}</td>
+            <td>{show(report.doppler?.valves?.mitral_flow_pattern)}</td>
+            <td>{show(report.doppler?.valves?.mitral_peak_velocity)}</td>
           </tr>
           <tr>
             <td>LVOT / Aorta</td>
-            <td>Normal</td>
-            <td>{report.doppler?.valves?.aortic_peak_velocity || '65 cm/s'}</td>
+            <td>{show(report.doppler?.valves?.aortic_flow_pattern)}</td>
+            <td>{show(report.doppler?.valves?.aortic_peak_velocity)}</td>
           </tr>
           <tr>
             <td>RVOT / Pulm Artery</td>
-            <td>Normal</td>
-            <td>{report.doppler?.valves?.pulmonary_peak_velocity || '60 cm/s'}</td>
+            <td>{show(report.doppler?.valves?.pulmonary_flow_pattern)}</td>
+            <td>{show(report.doppler?.valves?.pulmonary_peak_velocity)}</td>
           </tr>
           <tr>
             <td>Ductus Arteriosus</td>
-            <td>Normal</td>
-            <td>{report.doppler?.valves?.ductus_arteriosus_peak_velocity || '72 cm/s'}</td>
+            <td>{show(report.doppler?.valves?.ductus_arteriosus_flow_pattern)}</td>
+            <td>{show(report.doppler?.valves?.ductus_arteriosus_peak_velocity)}</td>
           </tr>
           <tr>
             <td>Ductus Venosus</td>
-            <td>Normal</td>
-            <td>{report.doppler?.venous?.ductus_venosus_systolic_peak || '55 cm/s'}</td>
+            <td>{show(report.doppler?.venous?.ductus_venosus_flow_pattern)}</td>
+            <td>{show(report.doppler?.venous?.ductus_venosus_systolic_peak)}</td>
           </tr>
           <tr>
             <td>Pulmonary Venous</td>
-            <td>Normal</td>
-            <td>{report.doppler?.venous?.pulmonary_veins || 'Normal'}</td>
+            <td>{show(report.doppler?.venous?.pulmonary_veins_flow_pattern)}</td>
+            <td>{show(report.doppler?.venous?.pulmonary_veins)}</td>
           </tr>
           <tr>
             <td>Foramen-Ovale Shunt</td>
-            <td>Rt to Lt</td>
-            <td>Normal</td>
+            <td>{show(report.doppler?.venous?.foramen_ovale_flow_pattern)}</td>
+            <td>{show(report.doppler?.venous?.foramen_ovale)}</td>
           </tr>
         </tbody>
       </table>
@@ -1880,11 +1869,11 @@ function FetalDocumentPages({ report, patient, visitId }) {
         <tbody>
           <tr>
             <td className="row-label">Rate</td>
-            <td>{gen.fhr ? `${gen.fhr} bpm` : '137 bpm'} | Normal</td>
+            <td>{gen.fhr ? `${gen.fhr} bpm` : '—'}</td>
           </tr>
           <tr>
             <td className="row-label">Rhythm</td>
-            <td>{gen.rhythm || 'Regular (1:1 AV conduction)'}</td>
+            <td>{show(gen.rhythm)}</td>
           </tr>
         </tbody>
       </table>
@@ -1892,41 +1881,27 @@ function FetalDocumentPages({ report, patient, visitId }) {
       {/* Final Impression */}
       <div className="report-section-banner avoid-break">Final Impression</div>
       <div className="avoid-break my-2 p-3 bg-slate-50 border border-slate-200 rounded text-xs leading-relaxed text-black font-medium whitespace-pre-line">
-        {imp.final_impression ||
-          'NORMAL SITUS AND LEVOCARDIA. NORMAL SEGMENTAL ANATOMY. NO MAJOR ANOMALY DETECTED. NORMAL RATE AND RHYTHM. NORMAL FLOW PATTERN.'}
+        {show(imp.final_impression)}
       </div>
 
       {/* Doctor Signature Block */}
       <div className="mt-6 mb-3 avoid-break">
         <div className="h-10 flex items-end">
-          <span
-            style={{
-              fontFamily: "'Brush Script MT', 'Dancing Script', 'Segoe Script', cursive, sans-serif",
-              fontSize: '1.9rem',
-              color: '#08145f',
-              display: 'inline-block',
-              transform: 'rotate(-2deg)',
-            }}
-          >
-            {doctor.signatureName}
-          </span>
+          {doctor.name && <span className="text-sm font-semibold">{doctor.name}</span>}
         </div>
         <div className="font-bold text-xs uppercase text-black mt-1">
-          {doctor.name} {doctor.degrees}
+          {[doctor.name, doctor.degrees].filter(Boolean).join(' ')}
         </div>
       </div>
 
       {/* Disclaimer & PCPNDT */}
-      <div className="mt-4 pt-2 border-t border-slate-300 text-[10.5px] leading-relaxed text-slate-800 avoid-break">
+      {(imp.disclaimer_comments || doctor.registrationNo) && <div className="mt-4 pt-2 border-t border-slate-300 text-[10.5px] leading-relaxed text-slate-800 avoid-break">
         <div className="font-bold text-black mb-0.5">Disclaimer</div>
         <p className="mb-1 text-justify">
-          {imp.disclaimer_comments ||
-            'Limitation of Fetal Echocardiography is to be understood as intention of Fetal Echo is to rule out major cardiac defects and minor or evolving anomalies may not be detected. Sometimes it may not be possible to see certian types of holes or valve problems in fetal life. In addition heart rate/ rhythm problems or heart muscle diseases usually evolve during late gestation when second trimester scan may not show such abnormality.'}
+          {imp.disclaimer_comments || ''}
         </p>
-        <div className="font-semibold text-black">
-          PCPNDT registration number {doctor.registrationNo}
-        </div>
-      </div>
+        {doctor.registrationNo && <div className="font-semibold text-black">PCPNDT registration number {doctor.registrationNo}</div>}
+      </div>}
     </div>
   )
 }
