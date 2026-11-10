@@ -449,7 +449,7 @@ export default function Dashboard() {
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
-              Latest echo scans with AI analysis, clinical importance and detailed findings
+              Latest recorded echo scans, status and clinical findings
             </p>
           </div>
 
