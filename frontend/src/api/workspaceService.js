@@ -1,6 +1,8 @@
 import api from './axios'
 
 export const workspaceService = {
+  getMediaLayout: async (patientId, visitId, kind) => (await api.get(`/media-layouts/${patientId}/${visitId}/${kind}`)).data,
+  saveMediaLayout: async (patientId, visitId, kind, data) => (await api.put(`/media-layouts/${patientId}/${visitId}/${kind}`, data)).data,
   getSettings: async () => (await api.get('/settings')).data,
   getNextPatientId: async () => (await api.get('/settings/next-patient-id')).data,
   saveSettings: async (data) => (await api.put('/settings', data)).data,
@@ -21,6 +23,4 @@ export const workspaceService = {
   update: async (resource, id, data) => (await api.put(`/resources/${resource}/${id}`, data)).data,
   remove: async (resource, id) => (await api.delete(`/resources/${resource}/${id}`)).data,
   uploadMedia: async (formData) => (await api.post('/media-upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data,
-  sendReportEmail: async (data) => (await api.post('/report-email', data)).data,
-  testDeviceConnection: async (data) => (await api.post('/device-connection-test', data)).data,
 }

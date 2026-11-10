@@ -10,3 +10,12 @@ backend/__pycache__
 backend/venv
 *.pyc
 .DS_Store
+**/*.db
+**/*.db-*
+**/*.sqlite*
+**/db.json
+**/.local-credentials.json
+**/.workflow-users.json*
+**/uploads
+frontend/test-output
+browser-fixture-info.json

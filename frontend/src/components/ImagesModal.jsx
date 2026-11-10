@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { workspaceService } from '../api/workspaceService'
+import MediaPrintPreview from './MediaPrintPreview'
 import { X, RefreshCw, Upload, Download, Trash2, Printer, Send, FileSpreadsheet, Tv, Settings, HardDrive, FileText, Check, Plus, Search } from 'lucide-react'
 import ImageCompareModal from './ImageCompareModal'
 import OrganEditingModal from './OrganEditingModal'
 import TiffaTemplateModal from './TiffaTemplateModal'
 
-export default function ImagesModal({ open, onClose, patient, visitDate = '02/09/2025 10:42:46 AM', imageConfig = {} }) {
+export default function ImagesModal({ open, onClose, patient, visitDate = '', visitId = '' }) {
   const [activeTab, setActiveTab] = useState('images')
   const [isCompareOpen, setIsCompareOpen] = useState(false)
   const [isOrganEditingOpen, setIsOrganEditingOpen] = useState(false)
@@ -25,28 +27,45 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
   const [port, setPort] = useState('')
   const [description, setDescription] = useState('')
 
-  useEffect(() => {
-    if (!open) return
-    if (imageConfig.outputImageWidth) setWidth(String(imageConfig.outputImageWidth))
-    if (imageConfig.outputImageHeight) setHeight(String(imageConfig.outputImageHeight))
-    if (imageConfig.outputImageColumns) setColumns(String(imageConfig.outputImageColumns))
-    if (imageConfig.outputImageRows) setRowsCols(`${imageConfig.outputImageRows}X${imageConfig.outputImageColumns || 1}`)
-  }, [open, imageConfig.outputImageWidth, imageConfig.outputImageHeight, imageConfig.outputImageColumns, imageConfig.outputImageRows])
-
   const [dicomConfigs, setDicomConfigs] = useState([
-    { aeTitle: 'ECHO_SCU', ipAddress: '192.168.1.100', port: '104', description: 'PACS Server' }
+
   ])
 
   const [spoolerItems, setSpoolerItems] = useState([])
   const [archivedPdfs, setArchivedPdfs] = useState([])
   const [importedImages, setImportedImages] = useState([])
   const [importedVideos, setImportedVideos] = useState([])
+  const [records, setRecords] = useState([])
+  const [message, setMessage] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [printImages, setPrintImages] = useState(null)
+  const generation = useRef(0)
+  const loadMedia = useCallback(async () => {
+    const request = ++generation.current
+    setMessage('Loading saved media…')
+    try {
+      const result = await workspaceService.list('media-records')
+      if(request !== generation.current) return
+      const scoped = (result.data || []).filter(item => String(item.patient_id) === String(patient?.id) && String(item.visit_id) === String(visitId))
+      setRecords(scoped)
+      const current = scoped.filter(item => item.status !== 'Archived')
+      setImportedImages(current.filter(item => item.type?.startsWith('image/')).map(item => item.url))
+      setImportedVideos(current.filter(item => item.type?.startsWith('video/')))
+      setArchivedPdfs(current.filter(item => item.type === 'application/pdf').map(item => ({...item,date:item.created_at,size:`${(item.size / 1024).toFixed(1)} KB`})))
+      setMessage('Saved media loaded.')
+    } catch { if(request === generation.current) setMessage('Unable to load saved media. Refresh to retry.') }
+  }, [patient?.id, visitId])
+  useEffect(() => {
+    setRecords([]);setImportedImages([]);setImportedVideos([]);setArchivedPdfs([]);setPrintImages(null)
+    if(open && patient?.id && visitId) loadMedia()
+    return () => { generation.current++ }
+  }, [open, loadMedia, patient?.id, visitId])
 
   if (!open) return null
 
   const patientName = patient
-    ? [patient.salutation, patient.first_name, patient.last_name].filter(Boolean).join(' ') || patient.patient_id || 'Testecho(test)'
-    : 'Testecho(test)'
+    ? [patient.salutation, patient.first_name, patient.last_name].filter(Boolean).join(' ') || patient.patient_id || 'Select patient'
+    : 'Select patient'
 
   const addDicomConfig = () => {
     if (!aeTitle || !ipAddress) return
@@ -57,32 +76,61 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
     setDescription('')
   }
 
-  const handleImageImport = (e) => {
-    const files = Array.from(e.target.files || [])
-    const newImages = files.map((file) => URL.createObjectURL(file))
-    setImportedImages([...importedImages, ...newImages])
+  const handleImageImport = async (e) => {
+    const files = Array.from(e.target.files || []); e.target.value = ''
+    if(!patient?.id || !visitId) {setMessage('Save/select a patient visit before importing.');return}
+    const request = generation.current
+    setBusy(true)
+    let saved = 0
+    try {
+      for(const file of files) {
+        const form = new FormData();form.append('file',file);form.append('patient_id',patient.id);form.append('visit_id',visitId)
+        await workspaceService.uploadMedia(form);saved++
+      }
+      if(request === generation.current) {await loadMedia();setMessage(`${saved} file(s) saved to this visit.`)}
+    } catch(error) {
+      if(request === generation.current) {await loadMedia();setMessage(`${saved} file(s) saved. ${error.response?.data?.detail || 'Import failed. Retry the remaining files.'}`)}
+    } finally {setBusy(false)}
   }
-
-  const handlePdfImport = (e) => {
-    const files = Array.from(e.target.files || [])
-    const newPdfs = files.map((file) => ({
-      name: file.name,
-      date: new Date().toLocaleString(),
-      size: `${(file.size / 1024).toFixed(1)} KB`,
-      url: URL.createObjectURL(file),
-    }))
-    setArchivedPdfs([...archivedPdfs, ...newPdfs])
+  const handlePdfImport = handleImageImport
+  const archive = async (urls) => {
+    if(!urls.length || busy) return
+    setBusy(true)
+    try {
+      for(const record of records.filter(item => urls.includes(item.url) && item.status !== 'Archived')) await workspaceService.remove('media-records', record.id)
+      await loadMedia();setMessage('Media archived. Originals are preserved; use Restore archived images to undo.')
+    } catch(error) {await loadMedia();setMessage(error.response?.data?.detail || 'Unable to archive media.')}
+    finally {setBusy(false)}
+  }
+  const restoreImages = async () => {
+    setBusy(true)
+    try {for(const record of records.filter(item => item.status === 'Archived' && item.type?.startsWith('image/'))) await workspaceService.update('media-records',record.id,{status:'Uploaded'});await loadMedia();setMessage('Archived images restored.')}
+    catch(error) {setMessage(error.response?.data?.detail || 'Restore failed. Refresh and retry.')}
+    finally {setBusy(false)}
+  }
+  const exportImages = async () => {
+    setBusy(true)
+    try {
+      for(const record of records.filter(item => importedImages.includes(item.url))) {
+        const token = sessionStorage.getItem('echoai_token') || localStorage.getItem('echoai_token')
+        const response = await fetch(record.url,{credentials:'same-origin',headers:token?{Authorization:`Bearer ${token}`}:{}})
+        if(!response.ok) throw new Error('File download failed.')
+        const url = URL.createObjectURL(await response.blob())
+        const link = document.createElement('a');link.href=url;link.download=record.name;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)
+      }
+      setMessage('Original image downloads requested.')
+    } catch(error) {setMessage(error.message)} finally {setBusy(false)}
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-2 sm:p-4 backdrop-blur-xs">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-2 sm:p-4 backdrop-blur-xs" role="dialog" aria-modal="true" aria-label="Saved patient media">
       <div className="flex h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-xl border border-slate-300 bg-white shadow-2xl">
         {/* Modal Window Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-300 bg-gradient-to-r from-slate-100 to-slate-200 px-4 py-2.5">
           <div className="flex items-center gap-2">
             <div className="h-3 w-3 rounded-full bg-teal-600" />
             <h2 className="text-sm font-semibold text-slate-900">
-              Images - Patient: <span className="font-bold">{patientName}</span> Visit# 1 on {visitDate}
+              Images - Patient: <span className="font-bold">{patientName}</span> Visit# {visitId || '—'} {visitDate}
             </h2>
           </div>
           <button
@@ -94,6 +142,8 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
           </button>
         </div>
 
+        <p className="border-b bg-slate-50 p-3 text-sm">Imports are saved to this patient visit. Scanner/PACS transfer and anonymisation are not configured. <a className="underline" href={`/images?patientId=${encodeURIComponent(patient?.id || '')}&visitId=${encodeURIComponent(visitId)}`}>Open saved patient media</a></p>
+        <p role="status" aria-live="polite" className="px-4 py-2 text-sm">{busy ? 'Saving media…' : message}</p>
         {/* Top Controls & Print Options Bar */}
         <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-4 py-2 text-xs">
           <div className="flex flex-wrap items-center gap-3">
@@ -103,10 +153,10 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                 <option>{visitDate}</option>
               </select>
             </label>
-            <button type="button" className="legacy-small-button">
+            <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">
               4 Image Per Row
             </button>
-            <button type="button" className="legacy-small-button">
+            <button type="button" disabled={busy || !patient?.id || !visitId} onClick={loadMedia} className="legacy-small-button">
               <RefreshCw className="mr-1 h-3 w-3" /> Refresh
             </button>
           </div>
@@ -160,7 +210,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
             <button type="button" onClick={() => { setInitialRuleMode('Rule of four'); setIsTiffaOpen(true); }} className="legacy-small-button">Rule of four</button>
             <button type="button" onClick={() => setIsOrganEditingOpen(true)} className="legacy-small-button">Organ drawing</button>
             <button type="button" onClick={() => setIsCompareOpen(true)} className="legacy-small-button">Image compare</button>
-            <button type="button" className="legacy-small-button">Export to PPT</button>
+            <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Export to PPT</button>
           </div>
         </div>
 
@@ -201,7 +251,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                         <img src={img} alt={`Imported ${idx}`} className="h-full w-full object-cover" />
                         <button
                           type="button"
-                          onClick={() => setImportedImages(importedImages.filter((_, i) => i !== idx))}
+                          disabled={busy} title="Archive image (original preserved)" onClick={() => archive([img])}
                           className="absolute right-1 top-1 rounded bg-slate-900/70 p-1 text-white opacity-0 transition group-hover:opacity-100 hover:bg-red-600"
                         >
                           <Trash2 className="h-3.5 w-3.5" />
@@ -213,30 +263,31 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                   <div className="flex flex-1 flex-col items-center justify-center p-8 text-center text-slate-400">
                     <Tv className="mb-2 h-12 w-12 stroke-1 text-slate-300" />
                     <p className="text-sm font-medium text-slate-600">No images imported for this visit</p>
-                    <p className="mt-1 text-xs text-slate-400">Click Import on the right toolbar to load DICOM or image files</p>
+                    <p className="mt-1 text-xs text-slate-400">Import PNG, JPEG or WebP files. DICOM decoding is not configured.</p>
                   </div>
                 )}
               </div>
 
               <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-2xs overflow-y-auto">
                 <div className="grid grid-cols-3 gap-2">
-                  <button type="button" className="legacy-small-button">Export</button>
+                  <button type="button" disabled={busy || !importedImages.length} onClick={exportImages} className="legacy-small-button">Export originals</button>
                   <label className="legacy-small-button cursor-pointer justify-center">
                     Import
-                    <input type="file" accept="image/*" multiple onChange={handleImageImport} className="hidden" />
+                    <input type="file" disabled={busy} accept="image/png,image/jpeg,image/webp" multiple onChange={handleImageImport} className="hidden" />
                   </label>
-                  <button type="button" onClick={() => setImportedImages([])} className="legacy-small-button">Delete</button>
-                  <button type="button" className="legacy-small-button">Process</button>
-                  <button type="button" className="legacy-small-button">Print</button>
-                  <button type="button" className="legacy-small-button">Send</button>
+                  <button type="button" disabled={busy || !importedImages.length} onClick={() => archive(importedImages)} className="legacy-small-button">Archive images</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Process</button>
+                  <button type="button" disabled={busy || !importedImages.length} onClick={() => setPrintImages(importedImages)} className="legacy-small-button">Print preview</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Send</button>
                 </div>
+                <button type="button" disabled={busy || !records.some(item => item.status === 'Archived' && item.type?.startsWith('image/'))} onClick={restoreImages} className="legacy-small-button">Restore archived images</button>
 
                 <div className="rounded-lg border border-slate-200 bg-slate-50 p-2.5">
                   <div className="mb-2 text-xs font-semibold text-slate-700">Anonymous images</div>
                   <div className="flex flex-wrap gap-1.5">
-                    <button type="button" className="legacy-small-button text-[11px]">Image Title</button>
-                    <button type="button" className="legacy-small-button text-[11px]">Ink Save</button>
-                    <button type="button" className="legacy-small-button text-[11px]">Rule of three...</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button text-[11px]">Image Title</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button text-[11px]">Ink Save</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button text-[11px]">Rule of three...</button>
                   </div>
                 </div>
 
@@ -249,11 +300,11 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                   </label>
 
                   <div className="grid grid-cols-2 gap-1.5 pt-2">
-                    <button type="button" className="legacy-small-button">Save</button>
-                    <button type="button" className="legacy-small-button">Delete</button>
-                    <button type="button" className="legacy-small-button">Clear</button>
-                    <button type="button" className="legacy-small-button">Print</button>
-                    <button type="button" className="legacy-small-button col-span-2">Clear image</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Save</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Delete</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Clear</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Print</button>
+                    <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button col-span-2">Clear image</button>
                   </div>
                 </div>
               </div>
@@ -266,19 +317,20 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
               <div className="flex min-h-0 flex-col rounded-lg border border-slate-200 bg-white p-4 shadow-2xs overflow-auto">
                 <div className="flex flex-1 flex-col items-center justify-center text-slate-400">
                   <Tv className="mb-2 h-12 w-12 stroke-1" />
-                  <p className="text-sm font-medium text-slate-600">No videos available</p>
+                  {importedVideos.filter(item=>item.name.toLowerCase().includes(searchTitle.toLowerCase())).map(item=><div key={item.id} className="w-full p-2"><video src={item.url} controls className="max-h-80 w-full" /><p>{item.name}</p><a href={item.url} download={item.name} className="underline">Download original</a></div>)}
+                  {!importedVideos.length && <p className="text-sm font-medium text-slate-600">No videos saved for this visit</p>}
                 </div>
               </div>
 
               <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-2xs">
                 <div className="flex gap-2">
-                  <button type="button" className="legacy-small-button flex-1">Export</button>
-                  <button type="button" className="legacy-small-button flex-1">Import</button>
-                  <button type="button" className="legacy-small-button flex-1">Delete</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button flex-1">Export</button>
+                  <label className="legacy-small-button flex-1">Import<input type="file" disabled={busy} accept="video/mp4,video/webm" multiple className="hidden" onChange={handleImageImport} /></label>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button flex-1">Delete</button>
                 </div>
 
                 <label className="field-label">
-                  Export format
+                  Original format (conversion unavailable)
                   <select
                     value={exportFormat}
                     onChange={(e) => setExportFormat(e.target.value)}
@@ -348,7 +400,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                     <option>Custom</option>
                   </select>
                 </label>
-                <button type="button" className="legacy-small-button self-end">Add</button>
+                <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button self-end">Add</button>
               </div>
 
               <div className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 shadow-2xs overflow-y-auto">
@@ -408,8 +460,8 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
                 </fieldset>
 
                 <div className="flex justify-end gap-2 pt-2">
-                  <button type="button" className="legacy-small-button">Network Ping</button>
-                  <button type="button" className="legacy-small-button">Dicom Ping</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Network Ping</button>
+                  <button type="button" disabled title="Not implemented — integration pending" className="legacy-small-button">Dicom Ping</button>
                 </div>
               </div>
 
@@ -510,7 +562,7 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
               <div className="mt-3 flex items-center justify-start border-t border-slate-200 pt-2">
                 <label className="legacy-small-button cursor-pointer">
                   Import PDF
-                  <input type="file" accept=".pdf" multiple onChange={handlePdfImport} className="hidden" />
+                  <input type="file" disabled={busy} accept=".pdf" multiple onChange={handlePdfImport} className="hidden" />
                 </label>
               </div>
             </div>
@@ -528,6 +580,10 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
         open={isCompareOpen}
         onClose={() => setIsCompareOpen(false)}
         images={importedImages}
+        mediaRecords={records}
+        patient={patient}
+        visitId={visitId}
+        visitDate={visitDate}
       />
       <OrganEditingModal
         open={isOrganEditingOpen}
@@ -539,7 +595,11 @@ export default function ImagesModal({ open, onClose, patient, visitDate = '02/09
         patient={patient}
         images={importedImages}
         initialRuleMode={initialRuleMode}
+        mediaRecords={records}
+        visitId={visitId}
+        visitDate={visitDate}
       />
+      {printImages && <MediaPrintPreview images={printImages} columns={columns} title="Patient images" patientId={patient?.patient_id} patientName={patientName} visitId={visitId} visitDate={visitDate} onClose={() => setPrintImages(null)} />}
     </div>
   )
 }

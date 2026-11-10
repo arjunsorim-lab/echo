@@ -1,3 +1,5 @@
+import { useEffect } from 'react'
+import api from './api/axios'
 import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
@@ -5,11 +7,11 @@ import Search from './pages/Search'
 import NewPatient from './pages/NewPatient'
 import Patients from './pages/Patients'
 import EditPatient from './pages/EditPatient'
-import PatientRecords from './pages/PatientRecords'
 import Visits from './pages/Visits'
 import ReferralDoctors from './pages/ReferralDoctors'
 import NewReferralDoctor from './pages/NewReferralDoctor'
 import EditReferralDoctor from './pages/EditReferralDoctor'
+import ClinicalWorkspace from './pages/ClinicalWorkspace'
 import ImagesViewer from './pages/ImagesViewer'
 import Measurements from './pages/Measurements'
 import Reports from './pages/Reports'
@@ -20,12 +22,13 @@ import Home from './pages/Home'
 import FetalEchoReport from './pages/FetalEchoReport'
 import AdultEchoReport from './pages/AdultEchoReport'
 import PediatricEchoReport from './pages/PediatricEchoReport'
+import EchoScan from './pages/EchoScan'
+import EchoStudies from './pages/EchoStudies'
+import Profile from './pages/Profile'
 
 function isSignedIn() {
   return Boolean(
-    sessionStorage.getItem('echoai_user') ||
-    localStorage.getItem('echoai_user') ||
-    localStorage.getItem('echoai_google_access_token'),
+    sessionStorage.getItem('echoai_token') || localStorage.getItem('echoai_token'),
   )
 }
 
@@ -40,6 +43,9 @@ function ProtectedPage({ children }) {
 function LoginRoute() {
   const searchParams = new URLSearchParams(window.location.search)
   if (searchParams.get('signout') === '1') {
+    api.post('/auth/logout').catch(() => {})
+    sessionStorage.removeItem('echoai_token')
+    localStorage.removeItem('echoai_token')
     sessionStorage.removeItem('echoai_user')
     localStorage.removeItem('echoai_user')
     localStorage.removeItem('echoai_google_access_token')
@@ -51,6 +57,16 @@ function LoginRoute() {
 }
 
 function App() {
+  useEffect(() => {
+    const handleWheel = (e) => {
+      if (document.activeElement && document.activeElement.type === 'number') {
+        document.activeElement.blur()
+      }
+    }
+    window.addEventListener('wheel', handleWheel, { passive: true })
+    return () => window.removeEventListener('wheel', handleWheel)
+  }, [])
+
   return (
     <Router>
       <Routes>
@@ -73,9 +89,6 @@ function App() {
         <Route path="/patients/:id/edit" element={
           <ProtectedPage><EditPatient /></ProtectedPage>
         } />
-        <Route path="/patients/:id/records" element={
-          <ProtectedPage><PatientRecords /></ProtectedPage>
-        } />
         <Route path="/visits" element={
           <ProtectedPage><Visits /></ProtectedPage>
         } />
@@ -89,7 +102,7 @@ function App() {
           <ProtectedPage><EditReferralDoctor /></ProtectedPage>
         } />
         <Route path="/echo-studies" element={
-          <Navigate to="/reports" replace />
+          <ProtectedPage><EchoStudies /></ProtectedPage>
         } />
         <Route path="/fetal-echo-report" element={
           <ProtectedPage><FetalEchoReport /></ProtectedPage>
@@ -110,10 +123,10 @@ function App() {
           <ProtectedPage><PediatricEchoReport /></ProtectedPage>
         } />
         <Route path="/echo-scan" element={
-          <Navigate to="/reports" replace />
+          <ProtectedPage><EchoScan /></ProtectedPage>
         } />
         <Route path="/echo-scan/:scanId" element={
-          <Navigate to="/reports" replace />
+          <ProtectedPage><EchoScan /></ProtectedPage>
         } />
         <Route path="/images" element={
           <ProtectedPage><ImagesViewer /></ProtectedPage>
@@ -138,6 +151,9 @@ function App() {
         } />
         <Route path="/settings" element={
           <ProtectedPage><Settings /></ProtectedPage>
+        } />
+        <Route path="/profile" element={
+          <ProtectedPage><Profile /></ProtectedPage>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

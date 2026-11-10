@@ -1,5 +1,8 @@
 import api from './axios';
 
+// A clinical save must fail visibly instead of hanging the editor forever.
+const SAVE_TIMEOUT_MS = 30000;
+
 let dashboardStatsCache = null;
 let dashboardStatsRequest = null;
 
@@ -25,13 +28,13 @@ export const scanService = {
   },
 
   createScan: async (scanData) => {
-    const response = await api.post('/scans', scanData);
+    const response = await api.post('/scans', scanData, { timeout: SAVE_TIMEOUT_MS });
     invalidateDashboardStats();
     return response.data;
   },
 
   updateScan: async (id, scanData) => {
-    const response = await api.put(`/scans/${id}`, scanData);
+    const response = await api.put(`/scans/${id}`, scanData, { timeout: SAVE_TIMEOUT_MS });
     invalidateDashboardStats();
     return response.data;
   },

@@ -1,3 +1,4 @@
+import api from '../api/axios'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -33,7 +34,7 @@ const demoUsers = [
     role: 'Founder',
     email: 'dr.shanthi@echoai.com',
     userName: 'dr.shanthi',
-    password: 'password123',
+
   },
 ]
 
@@ -108,7 +109,7 @@ const pipelineSteps = [
 
 const echoStats = [
   { label: 'Scans Analyzed', value: '100+', icon: Activity, color: 'text-blue-600 bg-blue-50 border-blue-100' },
-  { label: 'Clinical Accuracy', value: '99.4%', icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
+  { label: 'Clinical Validation', value: 'Pending', icon: CheckCircle2, color: 'text-emerald-600 bg-emerald-50 border-emerald-100' },
   { label: 'Clinics', value: '10+', icon: Stethoscope, color: 'text-purple-600 bg-purple-50 border-purple-100' },
   { label: 'Reports Generated', value: '200+', icon: FileText, color: 'text-sky-600 bg-sky-50 border-sky-100' },
 ]
@@ -382,9 +383,6 @@ function Home() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
 
-  useEffect(() => {
-    Promise.allSettled([scanService.getDashboardStats(), patientService.getPatients()])
-  }, [])
 
   useEffect(() => {
     const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
@@ -400,30 +398,25 @@ function Home() {
 
   const useDemoUser = (user = demoUsers[0]) => {
     setEmail(user.email)
-    setPassword(user.password)
+    setPassword('')
     setError('')
   }
 
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault()
-    const login = email.trim().toLowerCase()
-    const matchedUser = demoUsers.find(
-      (u) => (u.email.toLowerCase() === login || u.userName.toLowerCase() === login) && u.password === password,
-    )
-    if (!matchedUser) {
-      setError('Incorrect credentials. Use the founder login below.')
-      return
-    }
-    const storage = remember ? localStorage : sessionStorage
-    const other = remember ? sessionStorage : localStorage
-    other.removeItem('echoai_user')
-    storage.setItem('echoai_user', JSON.stringify({ name: matchedUser.name, role: matchedUser.role, email: matchedUser.email }))
-    navigate('/dashboard', { replace: true })
+    try {
+      const result = (await api.post('/auth/login', { username: email.trim(), password })).data
+      const storage = remember ? localStorage : sessionStorage
+      const other = remember ? sessionStorage : localStorage
+      other.removeItem('echoai_user'); other.removeItem('echoai_token')
+      storage.setItem('echoai_user', JSON.stringify(result.user)); storage.setItem('echoai_token', result.token)
+      navigate('/dashboard', { replace: true })
+    } catch (error) { setError(error.response?.data?.detail || 'Unable to sign in. Check the backend connection.') }
   }
 
   const handleGoogleSignIn = () => {
     const authUrl = buildGoogleAuthUrl()
-    window.location.assign(authUrl || 'https://accounts.google.com/signin/v2/identifier')
+    setError('Use your clinical account. Google sign-in has not been connected to clinical roles.')
   }
 
   return (

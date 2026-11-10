@@ -1,5 +1,7 @@
 # EchoScan - Echo Scan Management System
 
+> Current implementation: React/Vite, FastAPI and SQLite. Use [the current runbook](docs/review-20261110/RUNBOOK.md) and [the implementation review](docs/review-20261110/REVIEW.md). Older setup/product descriptions below are historical and do not establish clinical validation or completed scanner integration.
+
 A modern Echo Scan management software built with React Vite frontend and FastAPI backend, similar to SonoCare.
 
 ## Features
