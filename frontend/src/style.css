@@ -13,6 +13,16 @@
     background: #f5f7fb;
   }
 
+  /* Prevent mouse wheel scroll from accidentally incrementing/decrementing numeric inputs */
+  input[type="number"] {
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
+
   /* Custom sleek scrollbar for webkit */
   ::-webkit-scrollbar {
     width: 4px;

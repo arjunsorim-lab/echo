@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import api from './api/axios'
 import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
@@ -56,6 +57,16 @@ function LoginRoute() {
 }
 
 function App() {
+  useEffect(() => {
+    const handleWheel = (e) => {
+      if (document.activeElement && document.activeElement.type === 'number') {
+        document.activeElement.blur()
+      }
+    }
+    window.addEventListener('wheel', handleWheel, { passive: true })
+    return () => window.removeEventListener('wheel', handleWheel)
+  }, [])
+
   return (
     <Router>
       <Routes>
