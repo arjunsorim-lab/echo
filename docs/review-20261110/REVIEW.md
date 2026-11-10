@@ -73,9 +73,9 @@ See [CLINICAL_INPUTS.md](CLINICAL_INPUTS.md). No clinician sign-off exists in th
 
 ## E Testing report
 
-Final backend command: `python3 -m unittest discover -s backend -p 'test_*.py' -v` — **8 tests passed**. Tests cover complete workflow, adult/paediatric/ultrasound category regression, identity/contact locks for all roles, draft/completion validation, report-type integrity, visit/report protection, synthetic upload security/storage and arithmetic-engine behaviour.
+Final backend command: `python3 -m unittest discover -s backend -p 'test_*.py' -v` — **15 tests passed**. Tests cover complete workflow, adult/paediatric/ultrasound category regression, identity/contact locks for all roles, draft/completion validation, report-type integrity, visit/report protection, visit requirements for reports, deletion guards for patients/visits with media records or layouts, synthetic upload security/storage, proxy trust/header anti-spoofing and multi-hop proxy chains, and session persistence/expiration/rate limiting.
 
-Final frontend commands: `npm run build` and `npm test` — **build passed; 6 unit tests and server-rendered preview assertions passed**. The build still warns about the approximately 824 KB JavaScript chunk. This is a warning, not a test failure or a completed performance audit.
+Final frontend commands: `npm run build` and `npm test` — **build passed; 7 unit tests and server-rendered preview assertions passed**. The build still warns about the JavaScript chunk size. This is a warning, not a test failure or a completed performance audit.
 
 Browser checks in an isolated loopback fixture:
 
