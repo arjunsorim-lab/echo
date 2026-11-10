@@ -179,6 +179,10 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(upload('large.png',image+b'x'*2048)[0],413)
         records=call('GET','/api/resources/media-records',token=token)[1]['data']
         self.assertEqual(len(records),2)
+        self.assertEqual(call('POST','/api/resources/media-records',{'patient_id':pid,'url':'https://example.com/file.png'},token)[0],403)
+        self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',{'patient_id':'999'},token)[0],409)
+        self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',{'url':'https://example.com/file.png'},token)[0],409)
+        self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',record,token)[0],200)
 
     def test_contact_only_updates_and_identity_locks_for_all_roles(self):
         patient={'patient_id':'TEST-CONTACT-ONLY','first_name':'Dummy','last_name':'Contact','dob':'2000-01-01','gender':'F','street':'Test','state':'Tamil Nadu','country':'India','phone2':'1234567890','family_doctor':'Self'}

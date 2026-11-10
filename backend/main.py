@@ -1395,6 +1395,9 @@ def list_resources(resource: str):
 def create_resource(resource: str, data: dict):
     conn = get_db()
     table = _normalize_table_name(resource)
+    if table == 'media_records':
+        conn.close()
+        raise HTTPException(403, 'Upload files using the media upload endpoint.')
 
     cursor = conn.cursor()
     # Check if table exists, create if saved_queries / media_records
@@ -1446,6 +1449,15 @@ def update_resource(resource: str, item_id: int, data: dict):
     conn = get_db()
     table = _normalize_table_name(resource)
     cursor = conn.cursor()
+    if table == 'media_records':
+        existing = conn.execute('SELECT * FROM media_records WHERE id = ?', (item_id,)).fetchone()
+        if not existing:
+            conn.close()
+            raise HTTPException(404, 'Media record not found.')
+        for field in ('patient_id', 'visit_id', 'url', 'data_url', 'type', 'size'):
+            if field in data and str(data[field] or '') != str(existing[field] or ''):
+                conn.close()
+                raise HTTPException(409, 'Media ownership and stored content cannot be changed.')
 
     processed_data = {}
     for k, v in data.items():
