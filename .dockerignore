@@ -19,3 +19,5 @@ backend/venv
 **/uploads
 frontend/test-output
 browser-fixture-info.json
+
+!backend/seed/echo.db

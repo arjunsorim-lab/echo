@@ -8,6 +8,8 @@ services:
     healthCheckPath: /api/health
     autoDeployTrigger: commit
     envVars:
+      - key: ECHOAI_SEED_DEMO_DATA
+        value: 'true'
       - key: DB_PATH
         value: /var/data/echo.db
       - key: UPLOADS_DIR

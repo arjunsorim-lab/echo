@@ -40,7 +40,18 @@ install_workflow(app, BASE_DIR)
 def prepare_runtime_storage():
     os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
     os.makedirs(UPLOADS_DIR, exist_ok=True, mode=0o700)
-    # SQLite initializes an empty database; never copy patient records into a new environment.
+    # Restore the historical demo dataset only for a new database. Existing
+    # production data is never overwritten.
+    if os.environ.get('ECHOAI_SEED_DEMO_DATA') == 'true':
+        seed = os.path.join(BASE_DIR, 'seed', 'echo.db')
+        empty = not os.path.exists(DB_PATH)
+        if not empty:
+            with sqlite3.connect(DB_PATH) as existing:
+                tables = {r[0] for r in existing.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+                empty = all(t not in tables or existing.execute(f'SELECT 1 FROM {t} LIMIT 1').fetchone() is None
+                            for t in ('patients', 'visits', 'scans', 'clinical_reports'))
+        if empty:
+            shutil.copy2(seed, DB_PATH)
 
 class SQLiteConn:
     def __init__(self, path, timeout=60.0):
