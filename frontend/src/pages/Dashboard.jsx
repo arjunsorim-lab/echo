@@ -393,13 +393,13 @@ export default function Dashboard() {
             >
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
-                  <div className="flex items-center gap-3">
-                    <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-2xs ${card.iconBg}`}>
+                  <div className="flex items-center gap-4">
+                    <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-2xs ${card.iconBg}`}>
                       <Icon className="h-4.5 w-4.5" />
                     </div>
                     <div>
                       <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">{card.title}</p>
-                      <h3 className="text-2xl font-bold tracking-tight text-slate-900 leading-none mt-1">{loadError ? '—' : card.value}</h3>
+                      <h3 className="text-[1.75rem] font-bold tracking-tight text-slate-900 leading-none mt-1">{loadError ? '—' : card.value}</h3>
                     </div>
                   </div>
 
@@ -420,8 +420,11 @@ export default function Dashboard() {
                   </div>
                 </div>
 
-                {/* Sparkline Graphic (for first 4 cards) */}
-
+                {card.path && (
+                  <svg className="absolute right-4 top-1/2 h-8 w-20 -translate-y-1/2 opacity-80" viewBox="0 0 120 32" aria-hidden="true">
+                    <path d={card.path} fill="none" stroke={card.strokeColor} strokeWidth="2" strokeLinecap="round" />
+                  </svg>
+                )}
               </div>
             </button>
           )
