@@ -14,13 +14,16 @@ from clinical_workflow import install as install_workflow, validate_patient, pre
 
 app = FastAPI(title="Echo AI Backend", version="1.0.0")
 
-# CORS middleware
+# ALLOWED_ORIGINS is shared by deployment tooling; retain the legacy alias.
+origins = [v.strip() for v in os.environ.get('ALLOWED_ORIGINS', os.environ.get('ECHOAI_ALLOWED_ORIGINS', 'http://127.0.0.1:3000,http://localhost:3000')).split(',') if v.strip()]
+if '*' in origins:
+    raise RuntimeError('Wildcard CORS origins are not allowed with credentials.')
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=['http://127.0.0.1:3000', 'http://localhost:3000'],
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Use the bundled database locally and a persistent-disk path on Render.
@@ -36,7 +39,7 @@ install_workflow(app, BASE_DIR)
 
 def prepare_runtime_storage():
     os.makedirs(os.path.dirname(os.path.abspath(DB_PATH)), exist_ok=True)
-    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    os.makedirs(UPLOADS_DIR, exist_ok=True, mode=0o700)
     # SQLite initializes an empty database; never copy patient records into a new environment.
 
 class SQLiteConn:
@@ -453,6 +456,10 @@ def init_db():
     ''')
 
     referral_columns = {row[1] for row in c.execute('PRAGMA table_info(referral_doctors)').fetchall()}
+    media_columns = {row[1] for row in c.execute('PRAGMA table_info(media_records)').fetchall()}
+    for column in ('source_media_id', 'stamp_name', 'annotation_notes'):
+        if column not in media_columns:
+            c.execute(f'ALTER TABLE media_records ADD COLUMN {column} TEXT')
     if 'extra_data' not in referral_columns:
         c.execute('ALTER TABLE referral_doctors ADD COLUMN extra_data TEXT')
     visit_columns = {row[1] for row in c.execute('PRAGMA table_info(visits)').fetchall()}
@@ -1469,6 +1476,17 @@ def update_resource(resource: str, item_id: int, data: dict):
             conn.close()
             raise HTTPException(404, 'Media record not found.')
         _guard_media_visit(conn, existing['visit_id'])
+        if 'source_media_id' in data and data['source_media_id'] not in (None, ''):
+            if isinstance(data['source_media_id'], bool) or not str(data['source_media_id']).isdigit():
+                conn.close()
+                raise HTTPException(422, 'Annotation source must be a media ID.')
+            source = conn.execute('SELECT * FROM media_records WHERE id = ?', (data['source_media_id'],)).fetchone()
+            if not source or source['id'] == existing['id'] or str(source['patient_id']) != str(existing['patient_id']) or str(source['visit_id']) != str(existing['visit_id']):
+                conn.close()
+                raise HTTPException(409, 'Annotation source must belong to the same patient and visit.')
+        if existing['source_media_id'] and 'source_media_id' in data and str(data['source_media_id']) != str(existing['source_media_id']):
+            conn.close()
+            raise HTTPException(409, 'An annotation source cannot be reassigned.')
         for field in ('patient_id', 'visit_id', 'url', 'data_url', 'type', 'size'):
             if field in data and str(data[field] or '') != str(existing[field] or ''):
                 conn.close()
@@ -1592,9 +1610,9 @@ async def upload_media(file: UploadFile = File(...), patient_id: Optional[int] =
     filename = secrets.token_hex(20) + extension
     file_path = os.path.join(UPLOADS_DIR, filename)
     try:
-        os.makedirs(UPLOADS_DIR, exist_ok=True)
+        os.makedirs(UPLOADS_DIR, exist_ok=True, mode=0o700)
         size = 0
-        with open(file_path, 'xb') as buffer:
+        with os.fdopen(os.open(file_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as buffer:
             while chunk := await file.read(65536):
                 size += len(chunk)
                 if size > int(os.environ.get('ECHOAI_MAX_UPLOAD_BYTES', '20971520')):
@@ -1621,6 +1639,17 @@ async def upload_media(file: UploadFile = File(...), patient_id: Optional[int] =
     finally:
         conn.close()
         await file.close()
+
+@app.middleware('http')
+async def security_headers(request, call_next):
+    response = await call_next(request)
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['Referrer-Policy'] = 'no-referrer'
+    response.headers['Content-Security-Policy'] = "frame-ancestors 'none'"
+    if request.url.path.startswith(('/api/', '/uploads/')):
+        response.headers['Cache-Control'] = 'no-store'
+    return response
 
 app.mount('/uploads', StaticFiles(directory=UPLOADS_DIR, check_dir=False), name='uploads')
 
