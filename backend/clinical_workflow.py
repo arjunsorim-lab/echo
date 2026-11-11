@@ -64,6 +64,24 @@ def install(app, base_dir):
         with open(path) as f:
             return json.load(f)
 
+    # Recovery is opt-in. Set both variables in Render, then remove the reset
+    # flag after a successful deployment. Existing accounts are otherwise untouched.
+    if os.environ.get('ECHOAI_RESET_FOUNDER_PASSWORD') == 'true':
+        new_password = os.environ.get('ECHOAI_PASSWORD', '')
+        if len(new_password) < 12:
+            raise RuntimeError('Founder reset requires ECHOAI_PASSWORD of at least 12 characters.')
+        records = users()
+        founder = next((u for u in records if u['username'].lower() == 'dr.shanthi@echoai.com'), None)
+        if founder is None:
+            raise RuntimeError('Founder account not found; no password changed.')
+        if not verify(new_password, founder['password_hash']):
+            founder['password_hash'] = password_hash(new_password)
+            temporary = path + '.reset'
+            fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            with os.fdopen(fd, 'w') as f:
+                json.dump(records, f)
+            os.replace(temporary, path)
+
     @app.middleware('http')
     async def protect(request: Request, call_next):
         if request.method == 'OPTIONS' or not request.url.path.startswith(('/api/', '/uploads/')) or request.url.path in ('/api/health', '/api/auth/login'):
