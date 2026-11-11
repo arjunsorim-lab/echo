@@ -15,7 +15,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = sessionStorage.getItem('echoai_token') || localStorage.getItem('echoai_token');
-    // New sessions use HttpOnly cookies. Accept legacy sessions until they expire.
+    // Render serves frontend and API on separate sites, so retain the bearer token.
     if (token && token !== 'cookie-session') config.headers.Authorization = 'Bearer ' + token;
     return config;
   },

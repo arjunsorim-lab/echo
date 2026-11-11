@@ -98,13 +98,15 @@ test('committed response lost in transit can be retried without duplicates',asyn
   expect(scans.filter(x=>x.visit_id===s.visit.id)).toHaveLength(1)
 })
 
-test('session is server-verified and tokens are kept out of frontend storage',async({page,request})=>{
+test('session is server-verified and sign-out clears the bearer token',async({page,request})=>{
   await login(page,'l1',info.password)
-  expect(await page.evaluate(()=>sessionStorage.getItem('echoai_token'))).toBe('cookie-session')
+  expect(await page.evaluate(()=>sessionStorage.getItem('echoai_token'))).toBeTruthy()
+  expect(await page.evaluate(()=>localStorage.getItem('echoai_token'))).toBeNull()
   const cookie=(await page.context().cookies()).find(x=>x.name==='echo_fixture_session');expect(cookie.httpOnly).toBe(true)
   await page.evaluate(()=>sessionStorage.setItem('echoai_user',JSON.stringify({name:'Forged',role:'L3'})))
   await page.reload();await expect(page.getByRole('heading',{name:/Welcome back, L1 Dummy/})).toBeVisible()
-  await page.context().clearCookies();await page.reload();await expect(page.getByRole('button',{name:'Login',exact:true})).toBeVisible()
+  await page.goto('/?signout=1');await expect(page.getByRole('button',{name:'Login',exact:true})).toBeVisible()
+  expect(await page.evaluate(()=>sessionStorage.getItem('echoai_token'))).toBeNull()
 })
 
 test('dashboard errors are visible and no fabricated alerts appear',async({page})=>{
