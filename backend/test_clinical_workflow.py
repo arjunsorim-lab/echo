@@ -1,5 +1,6 @@
 """Integration checks run against a temporary copy; never writes the clinical database."""
 import copy
+from contextlib import closing
 import base64
 import json
 import os
@@ -214,6 +215,17 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(upload('dummy.png',image,999999)[0],422)
         self.assertEqual(upload('large.png',image+b'x'*2048)[0],413)
         records=call('GET','/api/resources/media-records',token=token)[1]['data']
+        annotated=next(item for item in records if item['id']!=record['id'])
+        result=call('PUT',f'/api/resources/media-records/{annotated["id"]}',{'annotation_notes':'Synthetic annotation','source_media_id':record['id'],'stamp_name':'Synthetic stamp'},token)
+        self.assertEqual(result[0],200,result)
+        self.assertEqual(result[1]['data']['annotation_notes'],'Synthetic annotation')
+        self.assertEqual(call('PUT',f'/api/resources/media-records/{annotated["id"]}',{'source_media_id':999999},token)[0],409)
+        other_visit=call('POST',f'/api/patients/{pid}/visits',{'scan_type':'Fetal Echo','visit_date':'2026-11-11T10:00'},token)[1]['data']['id']
+        with closing(sqlite3.connect(self.folder/'test.db')) as db, db:
+            foreign=db.execute('INSERT INTO media_records (patient_id,visit_id,url) VALUES (?,?,?)',(pid,other_visit,'/uploads/synthetic.png')).lastrowid
+        self.assertEqual(call('PUT',f'/api/resources/media-records/{annotated["id"]}',{'source_media_id':foreign},token)[0],409)
+        self.assertEqual(call('PUT',f'/api/resources/media-records/{annotated["id"]}',{'source_media_id':{}},token)[0],422)
+
         self.assertEqual(len(records),2)
         self.assertEqual(call('POST','/api/resources/media-records',{'patient_id':pid,'url':'https://example.com/file.png'},token)[0],403)
         self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',{'patient_id':'999'},token)[0],409)
@@ -294,6 +306,48 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(attempt(f'198.51.100.{index+1}'),401)
         # Every attempt was attributed to the direct peer, so a new header does not reset the limit.
         self.assertEqual(attempt('203.0.113.99'),429)
+
+    def test_synthetic_backup_restore_rehearsal(self):
+        from backup_store import create_backup, restore_backup
+        token=self.roles['L1']
+        patient={'patient_id':'RESTORE-SYNTHETIC','first_name':'Dummy','last_name':'Restore','age':'30','gender':'F','street':'Synthetic','state':'Tamil Nadu','country':'India','phone1':'1234567890','family_doctor':'Self'}
+        pid=self.call('POST','/api/patients',patient,token)[1]['data']['id']
+        vid=self.call('POST',f'/api/patients/{pid}/visits',{'scan_type':'Adult Echo','visit_date':'2026-11-11T10:00'},token)[1]['data']['id']
+        sid=self.call('POST','/api/scans',{'patient_id':pid,'visit_id':vid,'scan_type':'Adult Echo','adult_echo_report':{'indication':'SYNTHETIC RESTORE','impression':{}}},token)[1]['data']['id']
+        uploads=self.folder/'uploads';uploads.mkdir(exist_ok=True)
+        (uploads/'restore-test.png').write_bytes(b'synthetic restore bytes')
+        with closing(sqlite3.connect(self.folder/'test.db')) as db, db:
+            db.execute('INSERT INTO media_records (patient_id,visit_id,url,name,type,status) VALUES (?,?,?,?,?,?)',(pid,vid,'/uploads/restore-test.png','Synthetic','image/png','Uploaded'))
+        backup=create_backup(self.folder/'test.db',uploads,self.folder/'backup',self.folder/'users.json')
+        restored=restore_backup(backup,self.folder/'restored')
+        sock=socket.socket();sock.bind(('127.0.0.1',0));port=sock.getsockname()[1];sock.close()
+        log=open(restored/'server.log','w')
+        env={**os.environ,'DB_PATH':str(restored/'echo.db'),'UPLOADS_DIR':str(restored/'uploads'),'ECHOAI_USERS_PATH':str(restored/'users.json'),'PORT':str(port)}
+        server=subprocess.Popen([sys.executable,'main.py'],cwd=self.source,env=env,stdout=log,stderr=log)
+        base=f'http://127.0.0.1:{port}';self.extra_servers.append((server,log,base))
+        for _ in range(100):
+            try:
+                if self.call('GET','/api/health',base=base)[0]==200:break
+            except Exception:time.sleep(.1)
+        code,result=self.call('POST','/api/auth/login',{'username':'l1','password':'Workflow-test-only!42'},base=base)
+        self.assertEqual(code,200,result);restored_token=result['token']
+        self.assertEqual(self.call('GET',f'/api/scans/{sid}',token=restored_token,base=base)[1]['data']['adult_echo_report']['indication'],'SYNTHETIC RESTORE')
+        request=urllib.request.Request(base+'/uploads/restore-test.png',headers={'Authorization':'Bearer '+restored_token})
+        with urllib.request.urlopen(request) as response:
+            self.assertEqual(response.read(),b'synthetic restore bytes')
+            self.assertEqual(response.headers.get('Cache-Control'),'no-store')
+            self.assertEqual(response.headers.get('X-Content-Type-Options'),'nosniff')
+        self.assertEqual(self.call('GET','/api/auth/me',token=token,base=base)[0],401)
+
+    def test_session_uses_current_server_role_and_revokes_removed_account(self):
+        self.call('POST','/api/workflow/users',{'username':'revocation-test','name':'Dummy Revocation','role':'L1','password':'Workflow-test-only!42'},self.l3)
+        token=self.call('POST','/api/auth/login',{'username':'revocation-test','password':'Workflow-test-only!42'})[1]['token']
+        path=self.folder/'users.json';records=json.loads(path.read_text())
+        next(u for u in records if u['username']=='revocation-test')['role']='L2'
+        path.write_text(json.dumps(records))
+        self.assertEqual(self.call('GET','/api/auth/me',token=token)[1]['data']['role'],'L2')
+        path.write_text(json.dumps([u for u in records if u['username']!='revocation-test']))
+        self.assertEqual(self.call('GET','/api/auth/me',token=token)[0],401)
 
     def test_z_logout_and_login_abuse_protection(self):
         code, result = self.call('POST', '/api/auth/login', {'username':'l1','password':'Workflow-test-only!42'})

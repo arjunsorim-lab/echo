@@ -117,6 +117,7 @@ export default function Dashboard() {
   const [isDateMenuOpen, setIsDateMenuOpen] = useState(false)
   const [recentScans, setRecentScans] = useState([])
   const [isLoadingScans, setIsLoadingScans] = useState(true)
+  const [loadError,setLoadError]=useState('')
 
   useEffect(() => {
     Promise.all([
@@ -179,7 +180,7 @@ export default function Dashboard() {
 
         setRecentScans(scans)
       })
-      .catch(() => setRecentScans([]))
+      .catch(() => {setRecentScans([]);setLoadError('Unable to load dashboard data. Refresh to retry.')})
       .finally(() => setIsLoadingScans(false))
   }, [])
 
@@ -378,12 +379,14 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5 select-none">
+      {loadError && <p role="alert" className="rounded border bg-red-50 p-3 text-red-800">{loadError}</p>}
+      {isLoadingScans && <p role="status">Loading dashboard…</p>}
       {/* 8 Stat Cards Grid (4 columns x 2 rows) */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => {
           const Icon = card.icon
           return (
-            <div
+            <button type="button"
               key={card.title}
               onClick={() => navigate(card.link)}
               className="group relative cursor-pointer overflow-hidden rounded-2xl border border-slate-200/90 bg-white p-4 shadow-2xs transition-all duration-200 hover:shadow-md hover:border-slate-300"
@@ -396,7 +399,7 @@ export default function Dashboard() {
                     </div>
                     <div>
                       <p className="text-[10px] font-bold tracking-wider text-slate-400 uppercase">{card.title}</p>
-                      <h3 className="text-2xl font-bold tracking-tight text-slate-900 leading-none mt-1">{card.value}</h3>
+                      <h3 className="text-2xl font-bold tracking-tight text-slate-900 leading-none mt-1">{loadError ? '—' : card.value}</h3>
                     </div>
                   </div>
 
@@ -418,21 +421,9 @@ export default function Dashboard() {
                 </div>
 
                 {/* Sparkline Graphic (for first 4 cards) */}
-                {card.path && (
-                  <div className="w-16 h-8 flex items-center justify-end opacity-80 group-hover:opacity-100 transition-opacity">
-                    <svg className="w-full h-full overflow-visible" viewBox="0 0 120 30">
-                      <path
-                        d={card.path}
-                        fill="none"
-                        stroke={card.strokeColor}
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </div>
-                )}
+
               </div>
-            </div>
+            </button>
           )
         })}
       </div>

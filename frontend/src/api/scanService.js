@@ -46,32 +46,9 @@ export const scanService = {
   },
 
   getDashboardStats: async () => {
-    if (dashboardStatsCache) return dashboardStatsCache;
-    if (dashboardStatsRequest) return dashboardStatsRequest;
-
-    try {
-      dashboardStatsRequest = api.get('/dashboard/stats')
-        .then((response) => {
-          dashboardStatsCache = response.data;
-          return dashboardStatsCache;
-        })
-        .finally(() => {
-          dashboardStatsRequest = null;
-        });
-
-      return await dashboardStatsRequest;
-    } catch (error) {
-      console.warn('Backend unavailable, using demo dashboard stats');
-      return {
-        success: true,
-        data: {
-          total_patients: 0,
-          total_scans: 0,
-          adult_echo: 0,
-          fetal_echo: 0,
-          pediatric_echo: 0,
-        },
-      };
+    if (!dashboardStatsRequest) {
+      dashboardStatsRequest = api.get('/dashboard/stats').then(response=>response.data).finally(()=>{dashboardStatsRequest=null})
     }
+    return dashboardStatsRequest
   },
 };

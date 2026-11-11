@@ -1,30 +1,30 @@
-import { useEffect } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import api from './api/axios'
-import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom'
+import { createBrowserRouter, createRoutesFromElements, RouterProvider, Navigate, Route } from 'react-router-dom'
 import Layout from './components/Layout'
-import Dashboard from './pages/Dashboard'
-import Search from './pages/Search'
-import NewPatient from './pages/NewPatient'
-import Patients from './pages/Patients'
-import EditPatient from './pages/EditPatient'
-import Visits from './pages/Visits'
-import ReferralDoctors from './pages/ReferralDoctors'
-import NewReferralDoctor from './pages/NewReferralDoctor'
-import EditReferralDoctor from './pages/EditReferralDoctor'
-import ClinicalWorkspace from './pages/ClinicalWorkspace'
-import ImagesViewer from './pages/ImagesViewer'
-import Measurements from './pages/Measurements'
-import Reports from './pages/Reports'
-import Analytics from './pages/Analytics'
-import Administration from './pages/Administration'
-import Settings from './pages/Settings'
-import Home from './pages/Home'
-import FetalEchoReport from './pages/FetalEchoReport'
-import AdultEchoReport from './pages/AdultEchoReport'
-import PediatricEchoReport from './pages/PediatricEchoReport'
-import EchoScan from './pages/EchoScan'
-import EchoStudies from './pages/EchoStudies'
-import Profile from './pages/Profile'
+const Dashboard = lazy(() => import('./pages/Dashboard'))
+const Search = lazy(() => import('./pages/Search'))
+const NewPatient = lazy(() => import('./pages/NewPatient'))
+const Patients = lazy(() => import('./pages/Patients'))
+const EditPatient = lazy(() => import('./pages/EditPatient'))
+const Visits = lazy(() => import('./pages/Visits'))
+const ReferralDoctors = lazy(() => import('./pages/ReferralDoctors'))
+const NewReferralDoctor = lazy(() => import('./pages/NewReferralDoctor'))
+const EditReferralDoctor = lazy(() => import('./pages/EditReferralDoctor'))
+const ClinicalWorkspace = lazy(() => import('./pages/ClinicalWorkspace'))
+const ImagesViewer = lazy(() => import('./pages/ImagesViewer'))
+const Measurements = lazy(() => import('./pages/Measurements'))
+const Reports = lazy(() => import('./pages/Reports'))
+const Analytics = lazy(() => import('./pages/Analytics'))
+const Administration = lazy(() => import('./pages/Administration'))
+const Settings = lazy(() => import('./pages/Settings'))
+const Home = lazy(() => import('./pages/Home'))
+const FetalEchoReport = lazy(() => import('./pages/FetalEchoReport'))
+const AdultEchoReport = lazy(() => import('./pages/AdultEchoReport'))
+const PediatricEchoReport = lazy(() => import('./pages/PediatricEchoReport'))
+const EchoScan = lazy(() => import('./pages/EchoScan'))
+const EchoStudies = lazy(() => import('./pages/EchoStudies'))
+const Profile = lazy(() => import('./pages/Profile'))
 
 function isSignedIn() {
   return Boolean(
@@ -33,7 +33,20 @@ function isSignedIn() {
 }
 
 function ProtectedPage({ children }) {
-  if (!isSignedIn()) {
+  const [verified,setVerified]=useState(null)
+  useEffect(()=>{
+    let active=true
+    api.get('/auth/me').then(result=>{
+      if(!active)return
+      const user=result.data.data
+      const storage=localStorage.getItem('echoai_user') ? localStorage : sessionStorage
+      storage.setItem('echoai_user', JSON.stringify(user))
+      setVerified(true)
+    }).catch(()=>{if(active)setVerified(false)})
+    return ()=>{active=false}
+  },[])
+  if (verified === null) return <p role="status" className="p-6">Checking session…</p>
+  if (!verified) {
     return <Navigate to="/" replace />
   }
 
@@ -56,20 +69,8 @@ function LoginRoute() {
   return isSignedIn() ? <Navigate to="/dashboard" replace /> : <Home />
 }
 
-function App() {
-  useEffect(() => {
-    const handleWheel = (e) => {
-      if (document.activeElement && document.activeElement.type === 'number') {
-        document.activeElement.blur()
-      }
-    }
-    window.addEventListener('wheel', handleWheel, { passive: true })
-    return () => window.removeEventListener('wheel', handleWheel)
-  }, [])
+const router = createBrowserRouter(createRoutesFromElements(<>
 
-  return (
-    <Router>
-      <Routes>
         <Route path="/" element={<LoginRoute />} />
         <Route path="/dashboard" element={
           <ProtectedPage><Dashboard /></ProtectedPage>
@@ -156,9 +157,20 @@ function App() {
           <ProtectedPage><Profile /></ProtectedPage>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </Router>
-  )
+
+</>))
+
+function App() {
+  useEffect(() => {
+    const handleWheel = (e) => {
+      if (document.activeElement && document.activeElement.type === 'number') {
+        document.activeElement.blur()
+      }
+    }
+    window.addEventListener('wheel', handleWheel, { passive: true })
+    return () => window.removeEventListener('wheel', handleWheel)
+  }, [])
+  return <Suspense fallback={<p role="status" className="p-6">Loading page…</p>}><RouterProvider router={router} /></Suspense>
 }
 
 export default App

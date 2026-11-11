@@ -1,4 +1,4 @@
-import { blankReport, mergeReport } from '../reportValidation'
+import { blankReport, mergeReport, reportSaveError } from '../reportValidation'
 import { isDerivedPath, recalculateDerived, initializeDerived } from '../derivedMeasurements'
 import { currentUser, useCompletionConfirmation, DerivedStatus, useDerivedDefinitions, ApprovalControls, FindingNotes, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
 import { useEffect, useMemo, useState } from 'react'
@@ -367,7 +367,7 @@ function FetalEchoReport() {
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [locked, setLocked] = useState(false)
-  const { dirty, markSaved, navigateSection } = useSavedNavigation(report)
+  const { dirty, navigationDialog, markSaved, navigateSection } = useSavedNavigation(report)
 
   const selectedPatient = useMemo(
     () => patients.find((patient) => String(patient.id) === String(selectedPatientId)),
@@ -521,11 +521,11 @@ function FetalEchoReport() {
 
   useEffect(() => {
     const fields = document.querySelectorAll('.report-editor-form input, .report-editor-form select, .report-editor-form textarea')
-    for (const field of fields) if (locked) field.disabled = true
+    for (const field of fields) field.disabled = locked || isSaving
     const wheel = e => { if (e.target instanceof HTMLInputElement && e.target.type === 'number' || e.target instanceof HTMLSelectElement) e.target.blur() }
     document.addEventListener('wheel', wheel, {passive:true})
     return () => document.removeEventListener('wheel', wheel)
-  }, [locked, report])
+  }, [locked, report, isSaving])
   useEffect(() => {
     if(calculationRules.length && !locked)setReport(current=>recalculateDerived(current,calculationRules,'Fetal Echo'))
   }, [calculationRules, locked])
@@ -592,7 +592,7 @@ function FetalEchoReport() {
       setStatusMessage('Not saved. The server did not confirm the save.')
     } catch (error) {
       console.error('Error saving fetal echo report:', error)
-      setStatusMessage(error.response?.data?.detail || 'Not saved. Please retry.')
+      setStatusMessage(reportSaveError(error))
     } finally {
       setIsSaving(false)
     }
@@ -624,7 +624,7 @@ function FetalEchoReport() {
 
   return (
     <>
-      {completionDialog}
+      {completionDialog}{navigationDialog}
       <div data-locked={locked ? 'true' : 'false'} className="no-print report-editor-form min-h-0 flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-slate-100 text-sm text-slate-900">
       <div className="flex min-h-full flex-col gap-3">
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
@@ -650,7 +650,7 @@ function FetalEchoReport() {
               <ToolbarButton icon={RotateCcw} label="Clear" onClick={handleClear} />
               <ToolbarButton icon={Printer} label="Preview" onClick={() => setIsReportPreviewOpen(true)} />
               <ToolbarButton icon={FileImage} label="Images" onClick={() => setIsImagesModalOpen(true)} />
-              <ToolbarButton icon={X} label="Close" onClick={() => { if (!dirty || window.confirm('Discard unsaved report changes?')) navigate('/search') }} />
+              <ToolbarButton icon={X} label="Close" onClick={() => navigate('/search')} />
             </div>
           </div>
 
@@ -663,6 +663,7 @@ function FetalEchoReport() {
                   label: `${p.patient_id || ''} — ${getPatientName(p)}`.trim(),
                 }))}
                 value={selectedPatientId}
+                disabled={Boolean(scanId || savedScanId || selectedVisitId) || isSaving}
                 onChange={(val) => setSelectedPatientId(val)}
                 placeholder="Select patient"
                 searchPlaceholder="Search patient ID or name..."
@@ -1178,7 +1179,7 @@ function ImpressionPanel({ report, updateReport }) {
           <span>Final impression-(F11-Show previous)</span>
 
         </div>
-        <textarea className="h-32 w-full resize-y rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100" value={impression.final_impression} onChange={(event) => updateReport(['impression', 'final_impression'], event.target.value)} />
+        <textarea aria-label="Final impression" className="h-32 w-full resize-y rounded-lg border border-slate-300 bg-white p-3 text-sm text-slate-900 outline-none transition focus:border-teal-500 focus:ring-2 focus:ring-teal-100" value={impression.final_impression} onChange={(event) => updateReport(['impression', 'final_impression'], event.target.value)} />
         <TextArea label="Disclaimer comments - (F11 - Show previous disclaimer comments)" value={impression.disclaimer_comments} onChange={(value) => updateReport(['impression', 'disclaimer_comments'], value)} rows={3} />
         <TextArea label="Internal Comments (Will not be printed) - (F11 - Show previous internal comments)" value={impression.internal_comments} onChange={(value) => updateReport(['impression', 'internal_comments'], value)} rows={3} />
       </div>
@@ -1196,65 +1197,13 @@ function ImpressionPanel({ report, updateReport }) {
   )
 }
 
-function ImagePanel({ activeImageTab, setActiveImageTab, report, updateReport }) {
-  return (
-    <aside className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-slate-50 px-3 pt-3">
-        {imageTabs.map((tab) => (
-          <TabButton key={tab.id} active={activeImageTab === tab.id} onClick={() => setActiveImageTab(tab.id)}>
-            {tab.label}
-          </TabButton>
-        ))}
-      </div>
-      <div className="space-y-4 p-4">
-        <div className="grid grid-cols-2 gap-2">
-          {['Import', 'Export', 'Delete', 'Print', 'Rule of three', 'Image title', 'Process', 'Ink Save', 'Refresh', 'Organ drawing'].map((label) => (
-            <button
-              key={label}
-              type="button"
-              onClick={label === 'Print' ? () => setIsReportPreviewOpen(true) : undefined}
-              className="legacy-small-button"
-            >
-              {label}
-            </button>
-          ))}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-          <label className="field-label">
-            Image layout
-            <select className="field-control" value={report.images.columns} onChange={(event) => updateReport(['images', 'columns'], event.target.value)}>
-              <option value="1">Images: 1 column</option>
-              <option value="2">Images: 2 column</option>
-              <option value="3">Images: 3 column</option>
-            </select>
-          </label>
-          <label className="field-label">
-            Rows X Cols
-            <select className="field-control" value={report.images.rows_cols} onChange={(event) => updateReport(['images', 'rows_cols'], event.target.value)}>
-              <option>4X2</option>
-              <option>3X2</option>
-              <option>2X2</option>
-            </select>
-          </label>
-          <InlineField label="Width" value={report.images.width} onChange={(value) => updateReport(['images', 'width'], value)} width="w-full" />
-          <InlineField label="Height" value={report.images.height} onChange={(value) => updateReport(['images', 'height'], value)} width="w-full" />
-        </div>
-        <div className="flex h-80 items-center justify-center rounded-xl border border-dashed border-slate-300 bg-slate-50 text-slate-400">
-          <div className="text-center text-sm font-medium">
-            <Image className="mx-auto mb-2 h-12 w-12" />
-            {activeImageTab === 'images' ? 'No images imported' : 'No multiframes imported'}
-          </div>
-        </div>
-      </div>
-    </aside>
-  )
-}
+function ImagePanel() { return <aside className="rounded-xl border bg-slate-50 p-4"><h3 className="font-semibold">Visit images</h3><p className="mt-2 text-sm">Use the Images button above to import, select and print files linked to this visit.</p></aside> }
 
 function LmpModal({ report, updateReport, onLmpDateChange, onClose, onSave, onNext, message, saving, locked }) {
   const ga = report.ga_weeks ? `${report.ga_weeks} weeks ${report.ga_days || '0'} days (entered)` : ''
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
+    <div role="dialog" aria-modal="true" aria-label="Fetal profile" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
       <div className="w-full max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
         <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3 font-semibold">
           <span className="text-lg text-slate-950">LMP details</span>
@@ -1297,12 +1246,12 @@ function LmpModal({ report, updateReport, onLmpDateChange, onClose, onSave, onNe
             </label>
           </div>
           <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
-            <button type="button" onClick={() => updateReport(['lmp'], deepClone(initialReport.lmp))} className="legacy-action-button">Delete</button>
+            <button type="button" onClick={() => updateReport(['lmp'], deepClone(initialReport.lmp))} className="legacy-action-button">Clear dating fields</button>
             <button type="button" disabled={saving || locked} onClick={onNext} className="legacy-action-button">Save & next</button>
             <button type="button" disabled={saving || locked} onClick={onSave} className="primary-button">{locked ? 'Report locked' : 'Save draft'}</button>
           </div>
           <p role="status" className="text-red-700">{message}</p>
-          <p className="text-center text-sm font-semibold text-slate-600">Delete button will erase current scan information alone</p>
+          <p className="text-center text-sm font-semibold text-slate-600">Clear dating fields resets the unsaved LMP, EDD and embryo-transfer entries.</p>
         </div>
       </div>
     </div>
@@ -1459,10 +1408,10 @@ function ValveMeasurement({ label, value, zValue, onValue, onZ }) {
   return (
     <div className="mb-3 grid min-w-0 gap-2 sm:grid-cols-[minmax(150px,1fr)_minmax(90px,120px)_auto_auto_minmax(90px,120px)] sm:items-center">
       <span className="text-sm font-medium text-slate-700">{label}</span>
-      <input className="legacy-input w-full" value={value || ''} onChange={(event) => onValue(event.target.value)} />
+      <input aria-label={label} className="legacy-input w-full" value={value || ''} onChange={(event) => onValue(event.target.value)} />
       <span className="text-sm text-slate-500">(mm)</span>
       <span className="text-sm font-medium text-slate-700">Z score</span>
-      <input className="legacy-input w-full" value={zValue || ''} onChange={(event) => onZ(event.target.value)} />
+      <input aria-label={`${label} Z score`} className="legacy-input w-full" value={zValue || ''} onChange={(event) => onZ(event.target.value)} />
     </div>
   )
 }
@@ -1537,490 +1486,5 @@ function ComboWithNew({ label, value, onChange }) {
   )
 }
 
-function formatDisplayDate(date) {
-  if (!date) return new Date().toLocaleDateString('en-GB')
-  const d = new Date(date)
-  if (Number.isNaN(d.getTime())) return new Date().toLocaleDateString('en-GB')
-  return d.toLocaleDateString('en-GB')
-}
-
-function getDoctorProfile(consultantName) {
-  try {
-    const saved = localStorage.getItem('echoai_doctor_profile')
-    if (saved) {
-      const parsed = JSON.parse(saved)
-      return {
-        name: consultantName || parsed.name || '',
-        degrees: parsed.degrees || '',
-        registrationNo: parsed.registrationNo || '',
-      }
-    }
-    const user = localStorage.getItem('echoai_user') || sessionStorage.getItem('echoai_user')
-    if (user) {
-      const parsed = JSON.parse(user)
-      return {
-        name: consultantName || parsed.name || '',
-        degrees: '',
-        registrationNo: '',
-      }
-    }
-  } catch { /* Render only the report's explicitly entered consultant data. */ }
-  return { name: consultantName || '', degrees: '', registrationNo: '' }
-}
-
-function PatientHeaderTable({ patient, visitId, visitDate }) {
-  const patientName = getPatientName(patient) || '—'
-  const age = patient?.age ? `${patient.age} Years` : ''
-  const ageSex = [age, patient?.gender].filter(Boolean).join(' / ') || '—'
-  const patientId = patient?.patient_id || '—'
-  const visitNo = visitId || '—'
-  const refBy = patient?.family_doctor || patient?.referral_doctor || '—'
-
-  return (
-    <table className="document-patient-table">
-      <tbody>
-        <tr>
-          <td className="th-label">Patient name</td>
-          <td className="td-val font-semibold">{patientName}</td>
-          <td className="th-label">Age/Sex</td>
-          <td className="td-val">{ageSex}</td>
-        </tr>
-        <tr>
-          <td className="th-label">Patient Id</td>
-          <td className="td-val font-semibold">{patientId}</td>
-          <td className="th-label">Visit no</td>
-          <td className="td-val">{visitNo}</td>
-        </tr>
-        <tr>
-          <td className="th-label">Referred by</td>
-          <td className="td-val">{refBy}</td>
-          <td className="th-label">Visit date</td>
-          <td className="td-val">{visitDate}</td>
-        </tr>
-      </tbody>
-    </table>
-  )
-}
-
-function FetalDocumentPages({ report, patient, visitId }) {
-  const gen = report.echo_details?.general || {}
-  const fc = report.echo_details?.four_chamber || {}
-  const ot = report.echo_details?.outflow_tract || {}
-  const oth = report.echo_details?.others || {}
-  const bio = report.biometry?.b_mode || {}
-  const imp = report.impression || {}
-  const doctor = getDoctorProfile(imp.primary_consultant)
-
-  const patientName = getPatientName(patient) || '—'
-  const ageId = [patient?.age ? `${patient.age} Y` : '', patient?.patient_id || ''].filter(Boolean).join(' / ') || '—'
-  const refBy = patient?.family_doctor || patient?.referral_doctor || '—'
-  const show = (value) => value === null || value === undefined || value === '' ? '—' : value
-  const gaParts = [report.ga_weeks ? `${report.ga_weeks} Weeks` : '', report.ga_days && report.ga_days !== '0' ? `${report.ga_days} Days` : ''].filter(Boolean)
-  const gaText = gaParts.join(' ') || '—'
-  const indicationText = show(report.indication)
-  const qualityText = show(report.echo_details?.general?.quality || report.quality)
-
-  return (
-    <div className="report-template-sheet printable-report">
-      {/* Master Header - Centered with dark blue underline */}
-      <div className="report-template-header">
-        <h1>{imp.report_title || 'FETAL ECHOCARDIOGRAPHY REPORT'}</h1>
-      </div>
-
-      {/* Patient Info Grid - ONLY at top of report (never repeated) */}
-      <div className="report-patient-grid">
-        <div><strong>Patient Name:</strong> {patientName}</div>
-        <div><strong>Age / ID:</strong> {ageId}</div>
-        <div><strong>Ref By:</strong> {refBy}</div>
-        <div><strong>LMP:</strong> {report.lmp?.lmp_date || '—'}</div>
-        <div><strong>EDD:</strong> {report.lmp?.edd || '—'}</div>
-        <div><strong>GA:</strong> {gaText}</div>
-      </div>
-
-      <div className="flex items-center gap-3 mb-2 px-1 text-xs text-slate-800">
-        <div><strong>Indication:</strong> {indicationText}</div>
-        <span className="text-slate-400">|</span>
-        <div><strong>Quality:</strong> {qualityText}</div>
-      </div>
-
-      {/* 1. Structure, Situs & Position */}
-      <div className="report-section-banner">1. Structure, Situs & Position</div>
-      <table className="report-data-table">
-        <tbody>
-          <tr>
-            <td className="row-label">Abdominal Situs</td>
-            <td>{show(gen.abdominal_situs)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Cardiac Situs</td>
-            <td>{show(gen.cardiac_views)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Cardiac Position</td>
-            <td>{show(gen.apex)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Cardiac Axis</td>
-            <td>{show(gen.cardiac_axis)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 2. Venous Connections & Atria */}
-      <div className="report-section-banner">2. Venous Connections & Atria</div>
-      <table className="report-data-table">
-        <tbody>
-          <tr>
-            <td className="row-label">Systemic Vein</td>
-            <td>{show(oth.systemic_veins)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Pulmonary Veins</td>
-            <td>{show(oth.pulmonary_veins)}</td>
-          </tr>
-          <tr>
-            <td className="sub-label">Left Atrium</td>
-            <td>{show(fc.left_atrium || fc.atria)}</td>
-          </tr>
-          <tr>
-            <td className="sub-label">Right Atrium</td>
-            <td>{show(fc.right_atrium || fc.atria)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Inter-atrial Septum</td>
-            <td>{show(fc.interatrial_septum)}</td>
-          </tr>
-          <tr>
-            <td className="sub-label">Foramen-ovale flap</td>
-            <td>{show(fc.foramen_ovale)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 3. AV Junction, Valves & Ventricles */}
-      <div className="report-section-banner">3. AV Junction, Valves & Ventricles</div>
-      <table className="report-data-table">
-        <tbody>
-          <tr>
-            <td className="row-label">AV Junction/Crux</td>
-            <td>{show(fc.atrioventricular_junction)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">AV Connection</td>
-            <td>{show(fc.atrioventricular_connection)}</td>
-          </tr>
-          <tr>
-            <td className="sub-label">Tricuspid Valve</td>
-            <td>{show(fc.tricuspid_valve || fc.atrioventricular_regurgitation)}</td>
-          </tr>
-          <tr>
-            <td className="sub-label">Mitral Valve</td>
-            <td>{show(fc.mitral_valve || fc.atrioventricular_regurgitation)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Right Ventricle</td>
-            <td>{show(fc.right_ventricle || fc.ventricles)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Left Ventricle</td>
-            <td>{show(fc.left_ventricle || fc.ventricular_function)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Interventricular Septum</td>
-            <td>{show(fc.interventricular_septum)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 4. Outflow Tracts & Arches */}
-      <div className="report-section-banner avoid-break">4. Outflow Tracts & Arches</div>
-      <table className="report-data-table avoid-break">
-        <tbody>
-          <tr>
-            <td className="row-label">VA Connection</td>
-            <td>{show(ot.ventriculoarterial_connection)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Aortic Valve</td>
-            <td>{show(ot.outflow_tracts)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Aorta (Size/Pos)</td>
-            <td>{show(ot.aortic_arch)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Pulmonary Valve</td>
-            <td>{show(ot.pulmonary_valve || ot.va_valve_regurgitation)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Main Pulm. Artery</td>
-            <td>{show(ot.main_pulmonary_artery)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Branch Pulm. Art.</td>
-            <td>{show(ot.branch_pulmonary_artery)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Aortic Arch</td>
-            <td>{show(ot.side_of_arch)}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Ductal Arch</td>
-            <td>{show(ot.ductus_arteriosus)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 5. Biometry & Z-Scores */}
-      <div className="report-section-banner avoid-break">5. Biometry & Z-Scores</div>
-      <table className="report-data-table avoid-break">
-        <thead>
-          <tr>
-            <th>Structure Annulus</th>
-            <th>Diameter (mm)</th>
-            <th>Z-Score</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Mitral Valve (LV)</td>
-            <td>{show(bio.mitral_valve)}</td>
-            <td>{bio.mitral_valve_z || '—'}</td>
-          </tr>
-          <tr>
-            <td>Tricuspid Valve (RV)</td>
-            <td>{show(bio.tricuspid_valve)}</td>
-            <td>{bio.tricuspid_valve_z || '—'}</td>
-          </tr>
-          <tr>
-            <td>Aortic Valve</td>
-            <td>{show(bio.aortic_valve)}</td>
-            <td>{bio.aortic_valve_z || '—'}</td>
-          </tr>
-          <tr>
-            <td>Pulmonary Valve</td>
-            <td>{show(bio.pulmonary_valve)}</td>
-            <td>{bio.pulmonary_valve_z || '—'}</td>
-          </tr>
-          <tr style={{ background: '#f0f7ff' }}>
-            <td colSpan={2}>
-              <strong>RV / LV Ratio</strong>
-            </td>
-            <td>
-              <span className="report-ratio-badge">{show(bio.rv_lv_ratio)}</span>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 6. Pulsed Doppler Analysis */}
-      <div className="report-section-banner avoid-break">6. Pulsed Doppler Analysis (cm/sec)</div>
-      <table className="report-data-table avoid-break">
-        <thead>
-          <tr>
-            <th>Site</th>
-            <th>Flow Pattern</th>
-            <th>Peak Vel</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>Tricuspid (TV) Inflow</td>
-            <td>{show(report.doppler?.valves?.tricuspid_flow_pattern)}</td>
-            <td>{show(report.doppler?.valves?.tricuspid_peak_velocity)}</td>
-          </tr>
-          <tr>
-            <td>Mitral (MV) Inflow</td>
-            <td>{show(report.doppler?.valves?.mitral_flow_pattern)}</td>
-            <td>{show(report.doppler?.valves?.mitral_peak_velocity)}</td>
-          </tr>
-          <tr>
-            <td>LVOT / Aorta</td>
-            <td>{show(report.doppler?.valves?.aortic_flow_pattern)}</td>
-            <td>{show(report.doppler?.valves?.aortic_peak_velocity)}</td>
-          </tr>
-          <tr>
-            <td>RVOT / Pulm Artery</td>
-            <td>{show(report.doppler?.valves?.pulmonary_flow_pattern)}</td>
-            <td>{show(report.doppler?.valves?.pulmonary_peak_velocity)}</td>
-          </tr>
-          <tr>
-            <td>Ductus Arteriosus</td>
-            <td>{show(report.doppler?.valves?.ductus_arteriosus_flow_pattern)}</td>
-            <td>{show(report.doppler?.valves?.ductus_arteriosus_peak_velocity)}</td>
-          </tr>
-          <tr>
-            <td>Ductus Venosus</td>
-            <td>{show(report.doppler?.venous?.ductus_venosus_flow_pattern)}</td>
-            <td>{show(report.doppler?.venous?.ductus_venosus_systolic_peak)}</td>
-          </tr>
-          <tr>
-            <td>Pulmonary Venous</td>
-            <td>{show(report.doppler?.venous?.pulmonary_veins_flow_pattern)}</td>
-            <td>{show(report.doppler?.venous?.pulmonary_veins)}</td>
-          </tr>
-          <tr>
-            <td>Foramen-Ovale Shunt</td>
-            <td>{show(report.doppler?.venous?.foramen_ovale_flow_pattern)}</td>
-            <td>{show(report.doppler?.venous?.foramen_ovale)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* 7. Fetal Heart Rate & Rhythm */}
-      <div className="report-section-banner avoid-break">7. Fetal Heart Rate & Rhythm</div>
-      <table className="report-data-table avoid-break">
-        <tbody>
-          <tr>
-            <td className="row-label">Rate</td>
-            <td>{gen.fhr ? `${gen.fhr} bpm` : '—'}</td>
-          </tr>
-          <tr>
-            <td className="row-label">Rhythm</td>
-            <td>{show(gen.rhythm)}</td>
-          </tr>
-        </tbody>
-      </table>
-
-      {/* Final Impression */}
-      <div className="report-section-banner avoid-break">Final Impression</div>
-      <div className="avoid-break my-2 p-3 bg-slate-50 border border-slate-200 rounded text-xs leading-relaxed text-black font-medium whitespace-pre-line">
-        {show(imp.final_impression)}
-      </div>
-
-      {/* Doctor Signature Block */}
-      <div className="mt-6 mb-3 avoid-break">
-        <div className="h-10 flex items-end">
-          {doctor.name && <span className="text-sm font-semibold">{doctor.name}</span>}
-        </div>
-        <div className="font-bold text-xs uppercase text-black mt-1">
-          {[doctor.name, doctor.degrees].filter(Boolean).join(' ')}
-        </div>
-      </div>
-
-      {/* Disclaimer & PCPNDT */}
-      {(imp.disclaimer_comments || doctor.registrationNo) && <div className="mt-4 pt-2 border-t border-slate-300 text-[10.5px] leading-relaxed text-slate-800 avoid-break">
-        <div className="font-bold text-black mb-0.5">Disclaimer</div>
-        <p className="mb-1 text-justify">
-          {imp.disclaimer_comments || ''}
-        </p>
-        {doctor.registrationNo && <div className="font-semibold text-black">PCPNDT registration number {doctor.registrationNo}</div>}
-      </div>}
-    </div>
-  )
-}
-
-function ReportPreviewModal({ report, patient, visitId, onClose }) {
-  const [isConfigOpen, setIsConfigOpen] = useState(false)
-  const [zoom, setZoom] = useState(100)
-
-  return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/90 backdrop-blur-sm preview-modal-backdrop">
-      {/* Top Toolbar */}
-      <div className="no-print preview-modal-toolbar flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-5 py-2.5 shadow-sm">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-700">
-            <Printer className="h-4 w-4" />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">Fetal Echo Report Preview</h2>
-            <p className="text-[11px] text-slate-500">Official Clinical A4 Print Layout</p>
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {/* Zoom controls */}
-          <div className="flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs font-medium">
-            <button
-              type="button"
-              onClick={() => setZoom((z) => Math.max(60, z - 10))}
-              className="rounded px-2 py-1 text-slate-600 hover:bg-white hover:text-slate-900 cursor-pointer"
-              title="Zoom out"
-            >
-              Zoom -
-            </button>
-            <span className="px-2 py-1 text-slate-700 font-mono">{zoom}%</span>
-            <button
-              type="button"
-              onClick={() => setZoom((z) => Math.min(140, z + 10))}
-              className="rounded px-2 py-1 text-slate-600 hover:bg-white hover:text-slate-900 cursor-pointer"
-              title="Zoom in"
-            >
-              Zoom +
-            </button>
-            <button
-              type="button"
-              onClick={() => setZoom(100)}
-              className="rounded px-2 py-1 text-slate-500 hover:bg-white hover:text-slate-800 border-l border-slate-200 cursor-pointer"
-            >
-              100%
-            </button>
-          </div>
-
-          {/* Config button */}
-          <button
-            type="button"
-            onClick={() => setIsConfigOpen(true)}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-            title="Report Settings & Format"
-          >
-            <Cog className="h-3.5 w-3.5 text-slate-500" />
-            Config
-          </button>
-
-          {/* Print / Save PDF Button */}
-          <button
-            type="button"
-            onClick={() => setIsReportPreviewOpen(true)}
-            className="inline-flex items-center gap-2 rounded-lg bg-teal-600 px-4 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-teal-700 cursor-pointer"
-            title="Print or Save as PDF (Ctrl + P)"
-          >
-            <Printer className="h-4 w-4" />
-            Print / Save as PDF
-          </button>
-
-          {/* Close button */}
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition cursor-pointer"
-            title="Close Preview"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Modal Preview Body */}
-      <div className="preview-modal-content flex-1 overflow-y-auto bg-transparent py-8 px-4 flex justify-center">
-        <div
-          style={{
-            transform: `scale(${zoom / 100})`,
-            transformOrigin: 'top center',
-            transition: 'transform 0.15s ease',
-          }}
-          className="w-full max-w-4xl"
-        >
-          <FetalDocumentPages report={report} patient={patient} visitId={visitId} />
-        </div>
-      </div>
-
-      <ReportConfigModal
-        open={isConfigOpen}
-        onClose={() => setIsConfigOpen(false)}
-      />
-    </div>
-  )
-}
-
-function FetalPrintReport({ report, patient, visitId, isReportPreviewOpen }) {
-  if (isReportPreviewOpen) return null
-
-  return (
-    <div className="printable-report hidden print:block">
-      <FetalDocumentPages report={report} patient={patient} visitId={visitId} />
-    </div>
-  )
-}
 
 export default FetalEchoReport

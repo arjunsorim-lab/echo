@@ -1,6 +1,6 @@
 import {test} from 'node:test'
 import assert from 'node:assert/strict'
-import {blankReport,mergeReport,reportErrors} from './src/reportValidation.js'
+import {blankReport,mergeReport,reportErrors,reportSaveError} from './src/reportValidation.js'
 import {getScanMeasurements} from './src/measurementData.js'
 test('incomplete drafts persist but progression and completion require profile fields',()=>{
   const report={indication:'',lmp:{},impression:{},no_of_fetuses:''}
@@ -34,4 +34,9 @@ test('measurement explorer never invents absent values, thresholds or Z-scores',
   for(const group of Object.values(missing))for(const value of Object.values(group))assert.equal(value,'—')
   const entered=getScanMeasurements({pediatric_echo_report:{biometry:{lvef:'0'}},fetal_echo_report:{aortic:{aortic_valve:{z_score:'1.23'}}}})
   assert.equal(entered.mMode.lvef,'0');assert.equal(entered.zScores.aoAnnulusZ,'1.23')
+})
+
+test('ambiguous save failures retain honest retry guidance; explicit validation errors remain visible',()=>{
+  for(const error of [{code:'ECONNABORTED'},{request:{}},{response:{status:503,data:{}}}])assert.match(reportSaveError(error),/Save could not be confirmed/)
+  assert.equal(reportSaveError({response:{status:409,data:{detail:'Completed reports are locked'}}}),'Completed reports are locked')
 })

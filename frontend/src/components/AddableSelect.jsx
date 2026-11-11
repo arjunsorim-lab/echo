@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, Plus, X } from 'lucide-react'
 import { customOptionService } from '../api/customOptionService'
 
-export default function AddableSelect({ field, value, onChange, options = [], className = 'field-control', required, 'aria-required': ariaRequired, id, name }) {
+export default function AddableSelect({ field, value, onChange, options = [], className = 'field-control', required, 'aria-required': ariaRequired, id, name, 'aria-label': ariaLabel }) {
   const [customOptions, setCustomOptions] = useState([])
   const [isAdding, setIsAdding] = useState(false)
   const [newValue, setNewValue] = useState('')
@@ -52,6 +52,7 @@ export default function AddableSelect({ field, value, onChange, options = [], cl
           aria-required={ariaRequired ?? required ?? undefined}
           id={id}
           name={name}
+          aria-label={ariaLabel}
         >
           <option value="">Select</option>
           {allOptions.map((option) => <option key={option} value={option}>{option}</option>)}
@@ -73,10 +74,10 @@ export default function AddableSelect({ field, value, onChange, options = [], cl
             value={newValue}
             onChange={(event) => setNewValue(event.target.value)}
             onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); saveOption() } }}
-            placeholder="Enter a new value"
+            aria-label={`New ${field.replaceAll('_', ' ')}`} placeholder="Enter a new value"
             autoFocus
           />
-          <button type="button" disabled={saving || !newValue.trim()} onClick={saveOption} className="rounded-md bg-teal-600 px-3 text-white disabled:opacity-50">
+          <button aria-label="Save new option" type="button" disabled={saving || !newValue.trim()} onClick={saveOption} className="rounded-md bg-teal-600 px-3 text-white disabled:opacity-50">
             <Check className="h-4 w-4" />
           </button>
         </div>

@@ -243,8 +243,9 @@ function EditPatient() {
                 <div className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                      <label className={labelClass + ' required'}>Patient ID</label>
+                      <label htmlFor="editpatient-patient_id" className={labelClass + ' required'}>Patient ID</label>
                       <input
+                        id="editpatient-patient_id"
                         type="text"
                         className={inputClass}
                         readOnly aria-readonly="true" title="Locked after registration" value={formData.patient_id}
@@ -254,8 +255,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Salutation</label>
+                      <label htmlFor="editpatient-salutation" className={labelClass}>Salutation</label>
                       <AddableSelect
+                        id="editpatient-salutation"
                         field="patient_salutation"
                         className={selectClass}
                         options={salutations}
@@ -264,8 +266,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass + ' required'}>First Name</label>
+                      <label htmlFor="editpatient-first_name" className={labelClass + ' required'}>First Name</label>
                       <input
+                        id="editpatient-first_name"
                         type="text"
                         className={inputClass}
                         readOnly aria-readonly="true" title="Locked after registration" value={formData.first_name}
@@ -274,8 +277,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Surname / Initial</label>
+                      <label htmlFor="editpatient-last_name" className={labelClass}>Surname / Initial</label>
                       <input
+                        id="editpatient-last_name"
                         type="text"
                         className={inputClass}
                         readOnly aria-readonly="true" title="Locked after registration" value={formData.last_name}
@@ -283,8 +287,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Middle Name</label>
+                      <label htmlFor="editpatient-middle_name" className={labelClass}>Middle Name</label>
                       <input
+                        id="editpatient-middle_name"
                         type="text"
                         className={inputClass}
                         value={formData.middle_name}
@@ -292,10 +297,11 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Date of Birth</label>
+                      <label htmlFor="editpatient-dob" className={labelClass}>Date of Birth</label>
                       <div className="relative">
                         <input
-                          type="date"
+                        id="editpatient-dob"
+                        type="date"
                           className={`${inputClass} pr-10`}
                           readOnly aria-readonly="true" title="Locked after registration" value={formData.dob}
                           onChange={(e) => handleDobChange(e.target.value)}
@@ -310,9 +316,10 @@ function EditPatient() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className={labelClass}>Age</label>
+                        <label htmlFor="editpatient-age" className={labelClass}>Age</label>
                         <input
-                          type="number"
+                        id="editpatient-age"
+                        type="number"
                           className={inputClass}
                           value={formData.age}
                           onChange={(e) => setFormData({ ...formData, age: e.target.value })}
@@ -356,8 +363,9 @@ function EditPatient() {
                       </div>
                     </div>
                     <div>
-                      <label className={labelClass}>Marital Status</label>
+                      <label htmlFor="editpatient-marital_status" className={labelClass}>Marital Status</label>
                       <AddableSelect
+                        id="editpatient-marital_status"
                         field="patient_marital_status"
                         className={selectClass}
                         options={maritalStatuses}
@@ -368,8 +376,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Ethnic Origin</label>
+                      <label htmlFor="editpatient-ethnic_origin" className={labelClass}>Ethnic Origin</label>
                       <AddableSelect
+                        id="editpatient-ethnic_origin"
                         field="patient_ethnic_origin"
                         className={selectClass}
                         options={ethnicOrigins}
@@ -393,8 +402,9 @@ function EditPatient() {
                 <div className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="lg:col-span-2">
-                      <label className={labelClass + ' required'}>Street Address</label>
+                      <label htmlFor="editpatient-street" className={labelClass + ' required'}>Street Address</label>
                       <input
+                        id="editpatient-street"
                         type="text"
                         className={inputClass}
                         value={formData.street}
@@ -404,8 +414,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Taluk</label>
+                      <label htmlFor="editpatient-taluk" className={labelClass}>Taluk</label>
                       <input
+                        id="editpatient-taluk"
                         type="text"
                         className={inputClass}
                         value={formData.taluk}
@@ -414,8 +425,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Area</label>
+                      <label htmlFor="editpatient-area" className={labelClass}>Area</label>
                       <input
+                        id="editpatient-area"
                         type="text"
                         className={inputClass}
                         value={formData.area}
@@ -423,8 +435,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Area (P.O.)</label>
+                      <label htmlFor="editpatient-area_po" className={labelClass}>Area (P.O.)</label>
                       <input
+                        id="editpatient-area_po"
                         type="text"
                         className={inputClass}
                         value={formData.area_po}
@@ -433,8 +446,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Zip Code</label>
+                      <label htmlFor="editpatient-zip_code" className={labelClass}>Zip Code</label>
                       <input
+                        id="editpatient-zip_code"
                         type="text"
                         className={inputClass}
                         value={formData.zip_code}
@@ -454,8 +468,9 @@ function EditPatient() {
                       )}
                     </div>
                     <div>
-                      <label className={labelClass + ' required'}>Country</label>
+                      <label htmlFor="editpatient-country" className={labelClass + ' required'}>Country</label>
                       <AddableSelect
+                        id="editpatient-country"
                         field="patient_country"
                         className={selectClass}
                         options={countries}
@@ -471,8 +486,9 @@ function EditPatient() {
                       )}
                     </div>
                     <div>
-                      <label className={labelClass + ' required'}>State</label>
+                      <label htmlFor="editpatient-state" className={labelClass + ' required'}>State</label>
                       <AddableSelect
+                        id="editpatient-state"
                         field="patient_state"
                         className={selectClass}
                         options={availableStates}
@@ -482,8 +498,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>District/City</label>
+                      <label htmlFor="editpatient-district_city" className={labelClass}>District/City</label>
                       <AddableSelect
+                        id="editpatient-district_city"
                         field="patient_district_city"
                         className={selectClass}
                         options={availableCities}
@@ -507,8 +524,9 @@ function EditPatient() {
                 <div className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                      <label className={labelClass}>Phone #1</label>
+                      <label htmlFor="editpatient-phone1" className={labelClass}>Phone #1</label>
                       <input
+                        id="editpatient-phone1"
                         type="tel"
                         className={inputClass}
                         value={formData.phone1}
@@ -516,8 +534,9 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Phone #2</label>
+                      <label htmlFor="editpatient-phone2" className={labelClass}>Phone #2</label>
                       <input
+                        id="editpatient-phone2"
                         type="tel"
                         className={inputClass}
                         value={formData.phone2}
@@ -542,8 +561,9 @@ function EditPatient() {
                       </div>
                     </div>
                     <div>
-                      <label className={labelClass}>Fax #</label>
+                      <label htmlFor="editpatient-fax" className={labelClass}>Fax #</label>
                       <input
+                        id="editpatient-fax"
                         type="text"
                         className={inputClass}
                         value={formData.fax}
@@ -551,8 +571,9 @@ function EditPatient() {
                       />
                     </div>
                     <div className="lg:col-span-2">
-                      <label className={labelClass}>Email</label>
+                      <label htmlFor="editpatient-email" className={labelClass}>Email</label>
                       <input
+                        id="editpatient-email"
                         type="email"
                         className={inputClass}
                         value={formData.email}
@@ -574,8 +595,9 @@ function EditPatient() {
                 <div className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className={labelClass}>Aadhaar No</label>
+                      <label htmlFor="editpatient-aadhaar_no" className={labelClass}>Aadhaar No</label>
                       <input
+                        id="editpatient-aadhaar_no"
                         type="text"
                         className={inputClass}
                         value={formData.aadhaar_no}
@@ -586,10 +608,11 @@ function EditPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass}>Referral Doctor / Institute</label>
+                      <label htmlFor="editpatient-family_doctor" className={labelClass}>Referral Doctor / Institute</label>
                       <div className="flex gap-2">
                         <input
-                          type="text"
+                        id="editpatient-family_doctor"
+                        type="text"
                           className={inputClass}
                           value={formData.family_doctor}
                           onChange={(e) =>

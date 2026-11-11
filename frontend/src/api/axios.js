@@ -4,6 +4,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
+  timeout: 20000,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
@@ -14,7 +15,8 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = sessionStorage.getItem('echoai_token') || localStorage.getItem('echoai_token');
-    if (token) config.headers.Authorization = 'Bearer ' + token;
+    // New sessions use HttpOnly cookies. Accept legacy sessions until they expire.
+    if (token && token !== 'cookie-session') config.headers.Authorization = 'Bearer ' + token;
     return config;
   },
   (error) => {

@@ -41,13 +41,22 @@ def forwarded_client(peer, forwarded, trusted_proxies):
 
 def install(app, base_dir):
     path = os.environ.get('ECHOAI_USERS_PATH', os.path.join(base_dir, '.workflow-users.json'))
+    production = os.environ.get('ECHOAI_ENV') == 'production'
+    if production and (not os.environ.get('ECHOAI_USERS_PATH') or not os.environ.get('ECHOAI_SESSIONS_PATH')):
+        raise RuntimeError('Production requires explicit private persistent user and session storage paths.')
+    if production and '*' in os.environ.get('ECHOAI_ALLOWED_ORIGINS', ''):
+        raise RuntimeError('Wildcard CORS origins are not allowed in production.')
     cookie_name = os.environ.get('ECHOAI_SESSION_COOKIE', 'echoai_session')
     sessions = SessionStore(os.environ.get('ECHOAI_SESSIONS_PATH', path + '.sessions.db'))
-    secure_cookie = os.environ.get('ECHOAI_SECURE_COOKIE', '').lower() in ('1', 'true')
+    secure_cookie = os.environ.get('ECHOAI_SECURE_COOKIE', 'true' if production else '').lower() in ('1', 'true')
+    if production and not secure_cookie:
+        raise RuntimeError('Production requires secure session cookies behind HTTPS.')
     if not os.path.exists(path):
         # Reuse explicitly configured local credentials where available.
         credential_path = os.path.join(base_dir, '.local-credentials.json')
         password = os.environ.get('ECHOAI_PASSWORD')
+        if production and (not password or len(password) < 12):
+            raise RuntimeError('Production bootstrap requires ECHOAI_PASSWORD of at least 12 characters.')
         if not password and os.path.exists(credential_path):
             with open(credential_path) as f:
                 password = json.load(f).get('password')
@@ -81,6 +90,7 @@ def install(app, base_dir):
             with os.fdopen(fd, 'w') as f:
                 json.dump(records, f)
             os.replace(temporary, path)
+
 
     @app.middleware('http')
     async def protect(request: Request, call_next):
@@ -124,7 +134,7 @@ def install(app, base_dir):
         token = secrets.token_urlsafe(32)
         sessions.create(token, user['username'], time.time() + 43200)
         response = JSONResponse({'success': True, 'token': token, 'user': public})
-        response.set_cookie(cookie_name, token, httponly=True, secure=secure_cookie, samesite='strict', max_age=43200)
+        response.set_cookie(cookie_name, token, httponly=True, secure=secure_cookie, samesite='strict', max_age=43200 if data.get('remember') is True else None)
         return response
 
     @app.get('/api/auth/me')

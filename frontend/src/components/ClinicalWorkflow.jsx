@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import api from '../api/axios'
+import { useBlocker } from 'react-router-dom'
 import { createPortal } from 'react-dom'
 import { CLINICAL_GROUPS } from '../reportValidation'
 export { reportErrors } from '../reportValidation'
@@ -70,34 +71,13 @@ export function useSavedNavigation(report) {
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [dirty])
-  useEffect(() => {
-    if (!dirty) return
-    const guardInternalLink = (event) => {
-      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
-      const anchor = event.target instanceof Element ? event.target.closest('a[href]') : null
-      if (!anchor || (anchor.target && anchor.target !== '_self') || anchor.hasAttribute('download')) return
-      let target
-      try { target = new URL(anchor.getAttribute('href'), window.location.href) } catch { return }
-      if (!['http:', 'https:'].includes(target.protocol) || target.origin !== window.location.origin) return
-      if (target.pathname === window.location.pathname && target.search === window.location.search) return
-      if (!window.confirm('Discard unsaved report changes?')) {
-        event.preventDefault()
-        event.stopPropagation()
-      }
-    }
-    const guardPopState = () => {
-      if (dirty && !window.confirm('Discard unsaved report changes?')) {
-        window.history.pushState(null, '', window.location.href)
-      }
-    }
-    document.addEventListener('click', guardInternalLink, true)
-    window.addEventListener('popstate', guardPopState)
-    return () => {
-      document.removeEventListener('click', guardInternalLink, true)
-      window.removeEventListener('popstate', guardPopState)
-    }
-  }, [dirty])
-  return { dirty, markSaved: value => setSaved(JSON.stringify(value)), navigateSection: (action, showError, errors = []) => {
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => dirty &&
+    (currentLocation.pathname !== nextLocation.pathname || currentLocation.search !== nextLocation.search))
+  const navigationDialog = blocker.state === 'blocked' && createPortal(
+    <div role="dialog" aria-modal="true" aria-label="Unsaved report changes" className="no-print fixed inset-0 z-[110] flex items-center justify-center bg-slate-900/60 p-4" onKeyDown={e=>{if(e.key==='Escape')blocker.reset()}}>
+      <div className="max-w-lg rounded-xl bg-white p-6 shadow-xl"><h2 className="text-lg font-bold">Unsaved report changes</h2><p className="my-4">Stay on this page to save your entries, or discard them and leave.</p><div className="flex gap-3"><button autoFocus className="primary-button" onClick={()=>blocker.reset()}>Stay on report</button><button className="secondary-button" onClick={()=>blocker.proceed()}>Discard changes and leave</button></div></div>
+    </div>, document.body)
+  return { dirty, navigationDialog, markSaved: value => setSaved(JSON.stringify(value)), navigateSection: (action, showError, errors = []) => {
     if (errors.length) { showError('Cannot advance. ' + errors.join(' ')); return }
     if (dirty) { showError('Not saved. Save this section before opening another section.'); return }
     action()
@@ -110,7 +90,7 @@ function Values({ node }) {
   if (!node || typeof node !== 'object') return null
   return Object.entries(node).filter(([k,v]) => !k.endsWith('_enabled') && populated(v)).map(([k,v]) => typeof v === 'object'
     ? <section key={k} className="mb-3"><h3 className="font-semibold">{label(k)}</h3><Values node={v}/></section>
-    : <div key={k} className="flex gap-3 border-b border-slate-100 py-1"><span className="w-1/2">{label(k)}</span><span>{v === true ? 'Yes' : String(v)}</span></div>)
+    : <div key={k} className="flex items-start gap-3 border-b border-slate-100 py-1"><span className="w-1/2 shrink-0">{label(k)}</span><span className="min-w-0 flex-1 whitespace-pre-wrap">{v === true ? 'Yes' : String(v)}</span></div>)
 }
 export function ClinicalPreview({ report, patient, visitId, title, onClose, status='Draft / In Progress', visit: suppliedVisit }) {
   const [context, setContext] = useState({visit:null,error:'',loading:Boolean(visitId && !suppliedVisit)})

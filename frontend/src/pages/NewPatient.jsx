@@ -159,29 +159,29 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                      <label className={labelClass + ' required'}>Patient ID</label>
-                      <input type="text" className={inputClass} value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })} required aria-required="true" placeholder="e.g., TM0012026" />
+                      <label htmlFor="newpatient-patient_id" className={labelClass + ' required'}>Patient ID</label>
+                      <input id="newpatient-patient_id" type="text" className={inputClass} value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })} required aria-required="true" placeholder="e.g., TM0012026" />
                     </div>
                     <div>
-                      <label className={labelClass}>Salutation</label>
-                      <AddableSelect field="patient_salutation" className={selectClass} options={salutations} value={formData.salutation} onChange={(value) => setFormData({ ...formData, salutation: value })} />
+                      <label htmlFor="newpatient-salutation" className={labelClass}>Salutation</label>
+                      <AddableSelect id="newpatient-salutation" field="patient_salutation" className={selectClass} options={salutations} value={formData.salutation} onChange={(value) => setFormData({ ...formData, salutation: value })} />
                     </div>
                     <div>
-                      <label className={labelClass + ' required'}>First Name</label>
-                      <input type="text" className={inputClass} value={formData.first_name} onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} required aria-required="true" />
+                      <label htmlFor="newpatient-first_name" className={labelClass + ' required'}>First Name</label>
+                      <input id="newpatient-first_name" type="text" className={inputClass} value={formData.first_name} onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} required aria-required="true" />
                     </div>
                     <div>
-                      <label className={labelClass + ' required'}>Surname / Initial</label>
-                      <input type="text" className={inputClass} value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} required aria-required="true" />
+                      <label htmlFor="newpatient-last_name" className={labelClass + ' required'}>Surname / Initial</label>
+                      <input id="newpatient-last_name" type="text" className={inputClass} value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} required aria-required="true" />
                     </div>
                     <div>
-                      <label className={labelClass}>Middle Name</label>
-                      <input type="text" className={inputClass} value={formData.middle_name} onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })} />
+                      <label htmlFor="newpatient-middle_name" className={labelClass}>Middle Name</label>
+                      <input id="newpatient-middle_name" type="text" className={inputClass} value={formData.middle_name} onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })} />
                     </div>
                     <div>
-                      <label className={labelClass + ' required'}>Date of Birth (or age)</label>
+                      <label htmlFor="newpatient-dob" className={labelClass + ' required'}>Date of Birth (or age)</label>
                       <div className="relative">
-                        <input type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} aria-required="true" />
+                        <input id="newpatient-dob" type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} aria-required="true" />
                         <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                       </div>
                       {formData.dob && formData.age && (
@@ -192,8 +192,8 @@ function NewPatient() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label className={labelClass + ' required'}>Age (or DOB)</label>
-                        <input type="number" className={inputClass} value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="Age" aria-required="true" onWheel={(e) => e.currentTarget.blur()} />
+                        <label htmlFor="newpatient-age" className={labelClass + ' required'}>Age (or DOB)</label>
+                        <input id="newpatient-age" type="number" className={inputClass} value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="Age" aria-required="true" onWheel={(e) => e.currentTarget.blur()} />
                       </div>
                       <div>
                         <label className={labelClass}>Unit</label>
@@ -224,12 +224,12 @@ function NewPatient() {
                       </div>
                     </div>
                     <div>
-                      <label className={labelClass}>Marital Status</label>
-                      <AddableSelect field="patient_marital_status" className={selectClass} options={maritalStatuses} value={formData.marital_status} onChange={(value) => setFormData({ ...formData, marital_status: value })} />
+                      <label htmlFor="newpatient-marital_status" className={labelClass}>Marital Status</label>
+                      <AddableSelect id="newpatient-marital_status" field="patient_marital_status" className={selectClass} options={maritalStatuses} value={formData.marital_status} onChange={(value) => setFormData({ ...formData, marital_status: value })} />
                     </div>
                     <div>
-                      <label className={labelClass}>Ethnic Origin</label>
-                      <AddableSelect field="patient_ethnic_origin" className={selectClass} options={ethnicOrigins} value={formData.ethnic_origin} onChange={(value) => setFormData({ ...formData, ethnic_origin: value })} />
+                      <label htmlFor="newpatient-ethnic_origin" className={labelClass}>Ethnic Origin</label>
+                      <AddableSelect id="newpatient-ethnic_origin" field="patient_ethnic_origin" className={selectClass} options={ethnicOrigins} value={formData.ethnic_origin} onChange={(value) => setFormData({ ...formData, ethnic_origin: value })} />
                     </div>
                   </div>
                 </div>
@@ -245,42 +245,42 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="lg:col-span-2">
-                      <label className={labelClass + ' required'}>Street Address</label>
-                      <input type="text" className={inputClass} value={formData.street} onChange={(e) => setFormData({ ...formData, street: e.target.value })} required aria-required="true" />
+                      <label htmlFor="newpatient-street" className={labelClass + ' required'}>Street Address</label>
+                      <input id="newpatient-street" type="text" className={inputClass} value={formData.street} onChange={(e) => setFormData({ ...formData, street: e.target.value })} required aria-required="true" />
                     </div>
                     <div>
-                      <label className={labelClass}>Taluk</label>
-                      <input type="text" className={inputClass} value={formData.taluk} onChange={(e) => setFormData({ ...formData, taluk: e.target.value })} placeholder="Auto-filled by zip code" />
+                      <label htmlFor="newpatient-taluk" className={labelClass}>Taluk</label>
+                      <input id="newpatient-taluk" type="text" className={inputClass} value={formData.taluk} onChange={(e) => setFormData({ ...formData, taluk: e.target.value })} placeholder="Auto-filled by zip code" />
                     </div>
                     <div>
-                      <label className={labelClass}>Area</label>
-                      <input type="text" className={inputClass} value={formData.area} onChange={(e) => setFormData({ ...formData, area: e.target.value })} />
+                      <label htmlFor="newpatient-area" className={labelClass}>Area</label>
+                      <input id="newpatient-area" type="text" className={inputClass} value={formData.area} onChange={(e) => setFormData({ ...formData, area: e.target.value })} />
                     </div>
                     <div>
-                      <label className={labelClass}>Area (P.O.)</label>
+                      <label htmlFor="newpatient-area_po" className={labelClass}>Area (P.O.)</label>
                       <div className="flex gap-2">
-                        <input type="text" className={inputClass} value={formData.area_po} onChange={(e) => setFormData({ ...formData, area_po: e.target.value })} placeholder="Auto-filled by zip code" />
+                        <input id="newpatient-area_po" type="text" className={inputClass} value={formData.area_po} onChange={(e) => setFormData({ ...formData, area_po: e.target.value })} placeholder="Auto-filled by zip code" />
                         <button type="button" className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition text-sm whitespace-nowrap">Add / Modify</button>
                       </div>
                     </div>
                     <div>
-                      <label className={labelClass}>Zip Code</label>
-                      <input type="text" className={inputClass} value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value)} maxLength={10} placeholder="Enter zip / pincode" />
+                      <label htmlFor="newpatient-zip_code" className={labelClass}>Zip Code</label>
+                      <input id="newpatient-zip_code" type="text" className={inputClass} value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value)} maxLength={10} placeholder="Enter zip / pincode" />
                       {zipLookupStatus === 'found' && <p className="mt-1 text-xs text-teal-600 font-medium">✓ Taluk &amp; Post auto-filled</p>}
                       {zipLookupStatus === 'notfound' && <p className="mt-1 text-xs text-amber-500 font-medium">Pincode not in database — fill manually</p>}
                     </div>
                     <div>
-                      <label className={labelClass + ' required'}>Country</label>
-                      <AddableSelect field="patient_country" className={selectClass} options={countries} value={formData.country} onChange={handleCountryChange} required aria-required="true" />
+                      <label htmlFor="newpatient-country" className={labelClass + ' required'}>Country</label>
+                      <AddableSelect id="newpatient-country" field="patient_country" className={selectClass} options={countries} value={formData.country} onChange={handleCountryChange} required aria-required="true" />
                       {dialCode && <p className="mt-1 text-xs text-slate-500">Dial code: <span className="font-semibold text-slate-700">{dialCode}</span></p>}
                     </div>
                     <div>
-                      <label className={labelClass + ' required'}>State</label>
-                      <AddableSelect field="patient_state" className={selectClass} options={availableStates} value={formData.state} onChange={handleStateChange} required aria-required="true" />
+                      <label htmlFor="newpatient-state" className={labelClass + ' required'}>State</label>
+                      <AddableSelect id="newpatient-state" field="patient_state" className={selectClass} options={availableStates} value={formData.state} onChange={handleStateChange} required aria-required="true" />
                     </div>
                     <div>
-                      <label className={labelClass}>District/City</label>
-                      <AddableSelect field="patient_district_city" className={selectClass} options={availableCities} value={formData.district_city} onChange={(value) => setFormData({ ...formData, district_city: value })} />
+                      <label htmlFor="newpatient-district_city" className={labelClass}>District/City</label>
+                      <AddableSelect id="newpatient-district_city" field="patient_district_city" className={selectClass} options={availableCities} value={formData.district_city} onChange={(value) => setFormData({ ...formData, district_city: value })} />
                     </div>
                   </div>
                 </div>
@@ -296,12 +296,12 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                      <label className={labelClass + ' required'}>Phone (at least one required)</label>
-                      <input type="tel" className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} />
+                      <label htmlFor="newpatient-phone1" className={labelClass + ' required'}>Phone (at least one required)</label>
+                      <input id="newpatient-phone1" type="tel" className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} />
                     </div>
                     <div>
-                      <label className={labelClass}>Phone 2</label>
-                      <input type="tel" className={inputClass} value={formData.phone2} onChange={(e) => setFormData({ ...formData, phone2: e.target.value })} />
+                      <label htmlFor="newpatient-phone2" className={labelClass}>Phone 2</label>
+                      <input id="newpatient-phone2" type="tel" className={inputClass} value={formData.phone2} onChange={(e) => setFormData({ ...formData, phone2: e.target.value })} />
                     </div>
                     <div>
                       <label className={labelClass}>Mobile</label>
@@ -311,13 +311,13 @@ function NewPatient() {
                       </div>
                     </div>
                     <div>
-                      <label className={labelClass}>Fax</label>
-                      <input type="text" className={inputClass} value={formData.fax} onChange={(e) => setFormData({ ...formData, fax: e.target.value })} />
+                      <label htmlFor="newpatient-fax" className={labelClass}>Fax</label>
+                      <input id="newpatient-fax" type="text" className={inputClass} value={formData.fax} onChange={(e) => setFormData({ ...formData, fax: e.target.value })} />
                     </div>
                     <div className="md:col-span-2">
-                      <label className={labelClass}>Email</label>
+                      <label htmlFor="newpatient-email" className={labelClass}>Email</label>
                       <div className="relative">
-                        <input type="email" className={`${inputClass} pl-10`} value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
+                        <input id="newpatient-email" type="email" className={`${inputClass} pl-10`} value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} />
                         <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
                       </div>
                     </div>
@@ -335,8 +335,9 @@ function NewPatient() {
                 <div className="p-4">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label className={labelClass}>Aadhaar No</label>
+                      <label htmlFor="newpatient-aadhaar_no" className={labelClass}>Aadhaar No</label>
                       <input
+                        id="newpatient-aadhaar_no"
                         type="text"
                         className={inputClass}
                         value={formData.aadhaar_no}
@@ -345,10 +346,11 @@ function NewPatient() {
                       />
                     </div>
                     <div>
-                      <label className={labelClass + ' required'}>Referral Doctor / Institute</label>
+                      <label htmlFor="newpatient-family_doctor" className={labelClass + ' required'}>Referral Doctor / Institute</label>
                       <div className="flex gap-2">
                         <input
-                          type="text"
+                        id="newpatient-family_doctor"
+                        type="text"
                           className={inputClass}
                           value={formData.family_doctor}
                           onChange={(e) => setFormData({ ...formData, family_doctor: e.target.value })}

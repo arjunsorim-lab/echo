@@ -1,6 +1,12 @@
 // Structural checks only. No clinical equations, reference ranges or thresholds.
 export const REPORT_TITLES = { 'Adult Echo':'Adult Echocardiography', 'Pediatric Echo':'Paediatric Echocardiography', 'Fetal Echo':'Fetal Echocardiography' }
 export const CLINICAL_GROUPS = ['echo_details','biometry','doppler','aortic','two_d_measurement','m_mode_measurement','doppler_measurement','pisa_measurement']
+export function reportSaveError(error) {
+  const detail = error?.response?.data?.detail
+  if (typeof detail === 'string' && detail.trim()) return detail
+  if (!error?.response || error.response.status >= 500) return 'Save could not be confirmed. Your entries are still on this page. Retry saving before leaving; the server may already have received the report.'
+  return 'The report could not be saved. Review the entered details and retry.'
+}
 export function blankReport(template) {
   const report=structuredClone(template)
   const blank=node=>{for(const [key,value] of Object.entries(node)) {
