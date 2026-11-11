@@ -85,7 +85,7 @@ signal.signal(signal.SIGTERM, stop)
 signal.signal(signal.SIGINT, stop)
 
 try:
-    for _ in range(100):
+    for _ in range(300):
         try:
             call('GET', '/api/health')
             break

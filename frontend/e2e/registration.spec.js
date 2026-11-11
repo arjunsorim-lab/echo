@@ -19,7 +19,7 @@ test('L1 registers a patient and saves Adult and Paediatric reports from new vis
   await inputAfter('Street Address').fill('Synthetic test address')
   await page.getByText('State', { exact: true }).first().locator('xpath=following-sibling::div//select').selectOption('Tamil Nadu')
   await inputAfter('Phone (at least one required)').fill('1234567890')
-  await page.getByPlaceholder('Doctor, institute or Self').fill('Self')
+  await page.locator('#newpatient-family_doctor').selectOption('Self')
   await page.getByRole('button', { name: 'Save Patient' }).click()
   await page.waitForURL(/\/visits\?patient=/)
   const patientId = new URL(page.url()).searchParams.get('patient')
