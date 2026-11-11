@@ -36,13 +36,19 @@ function ProtectedPage({ children }) {
   const [verified,setVerified]=useState(null)
   useEffect(()=>{
     let active=true
+    const token=sessionStorage.getItem('echoai_token') || localStorage.getItem('echoai_token')
+    if(!token){setVerified(false);return ()=>{active=false}}
     api.get('/auth/me').then(result=>{
       if(!active)return
       const user=result.data.data
       const storage=localStorage.getItem('echoai_user') ? localStorage : sessionStorage
       storage.setItem('echoai_user', JSON.stringify(user))
       setVerified(true)
-    }).catch(()=>{if(active)setVerified(false)})
+    }).catch(()=>{
+      if(!active)return
+      for(const store of [localStorage,sessionStorage]){store.removeItem('echoai_user');store.removeItem('echoai_token')}
+      setVerified(false)
+    })
     return ()=>{active=false}
   },[])
   if (verified === null) return <p role="status" className="p-6">Checking session…</p>
