@@ -19,6 +19,16 @@ async function open(page,s){await page.goto(s.url);await expect(page.getByLabel(
 async function saved(page){await expect(page.getByRole('status').filter({hasText:/echo report saved/i})).toBeVisible()}
 
 for(const type of Object.keys(routes)) {
+  test(`${type}: Save & Next blocks an invalid indication without saving`,async({page,request})=>{
+    const s=await study(request,type);await login(page,'l1',info.password);await open(page,s)
+    await page.getByLabel('Indication(s)').fill('')
+    let writes=0
+    await page.route('**/api/scans/*',route=>{if(route.request().method()==='PUT')writes++;return route.continue()})
+    await page.getByRole('button',{name:'Save & next',exact:true}).click()
+    await expect(page.getByRole('status')).toContainText('Cannot advance. Enter an indication.')
+    await expect(page.getByLabel('Indication(s)')).toBeVisible()
+    expect(writes).toBe(0)
+  })
   test(`${type}: Save & Next persists all steps; Back retains data`,async({page,request})=>{
     const s=await study(request,type);await login(page,'l1',info.password);await open(page,s)
     await page.getByLabel('Indication(s)').fill('DUMMY STEP VALUE')
