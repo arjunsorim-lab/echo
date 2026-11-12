@@ -10,6 +10,7 @@ from datetime import datetime, date
 import os
 import shutil
 import uuid
+import report_workflow as workflow
 
 app = FastAPI(title="Echo AI Backend", version="1.0.0")
 
@@ -88,6 +89,7 @@ def get_db():
 # Unified Database Initialization
 def init_db():
     conn = SQLiteConn(DB_PATH, timeout=60.0)
+    workflow.initialize(conn)
     try:
         conn.execute('PRAGMA journal_mode=WAL')
     except Exception:
@@ -730,6 +732,10 @@ def update_patient(patient_id: int, data: dict):
 @app.delete('/api/patients/{patient_id}')
 def delete_patient(patient_id: int):
     conn = get_db()
+    conn.execute('BEGIN IMMEDIATE')
+    if conn.execute('SELECT 1 FROM scans WHERE patient_id=? LIMIT 1',(patient_id,)).fetchone() or conn.execute('SELECT 1 FROM clinical_reports WHERE patient_id=? LIMIT 1',(patient_id,)).fetchone():
+        conn.close()
+        raise HTTPException(409,'Patient has clinical reports and must be retained for traceability')
     cursor = conn.cursor()
     cursor.execute('DELETE FROM visits WHERE patient_id = ?', (patient_id,))
     cursor.execute('DELETE FROM scans WHERE patient_id = ?', (patient_id,))
@@ -805,6 +811,10 @@ def update_visit(patient_id: int, visit_id: int, data: dict):
 @app.delete('/api/patients/{patient_id}/visits/{visit_id}')
 def delete_visit(patient_id: int, visit_id: int):
     conn = get_db()
+    conn.execute('BEGIN IMMEDIATE')
+    if conn.execute('SELECT 1 FROM scans WHERE visit_id=? LIMIT 1',(visit_id,)).fetchone() or conn.execute('SELECT 1 FROM clinical_reports WHERE visit_id=? LIMIT 1',(visit_id,)).fetchone():
+        conn.close()
+        raise HTTPException(409,'Visit has clinical reports and must be retained for traceability')
     cursor = conn.cursor()
     cursor.execute('DELETE FROM visits WHERE id = ? AND patient_id = ?', (visit_id, patient_id))
     conn.commit()
@@ -835,6 +845,9 @@ def _map_scan_row(scan_row):
                 d['fetal_echo_report'] = parsed
         except Exception:
             pass
+    for key in ('adult_echo_report','fetal_echo_report','pediatric_echo_report'):
+        if isinstance(d.get(key),dict) and isinstance(d[key].get('impression'),dict):
+            d[key]['impression']['report_completed'] = workflow.is_complete(d)
     return d
 
 # Scans Endpoints
@@ -923,6 +936,7 @@ def create_scan(data: dict):
     ))
     
     scan_id = cursor.lastrowid
+    workflow.record_save(conn, 'scans', scan_id)
     conn.commit()
     inserted = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
     conn.close()
@@ -933,10 +947,7 @@ def update_scan(scan_id: int, data: dict):
     validate_report_consultant(data)
     conn = get_db()
     cursor = conn.cursor()
-    existing = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
-    if not existing:
-        conn.close()
-        raise HTTPException(status_code=404, detail='Scan not found')
+    existing = workflow.guard_edit(conn, 'scans', scan_id)
     # Report editors send a subset of scan fields. Preserve the rest rather
     # than silently clearing them whenever a report is saved.
     merged = dict(existing)
@@ -968,6 +979,7 @@ def update_scan(scan_id: int, data: dict):
         merged.get('signedByRight'), merged.get('typedBy'), merged.get('reviewedBy'), merged.get('icdCode'), scan_id
     ))
     
+    workflow.record_save(conn, 'scans', scan_id, existing)
     conn.commit()
     updated = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
     conn.close()
@@ -978,6 +990,8 @@ def update_scan(scan_id: int, data: dict):
 def delete_scan(scan_id: int):
     conn = get_db()
     cursor = conn.cursor()
+    workflow.guard_edit(conn, 'scans', scan_id)
+    raise HTTPException(status_code=409, detail='Reports are retained for traceability; deletion is disabled')
     cursor.execute('DELETE FROM scans WHERE id = ?', (scan_id,))
     conn.commit()
     conn.close()
@@ -1288,6 +1302,7 @@ def create_report(data: dict):
     ))
     
     report_id = cursor.lastrowid
+    workflow.record_save(conn, 'clinical-reports', report_id)
     conn.commit()
     inserted = conn.execute('SELECT * FROM clinical_reports WHERE id = ?', (report_id,)).fetchone()
     conn.close()
@@ -1297,6 +1312,7 @@ def create_report(data: dict):
 def update_report(report_id: int, data: dict):
     findings = clinical_report_findings(data)
     conn = get_db()
+    previous = workflow.guard_edit(conn, 'clinical-reports', report_id)
     cursor = conn.cursor()
     
     cursor.execute('''
@@ -1308,6 +1324,7 @@ def update_report(report_id: int, data: dict):
         data.get('conclusion'), data.get('status'), datetime.now().isoformat(), report_id
     ))
     
+    workflow.record_save(conn, 'clinical-reports', report_id, previous)
     conn.commit()
     updated = conn.execute('SELECT * FROM clinical_reports WHERE id = ?', (report_id,)).fetchone()
     conn.close()
@@ -1317,6 +1334,7 @@ def update_report(report_id: int, data: dict):
 
 @app.delete('/api/clinical-reports/{report_id}')
 def delete_report(report_id: int):
+    raise HTTPException(status_code=409, detail='Reports are retained for traceability; deletion is disabled')
     conn = get_db()
     cursor = conn.cursor()
     cursor.execute('DELETE FROM clinical_reports WHERE id = ?', (report_id,))
@@ -1492,6 +1510,7 @@ app.mount('/uploads', StaticFiles(directory=UPLOADS_DIR, check_dir=False), name=
 
 from access_control import install as install_access_control
 install_access_control(app, get_db, BASE_DIR)
+workflow.install(app, get_db)
 
 @app.get('/{full_path:path}', include_in_schema=False)
 def serve_frontend(full_path: str):

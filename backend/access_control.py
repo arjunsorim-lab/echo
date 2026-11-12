@@ -45,6 +45,8 @@ def install(app, get_db, base_dir):
         if not user:
             return JSONResponse({'detail':'Sign in to continue'}, status_code=401)
         request.state.user = dict(user)
+        from report_workflow import actor
+        actor.set(dict(user))
         if request.method not in ('GET','HEAD','OPTIONS'):
             if request.headers.get('x-echo-request') != '1':
                 return JSONResponse({'detail':'Request verification failed'}, status_code=403)

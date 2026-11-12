@@ -543,7 +543,7 @@ function AdultEchoReport() {
       report_title: reportToSave.impression.report_title,
       indicator: reportToSave.indication,
       tag: reportToSave.tag,
-      status: reportToSave.impression.report_completed ? 'Completed' : 'In Progress',
+      status: 'In Progress',
       adult_echo_report: reportToSave,
     }
 
@@ -1194,7 +1194,7 @@ function ImpressionPanel({ report, updateReport }) {
         <div className="flex items-center justify-between">
           <span>Final impression-(F11-Show previous)</span>
           <label className="flex items-center gap-2 font-semibold text-green-700">
-            <input type="checkbox" checked={impression.report_completed} onChange={(event) => updateReport(['impression', 'report_completed'], event.target.checked)} />
+            <input disabled title="Use the review panel to complete this report" type="checkbox" checked={impression.report_completed} onChange={(event) => updateReport(['impression', 'report_completed'], event.target.checked)} />
             Report completed
           </label>
         </div>

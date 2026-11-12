@@ -1,3 +1,4 @@
+import ReportWorkflow from './ReportWorkflow'
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import Sidebar from './Sidebar'
@@ -99,7 +100,7 @@ function Layout({ children }) {
         </header>
 
         <main className="flex min-h-0 flex-1 flex-col gap-4 overflow-x-hidden overflow-y-auto no-scrollbar pb-4">
-          {children}
+          {/(?:adult|fetal|pediatric)-echo-report\/\d+/.test(location.pathname) ? <ReportWorkflow reportId={location.pathname.split('/').pop()}>{children}</ReportWorkflow> : children}
         </main>
       </div>
     </div>
