@@ -103,6 +103,18 @@ def init_db():
     c = conn.cursor()
 
     c.execute('''CREATE TABLE IF NOT EXISTS patient_contact_history (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id INTEGER NOT NULL, changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, changed_by TEXT NOT NULL, changes TEXT NOT NULL, FOREIGN KEY(patient_id) REFERENCES patients(id))''')
+    # OPD / network patient masters map into the local patient record without
+    # duplicating demographics or changing the clinic's manually assigned ID.
+    c.execute('''CREATE TABLE IF NOT EXISTS patient_master_links (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        patient_id INTEGER NOT NULL REFERENCES patients(id),
+        source_system TEXT NOT NULL,
+        facility_id TEXT NOT NULL,
+        external_patient_id TEXT NOT NULL,
+        linked_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(source_system, facility_id, external_patient_id),
+        UNIQUE(patient_id, source_system, facility_id)
+    )''')
 
     # 1. Patients table
     c.execute('''

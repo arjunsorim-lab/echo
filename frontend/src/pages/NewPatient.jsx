@@ -66,6 +66,7 @@ function NewPatient() {
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
+  const [patientIdCheck, setPatientIdCheck] = useState('')
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false)
   const [zipLookupStatus, setZipLookupStatus] = useState('')
   const [referralDoctors, setReferralDoctors] = useState([])
@@ -91,6 +92,20 @@ function NewPatient() {
     }
     return options
   }, [referralDoctors, formData.family_doctor])
+
+  useEffect(() => {
+    const value = String(formData.patient_id || '').trim()
+    if (!value) { setPatientIdCheck(''); return }
+    let active = true
+    const timer = setTimeout(() => {
+      patientService.getPatients().then(result => {
+        if (!active) return
+        const duplicate = (result.data || []).some(patient => String(patient.patient_id || '').trim().toLowerCase() === value.toLowerCase())
+        setPatientIdCheck(duplicate ? 'This Patient ID already exists. Enter a unique ID.' : 'Patient ID is available.')
+      }).catch(() => { if (active) setPatientIdCheck('Unable to check this ID now. It will be checked again when saved.') })
+    }, 300)
+    return () => { active = false; clearTimeout(timer) }
+  }, [formData.patient_id])
 
   const selectReferral = (name) => {
     if (name === 'Self') {
@@ -151,6 +166,7 @@ function NewPatient() {
     if (!formData.dob && formData.age === '') missing.push('DOB or age')
     if (![formData.phone1, formData.phone2, formData.mobile].some(phone => /\d/.test(phone))) missing.push('one phone number')
     if (!formData.referral_doctor && !formData.referral_institute && !formData.family_doctor) missing.push('referral doctor or institute')
+    if (patientIdCheck.includes('already exists')) { setSubmitError(patientIdCheck); return }
     if (missing.length) { setSubmitError('Required: ' + missing.join(', ')); return }
     setSubmitError('')
     setIsSubmitting(true)
@@ -189,7 +205,7 @@ function NewPatient() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
                       <label htmlFor="newpatient-patient_id" className={labelClass + ' required'}>Patient ID<span aria-hidden="true" className="text-red-600"> *</span></label>
-                      <input id="newpatient-patient_id" type="text" className={inputClass} value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })} required aria-required="true" placeholder="e.g., TM0012026" />
+                      <input id="newpatient-patient_id" type="text" className={inputClass} value={formData.patient_id} aria-invalid={patientIdCheck.includes("already exists")} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })} required aria-required="true" placeholder="e.g., TM0012026" />{patientIdCheck && <p role="status" className={`mt-1 text-xs ${patientIdCheck.includes("already exists") ? "text-red-700" : "text-slate-500"}`}>{patientIdCheck}</p>}
                     </div>
                     <div>
                       <label htmlFor="newpatient-salutation" className={labelClass}>Salutation</label>

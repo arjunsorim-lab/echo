@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { CalendarDays, ChevronLeft, ClipboardList, Edit3, FileText, HeartPulse, Stethoscope } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
+import api from '../api/axios'
 
 const reportRoutes = {
   'Adult Echo': '/adult-echo-report',
@@ -32,6 +33,7 @@ export default function PatientRecords() {
   const [scans, setScans] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [contactHistory, setContactHistory] = useState([])
 
   useEffect(() => {
     let active = true
@@ -40,12 +42,14 @@ export default function PatientRecords() {
       patientService.getPatient(id),
       patientService.getVisits(id),
       scanService.getScansByPatient(id),
+      api.get(`/patients/${id}/contact-history`),
     ])
-      .then(([patientResult, visitsResult, scansResult]) => {
+      .then(([patientResult, visitsResult, scansResult, historyResult]) => {
         if (!active) return
         setPatient(patientResult.data || null)
         setVisits(visitsResult.data || [])
         setScans(scansResult.data || [])
+        setContactHistory(historyResult.data.data || [])
       })
       .catch(() => {
         if (active) setError('Unable to load this patient record.')
@@ -107,6 +111,11 @@ export default function PatientRecords() {
         <SummaryCard label="Adult echo records" value={disciplineCounts['Adult Echo']} icon={HeartPulse} tone="violet" />
         <SummaryCard label="Fetal echo records" value={disciplineCounts['Fetal Echo']} icon={HeartPulse} tone="pink" />
         <SummaryCard label="Pediatric echo records" value={disciplineCounts['Pediatric Echo']} icon={Stethoscope} tone="blue" />
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <div className="border-b border-slate-200 px-5 py-4"><h2 className="font-bold text-slate-900">Contact and address change history</h2><p className="mt-1 text-sm text-slate-500">Recorded updates to contact, address, and referral details.</p></div>
+        {contactHistory.length ? <div className="overflow-x-auto"><table className="data-table"><thead><tr><th>Changed</th><th>Changed by</th><th>Field</th><th>Previous value</th><th>New value</th></tr></thead><tbody>{contactHistory.flatMap(entry => Object.entries(entry.changes || {}).map(([field, values]) => <tr key={`${entry.changed_at}-${field}`}><td>{displayDate(entry.changed_at)}</td><td>{entry.changed_by}</td><td>{field.replaceAll('_',' ')}</td><td>{values.from || '—'}</td><td>{values.to || '—'}</td></tr>))}</tbody></table></div> : <p className="p-5 text-sm text-slate-500">No contact or address changes recorded.</p>}
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">

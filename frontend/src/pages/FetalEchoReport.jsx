@@ -2,7 +2,7 @@ import EditableOptions from '../components/EditableOptions'
 import { blankReport, mergeReport, reportSaveError } from '../reportValidation'
 import { isDerivedPath, recalculateDerived, initializeDerived } from '../derivedMeasurements'
 import { currentUser, useCompletionConfirmation, useDerivedDefinitions, ApprovalControls, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
-import { useEffect, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Cog,
@@ -24,6 +24,8 @@ import SearchableSelect from '../components/SearchableSelect'
 import ExistingScansModal from '../components/ExistingScansModal'
 import ReferralLetterModal from '../components/ReferralLetterModal'
 import AddableSelect from '../components/AddableSelect'
+
+const ClinicalComments = createContext(null)
 
 const scanTabs = [
   { id: 'echo-details', label: 'Echo details' },
@@ -678,6 +680,7 @@ function FetalEchoReport() {
         <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Fetal report sections">
           {[{id:'lmp',label:'LMP details'},...scanTabs,{id:'impression',label:'Impression'},{id:'multiframes',label:'Multiframes'},{id:'preview',label:'Preview'}].map(tab => <TabButton key={tab.id} active={activeScanTab===tab.id} onClick={()=>{if(tab.id==='preview'){setIsReportPreviewOpen(true);return} if(tab.id==='multiframes'){setActiveImageTab('videos');setIsImagesModalOpen(true);return} openReportSection(tab.id)}}>{tab.label}</TabButton>)}
         </div>
+        <ClinicalComments.Provider value={{report, updateReport}}>
         <section className="min-w-0 flex-1 rounded-xl border border-slate-200 p-4">
           {activeScanTab==='lmp' && <PregnancyDating report={report} updateReport={updateReport} onLmpDateChange={handleLmpDateChange} validationAttempted={progressValidationAttempted} />}
           {activeScanTab==='echo-details' && <EchoDetailsTab report={report} updateReport={updateReport} onToggleNormalComments={toggleNormalComments} isNormalCommentsPopulated={isNormalCommentsPopulated} />}
@@ -685,7 +688,7 @@ function FetalEchoReport() {
           {activeScanTab==='biometry' && <BiometryTab report={report} updateReport={updateReport} />}
           {activeScanTab==='doppler' && <DopplerTab report={report} updateReport={updateReport} />}
           {activeScanTab==='impression' && <ImpressionPanel report={report} updateReport={updateReport} />}
-        </section>
+        </section></ClinicalComments.Provider>
       </div>
 
       <ImagesModal
@@ -954,12 +957,7 @@ function DopplerTab({ report, updateReport }) {
           {['vm', 'tamx', 'systolic_peak', 'diastolic_peak', 'a_wave'].map((suffix) => {
             const key = `${prefix}_${suffix}`
             return (
-              <input
-                key={key}
-                className="legacy-input w-full"
-                value={report.doppler.venous[key]}
-                onChange={(event) => updateReport(['doppler', 'venous', key], event.target.value)}
-              />
+              <div key={key}><input className="legacy-input w-full" value={report.doppler.venous[key]} onChange={(event) => updateReport(['doppler', 'venous', key], event.target.value)} /><ClinicalVariableComment label={`${label} ${suffix.replaceAll('_',' ')}`} /></div>
             )
           })}
         </div>
@@ -979,12 +977,7 @@ function DopplerTab({ report, updateReport }) {
           {['e_wave', 'a_wave', 'e_a'].map((suffix) => {
             const key = `${prefix}_${suffix}`
             return (
-              <input
-                key={key}
-                className="legacy-input w-full"
-                readOnly={key.endsWith('_e_a')} value={report.doppler.valves[key]}
-                onChange={(event) => updateReport(['doppler', 'valves', key], event.target.value)}
-              />
+              <div key={key}><input className="legacy-input w-full" readOnly={key.endsWith('_e_a')} value={report.doppler.valves[key]} onChange={(event) => updateReport(['doppler', 'valves', key], event.target.value)} /><ClinicalVariableComment label={`${label} ${suffix.replaceAll('_',' ')}`} /></div>
             )
           })}
         </div>
@@ -1104,11 +1097,12 @@ function HeaderField({ label, value, onChange, className = '' }) {
 
 function InlineField({ label = '', value, onChange, width = 'w-12', suffix = '' }) {
   return (
-    <label className="flex min-w-0 items-center gap-2 text-sm font-medium text-slate-700">
+    <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm font-medium text-slate-700">
       {label && <span className="shrink-0">{label}</span>}
       <input className={`legacy-input ${width}`} value={value} onChange={(event) => onChange(event.target.value)} />
       {suffix && <span className="shrink-0 text-slate-500">{suffix}</span>}
-    </label>
+      <ClinicalVariableComment label={label} />
+    </div>
   )
 }
 
@@ -1165,6 +1159,14 @@ const fetalFieldOptions = {
   'Pulmonary veins': ['Normal', 'TAPVC', 'PAPVC', 'Partial Anomalous'],
 }
 
+function ClinicalVariableComment({ label }) {
+  const context = useContext(ClinicalComments)
+  const key = String(label || 'Clinical field').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_')
+  const value = context?.report?.clinical_comments?.[key] || ''
+  if (!context) return null
+  return <details className="col-span-full mt-1"><summary className="cursor-pointer text-xs font-medium text-teal-700">{value ? 'Edit comment' : 'Add comment'}</summary><textarea aria-label={`${label} additional comment`} className="field-control mt-1 min-h-16" value={value} onChange={event => context.updateReport(['clinical_comments', key], event.target.value)} /></details>
+}
+
 function FindingComment({ label, value, onChange, required = false }) {
   const [showComment, setShowComment] = useState(false)
   return <div><button type="button" className="text-xs font-medium text-teal-700 underline" onClick={() => setShowComment(open => !open)}>{showComment || value || required ? 'Comment' : 'Add comment'}</button>{(showComment || value || required) && <textarea aria-label={`${label} comment`} aria-required={required} className={`field-control mt-1 h-16 py-2 ${required && !String(value || '').trim() ? 'border-red-500' : ''}`} value={value || ''} onChange={event => onChange(event.target.value)} />}</div>
@@ -1177,7 +1179,7 @@ function LegacyField({ label, value, onChange, withPlus = false, comment, onComm
     <div className="grid min-w-0 gap-1 sm:grid-cols-[minmax(140px,0.85fr)_minmax(0,1fr)] sm:items-center">
       <span className="text-sm font-medium text-slate-700">{label}</span>
       <EditableOptions field={field} label={label} value={value} onChange={onChange} options={fetalFieldOptions[label] || ['Normal', 'Abnormal', 'Not Visualised']} withPlus={withPlus} />
-      {onComment && <div className="sm:col-span-2"><FindingComment label={label} value={comment} onChange={onComment} required={needsComment} /></div>}
+      {onComment ? <div className="sm:col-span-2"><FindingComment label={label} value={comment} onChange={onComment} required={needsComment} /></div> : <div className="sm:col-span-2"><ClinicalVariableComment label={label} /></div>}
     </div>
   )
 }
@@ -1201,11 +1203,12 @@ function getByPath(source, path) {
 
 function MeasurementRow({ label, value, onChange, suffix = '', compact = false }) {
   return (
-    <label className={`grid min-w-0 items-center gap-2 ${compact ? 'grid-cols-1' : 'sm:grid-cols-[minmax(150px,1fr)_minmax(90px,120px)_auto]'}`}>
+    <div className={`grid min-w-0 items-center gap-2 ${compact ? 'grid-cols-1' : 'sm:grid-cols-[minmax(150px,1fr)_minmax(90px,120px)_auto]'}`}>
       <span className="text-sm font-medium text-slate-700">{label}</span>
       <input readOnly={/\bMPI\b|\bPI\b|TDIMPI|E\/A|E\/E/i.test(label)} placeholder={/\bMPI\b|\bPI\b|TDIMPI|E\/A|E\/E/i.test(label) ? 'Awaiting approved formula' : ''} className="legacy-input w-full" value={value || ''} onChange={(event) => onChange(event.target.value)} />
       {suffix && <span className="text-sm text-slate-500">{suffix}</span>}
-    </label>
+      <ClinicalVariableComment label={label} />
+    </div>
   )
 }
 
@@ -1217,6 +1220,8 @@ function ValveMeasurement({ label, value, zValue, onValue, onZ }) {
       <span className="text-sm text-slate-500">(mm)</span>
       <span className="text-sm font-medium text-slate-700">Z score</span>
       <input aria-label={`${label} Z score`} className="legacy-input w-full" value={zValue || ''} onChange={(event) => onZ(event.target.value)} />
+      <ClinicalVariableComment label={label} />
+      <ClinicalVariableComment label={`${label} Z score`} />
     </div>
   )
 }
@@ -1233,6 +1238,7 @@ function RadioPair({ label, options, value, onChange }) {
           </label>
         ))}
       </div>
+      <ClinicalVariableComment label={label} />
     </div>
   )
 }
@@ -1252,8 +1258,8 @@ function MpiTable({ title, values, update, method2 = false }) {
         {rows.map(([label, suffix]) => (
           <div key={suffix} className="contents">
             <span>{label}</span>
-            <input className="legacy-input w-full" readOnly={suffix === 'mpi'} aria-label={'RV '+suffix} placeholder={suffix === 'mpi' ? 'Awaiting approved formula' : ''} value={values[`rv_${suffix}`] || ''} onChange={(event) => update(`rv_${suffix}`, event.target.value)} />
-            <input className="legacy-input w-full" readOnly={suffix === 'mpi'} aria-label={'LV '+suffix} placeholder={suffix === 'mpi' ? 'Awaiting approved formula' : ''} value={values[`lv_${suffix}`] || ''} onChange={(event) => update(`lv_${suffix}`, event.target.value)} />
+            <div><input className="legacy-input w-full" readOnly={suffix === 'mpi'} aria-label={'RV '+suffix} placeholder={suffix === 'mpi' ? 'Awaiting approved formula' : ''} value={values[`rv_${suffix}`] || ''} onChange={(event) => update(`rv_${suffix}`, event.target.value)} /><ClinicalVariableComment label={`${title} RV ${label}`} /></div>
+            <div><input className="legacy-input w-full" readOnly={suffix === 'mpi'} aria-label={'LV '+suffix} placeholder={suffix === 'mpi' ? 'Awaiting approved formula' : ''} value={values[`lv_${suffix}`] || ''} onChange={(event) => update(`lv_${suffix}`, event.target.value)} /><ClinicalVariableComment label={`${title} LV ${label}`} /></div>
           </div>
         ))}
       </div>
