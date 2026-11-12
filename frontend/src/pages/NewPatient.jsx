@@ -188,7 +188,7 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div>
-                      <label htmlFor="newpatient-patient_id" className={labelClass + ' required'}>Patient ID</label>
+                      <label htmlFor="newpatient-patient_id" className={labelClass + ' required'}>Patient ID<span aria-hidden="true" className="text-red-600"> *</span></label>
                       <input id="newpatient-patient_id" type="text" className={inputClass} value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })} required aria-required="true" placeholder="e.g., TM0012026" />
                     </div>
                     <div>
@@ -196,11 +196,11 @@ function NewPatient() {
                       <AddableSelect id="newpatient-salutation" field="patient_salutation" className={selectClass} options={salutations} value={formData.salutation} onChange={(value) => setFormData({ ...formData, salutation: value })} />
                     </div>
                     <div>
-                      <label htmlFor="newpatient-first_name" className={labelClass + ' required'}>First Name</label>
+                      <label htmlFor="newpatient-first_name" className={labelClass + ' required'}>First Name<span aria-hidden="true" className="text-red-600"> *</span></label>
                       <input id="newpatient-first_name" type="text" className={inputClass} value={formData.first_name} onChange={(e) => setFormData({ ...formData, first_name: e.target.value })} required aria-required="true" />
                     </div>
                     <div>
-                      <label htmlFor="newpatient-last_name" className={labelClass + ' required'}>Surname / Initial</label>
+                      <label htmlFor="newpatient-last_name" className={labelClass + ' required'}>Surname / Initial<span aria-hidden="true" className="text-red-600"> *</span></label>
                       <input id="newpatient-last_name" type="text" className={inputClass} value={formData.last_name} onChange={(e) => setFormData({ ...formData, last_name: e.target.value })} required aria-required="true" />
                     </div>
                     <div>
@@ -208,7 +208,7 @@ function NewPatient() {
                       <input id="newpatient-middle_name" type="text" className={inputClass} value={formData.middle_name} onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })} />
                     </div>
                     <div>
-                      <label htmlFor="newpatient-dob" className={labelClass + ' required'}>Date of Birth (or age)</label>
+                      <label htmlFor="newpatient-dob" className={labelClass + ' required'}>Date of Birth (or age)<span aria-hidden="true" className="text-red-600"> *</span></label>
                       <div className="relative">
                         <input id="newpatient-dob" type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} aria-required="true" required={!formData.age} />
                         <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
@@ -221,7 +221,7 @@ function NewPatient() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
-                        <label htmlFor="newpatient-age" className={labelClass + ' required'}>Age (or DOB)</label>
+                        <label htmlFor="newpatient-age" className={labelClass + ' required'}>Age (or DOB)<span aria-hidden="true" className="text-red-600"> *</span></label>
                         <input id="newpatient-age" type="number" min="0" className={inputClass} value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="Age" aria-required="true" required={!formData.dob} onWheel={(e) => e.currentTarget.blur()} />
                       </div>
                       <div>
@@ -242,7 +242,7 @@ function NewPatient() {
                       </div>
                     </div>
                     <div>
-                      <label className={labelClass + ' required'}>Gender</label>
+                      <label className={labelClass + ' required'}>Gender<span aria-hidden="true" className="text-red-600"> *</span></label>
                       <div className="flex items-center gap-3 mt-2">
                         {['M', 'F', 'UA'].map(g => (
                           <label key={g} className="flex items-center gap-1.5 cursor-pointer">
@@ -274,7 +274,7 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div className="lg:col-span-2">
-                      <label htmlFor="newpatient-street" className={labelClass + ' required'}>Street Address</label>
+                      <label htmlFor="newpatient-street" className={labelClass + ' required'}>Street Address<span aria-hidden="true" className="text-red-600"> *</span></label>
                       <input id="newpatient-street" type="text" className={inputClass} value={formData.street} onChange={(e) => setFormData({ ...formData, street: e.target.value })} required aria-required="true" />
                     </div>
                     <div>
@@ -299,12 +299,12 @@ function NewPatient() {
                       {zipLookupStatus === 'notfound' && <p className="mt-1 text-xs text-amber-500 font-medium">Pincode not in database — fill manually</p>}
                     </div>
                     <div>
-                      <label htmlFor="newpatient-country" className={labelClass + ' required'}>Country</label>
+                      <label htmlFor="newpatient-country" className={labelClass + ' required'}>Country<span aria-hidden="true" className="text-red-600"> *</span></label>
                       <AddableSelect id="newpatient-country" field="patient_country" className={selectClass} options={countries} value={formData.country} onChange={handleCountryChange} required aria-required="true" />
                       {dialCode && <p className="mt-1 text-xs text-slate-500">Dial code: <span className="font-semibold text-slate-700">{dialCode}</span></p>}
                     </div>
                     <div>
-                      <label htmlFor="newpatient-state" className={labelClass + ' required'}>State</label>
+                      <label htmlFor="newpatient-state" className={labelClass + ' required'}>State<span aria-hidden="true" className="text-red-600"> *</span></label>
                       <AddableSelect id="newpatient-state" field="patient_state" className={selectClass} options={availableStates} value={formData.state} onChange={handleStateChange} required aria-required="true" />
                     </div>
                     <div>
@@ -325,7 +325,7 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                      <label htmlFor="newpatient-phone1" className={labelClass}>Primary Phone (one phone number required)</label>
+                      <label htmlFor="newpatient-phone1" className={labelClass}>Primary Phone (one phone number required)<span aria-hidden="true" className="text-red-600"> *</span></label>
                       <input id="newpatient-phone1" type="tel" className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} />
                     </div>
                     <div>
@@ -375,7 +375,7 @@ function NewPatient() {
                       />
                     </div>
                     <div>
-                      <label htmlFor="newpatient-family_doctor" className={labelClass + ' required'}>Referral Doctor / Institute</label>
+                      <label htmlFor="newpatient-family_doctor" className={labelClass + ' required'}>Referral Doctor / Institute<span aria-hidden="true" className="text-red-600"> *</span></label>
                       <div className="flex gap-2">
                         <select
                           id="newpatient-family_doctor"

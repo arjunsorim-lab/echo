@@ -483,7 +483,7 @@ export default function Visits() {
             className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 lg:grid-cols-[190px_160px_1fr_1fr_1fr]"
           >
             <label className="field-label">
-              <span>Visit date and time *</span>
+              <span>Visit date and time<span aria-hidden="true" className="text-red-600"> *</span></span>
               <input
                 required
                 disabled={!patient || saving}
@@ -494,7 +494,7 @@ export default function Visits() {
               />
             </label>
             <label className="field-label">
-              <span>Scan type *</span>
+              <span>Scan type<span aria-hidden="true" className="text-red-600"> *</span></span>
               <select
                 required
                 disabled={!patient || saving}
@@ -518,7 +518,7 @@ export default function Visits() {
               </select>
             </label>
             <label className="field-label">
-              <span>Report template *</span>
+              <span>Report template<span aria-hidden="true" className="text-red-600"> *</span></span>
               <select
                 required
                 disabled={!patient || saving}
