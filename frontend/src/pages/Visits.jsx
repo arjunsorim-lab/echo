@@ -572,7 +572,7 @@ export default function Visits() {
                   <th>Visit date</th>
                   <th>Scan Type</th>
                   <th>Referral doctor</th>
-                  <th>Notes</th>
+                  <th>Notes / Report status</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -617,7 +617,7 @@ export default function Visits() {
                         )}
                       </td>
                       <td>{visit.referral_doctor || '—'}</td>
-                      <td>{visit.notes || '—'}</td>
+                      <td><div>{visit.notes || '—'}</div>{(() => { const scan = scans.find(item => String(item.visit_id) === String(visit.id)); return scan ? <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${String(scan.status).toLowerCase() === 'completed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{scan.status || 'Draft'}</span> : <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">No report</span> })()}</td>
                       <td>
                         <button
                           type="button"
