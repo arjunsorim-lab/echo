@@ -40,6 +40,8 @@ services:
     envVars:
       - key: VITE_API_URL
         value: https://echo-backend-yx5t.onrender.com/api
+      - key: VITE_FOUNDER_PASSWORD
+        sync: false
     routes:
       - type: rewrite
         source: /*
