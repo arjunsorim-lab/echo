@@ -10,3 +10,7 @@ backend/__pycache__
 backend/venv
 *.pyc
 .DS_Store
+
+backend/.initial-login.txt
+backend/echo.before-auth.db
+backend/tests/__pycache__/

@@ -18,9 +18,6 @@ const tabsByType = {
 }
 
 const formatFields = [
-  {key:'imageColumns',label:'Images per row',type:'select',options:['1','2','3','4']},
-  {key:'imageWidth',label:'Image width',type:'number'}, {key:'imageHeight',label:'Image height',type:'number'},
-  {key:'imageRows',label:'Image rows',type:'select',options:['1','2','3','4']},
   {key:'investigationStatus',label:'Investigation status',type:'select',options:['Draft','In progress','Completed']},
 ]
 
@@ -39,6 +36,7 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
   const [visitId, setVisitId] = useState(params.get('visit') || '')
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+  const [saveError, setSaveError] = useState('')
   const [clips, setClips] = useState([])
 
   const patientOptions = useMemo(() => {
@@ -61,6 +59,7 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
 
   useEffect(() => {
     setSaved(false)
+    if (!patientId || !visitId) { setReportId(''); setData(emptyData()); return }
     workspaceService.getReports({ patient_id: patientId || undefined, visit_id: visitId || undefined })
       .then((result) => {
         const match = (result.data || []).find((report) => report.scan_type === scanType)
@@ -86,6 +85,15 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
   }, [data.weight, data.height, data.lvedd, data.lvesd, data.avVmax, data.aorticValveVmax, data.trVmax, data.rap])
 
   const save = async () => {
+    if (!patientId || !visitId) {
+      setSaveError('Select a patient and visit before saving.')
+      return
+    }
+    if (!data.primaryConsultant?.trim()) {
+      setSaveError('Enter a primary consultant in the Impression section before saving.')
+      return
+    }
+    setSaveError('')
     setSaving(true); setSaved(false)
     try {
       const fullData = {...data, ...calculated}
@@ -99,6 +107,7 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
   const fields = activeTab === '2D measurements' ? adult2D : activeTab === 'M-Mode' ? mMode : activeTab === 'PISA' ? pisa : activeTab === 'Aortic' || activeTab === 'Aortic Stenosis' ? aortic : activeTab === 'Biometry' ? (scanType === 'Fetal Echo' ? fetalBiometry : pediatricBiometry) : activeTab === 'Doppler' ? (scanType === 'Adult Echo' ? adultDoppler : scanType === 'Fetal Echo' ? fetalDoppler : pediatricDoppler) : []
 
   return <Workspace title={`${scanType} reporting`} description="Patient-linked measurements, images, impression, referral letter and report output." actions={<><select className="field-control w-44" value={scanType} onChange={(e)=>changeType(e.target.value)}>{Object.keys(tabsByType).map((type)=><option key={type}>{type}</option>)}</select><button className="primary-button" onClick={save} disabled={saving}><Save className="h-4 w-4" />{saving?'Saving…':'Save report'}</button>{saved&&<span className="inline-flex items-center gap-1 text-sm font-medium text-emerald-700"><CheckCircle2 className="h-4 w-4"/>Saved to database</span>}</>}>
+    {saveError && <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-red-700">{saveError}</p>}
     <Section title="Patient and visit" className="mb-4">
       <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         <div className="field-label">
@@ -128,11 +137,11 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
     {activeTab==='LMP details'&&<Section title="Pregnancy dating"><FieldGrid fields={lmpFields.map((field)=>({...field,type:['lmp','edd','etDate','btDate'].includes(field.key)?'date':field.type}))} data={data} setData={setData}/></Section>}
     {activeTab==='Echo details'&&<div className="space-y-4">{echoSections.map((section)=><Section key={section.title} title={section.title}><FindingGrid fields={section.fields} data={data} setData={setData}/></Section>)}<Section title="Additional details"><div className="grid gap-3 lg:grid-cols-2"><Field type="textarea" rows={8} label="Additional comments" value={data.comments} onChange={(value)=>setData({...data,comments:value})}/><Field type="textarea" rows={8} label="Default normal comments" value={data.normalComments} onChange={(value)=>setData({...data,normalComments:value})}/></div></Section></div>}
     {fields.length>0&&<Section title={activeTab} description="All blank measurements are omitted from the final report. Calculated fields update when their source measurements are entered.">{scanType!=='Adult Echo'&&['Biometry','Aortic'].includes(activeTab)?<ZScoreGrid fields={fields} data={{...data,...calculated}} setData={setData}/>:<FieldGrid fields={fields} data={{...data,...calculated}} setData={setData}/>} {Object.keys(calculated).length>0&&<div className="mt-4 rounded-lg bg-primary-50 p-3 text-sm text-primary-800">Calculated: {Object.entries(calculated).map(([key,value])=><span className="mr-4" key={key}><strong>{key.replace(/([A-Z])/g,' $1')}:</strong> {value}</span>)}</div>}</Section>}
-    {activeTab==='Custom measurements'&&<CustomMeasurements data={data} setData={setData}/>} 
-    {activeTab==='Impression'&&<Impression data={data} setData={setData} doctors={doctors}/>} 
-    {activeTab==='Referral letter'&&<ReferralLetter data={data} setData={setData} doctors={doctors} patient={patient}/>} 
-    {activeTab==='Multiframes'&&<Multiframes clips={clips} setClips={setClips} addFiles={addFiles}/>} 
-    {activeTab==='Preview'&&<ReportPreview scanType={scanType} data={{...data,...calculated}} setData={setData} patient={patient}/>} 
+    {activeTab==='Custom measurements'&&<CustomMeasurements data={data} setData={setData}/>}
+    {activeTab==='Impression'&&<Impression data={data} setData={setData} doctors={doctors}/>}
+    {activeTab==='Referral letter'&&<ReferralLetter data={data} setData={setData} doctors={doctors} patient={patient}/>}
+    {activeTab==='Multiframes'&&<Multiframes clips={clips} setClips={setClips} addFiles={addFiles}/>}
+    {activeTab==='Preview'&&<ReportPreview scanType={scanType} data={{...data,...calculated}} setData={setData} patient={patient}/>}
   </Workspace>
 }
 

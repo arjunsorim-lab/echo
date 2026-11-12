@@ -1,3 +1,4 @@
+import api from '../api/axios'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
@@ -386,39 +387,14 @@ function Home() {
     Promise.allSettled([scanService.getDashboardStats(), patientService.getPatients()])
   }, [])
 
-  useEffect(() => {
-    const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-    const accessToken = hashParams.get('access_token')
-    const state = hashParams.get('state')
-    const expectedState = sessionStorage.getItem('echoai_google_oauth_state')
-    if (!accessToken || (expectedState && state !== expectedState)) return
-    localStorage.setItem('echoai_google_access_token', accessToken)
-    sessionStorage.removeItem('echoai_google_oauth_state')
-    window.history.replaceState({}, document.title, window.location.pathname)
-    navigate('/dashboard', { replace: true })
-  }, [navigate])
-
-  const useDemoUser = (user = demoUsers[0]) => {
-    setEmail(user.email)
-    setPassword(user.password)
-    setError('')
-  }
-
-  const handleLogin = (event) => {
+  const handleLogin = async (event) => {
     event.preventDefault()
-    const login = email.trim().toLowerCase()
-    const matchedUser = demoUsers.find(
-      (u) => (u.email.toLowerCase() === login || u.userName.toLowerCase() === login) && u.password === password,
-    )
-    if (!matchedUser) {
-      setError('Incorrect credentials. Use the founder login below.')
-      return
-    }
-    const storage = remember ? localStorage : sessionStorage
-    const other = remember ? sessionStorage : localStorage
-    other.removeItem('echoai_user')
-    storage.setItem('echoai_user', JSON.stringify({ name: matchedUser.name, role: matchedUser.role, email: matchedUser.email }))
-    navigate('/dashboard', { replace: true })
+    try {
+      const response = await api.post('/auth/login', {username: email.trim(), password})
+      sessionStorage.setItem('echoai_user', JSON.stringify(response.data.data))
+      localStorage.removeItem('echoai_user')
+      navigate('/dashboard', {replace:true})
+    } catch (error) { setError(error.response?.data?.detail || 'Could not sign in.') }
   }
 
   const handleGoogleSignIn = () => {
@@ -442,7 +418,7 @@ function Home() {
 
           <form className="mt-4 space-y-3" onSubmit={handleLogin}>
             <label className="block">
-              <span className="text-sm font-semibold text-[#08145f]">Email Address</span>
+              <span className="text-sm font-semibold text-[#08145f]">Username</span>
               <span className="mt-1.5 flex h-11 items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 text-slate-400 transition-all focus-within:border-blue-400 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100">
                 <Mail className="h-4 w-4 shrink-0 text-slate-400" />
                 <input
@@ -481,7 +457,7 @@ function Home() {
                 <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-4 w-4 rounded border-slate-300 accent-blue-600" />
                 Remember me
               </label>
-              <button type="button" onClick={() => setError('Use the founder credentials below.')} className="font-semibold text-blue-600 hover:underline">
+              <button type="button" onClick={() => setError('Contact your administrator to reset your password.')} className="font-semibold text-blue-600 hover:underline">
                 Forgot Password?
               </button>
             </div>
@@ -496,50 +472,7 @@ function Home() {
             </button>
           </form>
 
-          <div className="my-4 flex items-center gap-3 text-xs text-slate-400">
-            <div className="h-px flex-1 bg-slate-200" />
-            <span>or</span>
-            <div className="h-px flex-1 bg-slate-200" />
-          </div>
-
-          {/* ── GOOGLE BUTTON (proper icon) ── */}
-          <button
-            type="button"
-            onClick={handleGoogleSignIn}
-            className="flex h-11 w-full items-center justify-center gap-3 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 shadow-sm transition hover:border-slate-300 hover:shadow-md active:scale-[0.98]"
-          >
-            {/* Official Google coloured G */}
-            <svg width="18" height="18" viewBox="0 0 48 48" className="shrink-0">
-              <path fill="#EA4335" d="M24 9.5c3.2 0 5.9 1.1 8.1 2.9l6-6C34.5 3.2 29.6 1 24 1 14.8 1 7 6.7 3.7 14.5l7 5.4C12.4 13.8 17.7 9.5 24 9.5z"/>
-              <path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.7c-.6 3-2.3 5.5-4.8 7.2l7.4 5.7c4.3-4 6.8-9.9 6.8-16.9z"/>
-              <path fill="#FBBC05" d="M10.7 28.6A14.9 14.9 0 0 1 9.5 24c0-1.6.3-3.2.8-4.6l-7-5.4A23.9 23.9 0 0 0 0 24c0 3.9.9 7.5 2.5 10.8l8.2-6.2z"/>
-              <path fill="#34A853" d="M24 47c5.9 0 10.9-1.9 14.5-5.2l-7.4-5.7c-2 1.3-4.5 2.1-7.1 2.1-6.3 0-11.6-4.2-13.5-10l-8.2 6.2C6.6 41.6 14.8 47 24 47z"/>
-            </svg>
-            Sign in with Google
-          </button>
-
-          {/* ── FOUNDER ACCESS CARD ── */}
-          <div className="mt-4 rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 p-3.5">
-            <div className="mb-2.5 flex items-center gap-2">
-              <Sparkles className="h-3.5 w-3.5 text-blue-600" />
-              <p className="text-xs font-bold uppercase tracking-[0.12em] text-blue-700">Founder Access</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => useDemoUser()}
-              className="w-full rounded-xl border border-blue-100 bg-white px-3.5 py-3 text-left shadow-xs transition hover:border-blue-300 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-sm font-bold text-white shadow-sm">
-                  DS
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-[#08145f]">Dr Shanthi · Founder</p>
-                  <p className="text-[11px] text-slate-500">dr.shanthi@echoai.com</p>
-                </div>
-              </div>
-            </button>
-          </div>
+          <p className="mt-4 text-sm text-slate-600">Use your assigned account. Initial administrator credentials are stored locally in the backend’s .initial-login.txt file.</p>
         </aside>
       </div>
     </main>

@@ -1,3 +1,6 @@
+import Accounts from './pages/Accounts'
+import { useEffect, useState } from 'react'
+import api from './api/axios'
 import { BrowserRouter as Router, Navigate, Routes, Route } from 'react-router-dom'
 import Layout from './components/Layout'
 import Dashboard from './pages/Dashboard'
@@ -21,6 +24,7 @@ import FetalEchoReport from './pages/FetalEchoReport'
 import AdultEchoReport from './pages/AdultEchoReport'
 import PediatricEchoReport from './pages/PediatricEchoReport'
 import EchoScan from './pages/EchoScan'
+import Profile from './pages/Profile'
 
 function isSignedIn() {
   return Boolean(
@@ -31,10 +35,12 @@ function isSignedIn() {
 }
 
 function ProtectedPage({ children }) {
-  if (!isSignedIn()) {
-    return <Navigate to="/" replace />
-  }
-
+  const [state, setState] = useState('loading')
+  useEffect(() => { api.get('/auth/me').then(({data}) => {
+    sessionStorage.setItem('echoai_user', JSON.stringify(data.data)); setState('ready')
+  }).catch(() => { sessionStorage.removeItem('echoai_user'); localStorage.removeItem('echoai_user'); setState('signedout') }) }, [])
+  if (state === 'loading') return <p className="p-8">Checking session…</p>
+  if (state === 'signedout') return <Navigate to="/" replace />
   return <Layout>{children}</Layout>
 }
 
@@ -56,6 +62,7 @@ function App() {
     <Router>
       <Routes>
         <Route path="/" element={<LoginRoute />} />
+        <Route path="/accounts" element={<ProtectedPage><Accounts /></ProtectedPage>} />
         <Route path="/dashboard" element={
           <ProtectedPage><Dashboard /></ProtectedPage>
         } />
@@ -113,6 +120,9 @@ function App() {
         <Route path="/echo-scan/:scanId" element={
           <ProtectedPage><EchoScan /></ProtectedPage>
         } />
+        <Route path="/ultrasound" element={
+          <ProtectedPage><div className="p-8"><h1 className="text-2xl font-bold">Ultrasound</h1><p className="mt-3 text-slate-600">Reporting template awaiting clinical specification.</p></div></ProtectedPage>
+        } />
         <Route path="/images" element={
           <ProtectedPage><ImagesViewer /></ProtectedPage>
         } />
@@ -136,6 +146,9 @@ function App() {
         } />
         <Route path="/settings" element={
           <ProtectedPage><Settings /></ProtectedPage>
+        } />
+        <Route path="/profile" element={
+          <ProtectedPage><Profile /></ProtectedPage>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

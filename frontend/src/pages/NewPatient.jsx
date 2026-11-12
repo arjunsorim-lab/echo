@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Save,
@@ -12,18 +12,20 @@ import {
   Trash2,
   Printer,
   Activity,
+  Building,
 } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 import AddableSelect from '../components/AddableSelect'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
-import { workspaceService } from '../api/workspaceService'
 import {
   getStatesForCountry,
   getCitiesForState,
   getDialCode,
   lookupPincode,
   calculateAge,
+  calculateAgeWithUnit,
+  calculateAgeForUnit,
   COUNTRY_DIAL_CODES,
 } from '../data/locationData'
 
@@ -36,6 +38,7 @@ function NewPatient() {
     last_name: '',
     middle_name: '',
     age: '',
+    age_unit: 'Years',
     dob: '',
     gender: 'M',
     marital_status: '',
@@ -71,14 +74,14 @@ function NewPatient() {
   const salutations = ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Baby', 'Master']
   const maritalStatuses = ['Single', 'Married', 'Divorced', 'Widowed']
 
-  useEffect(() => {
-    workspaceService.getNextPatientId().then((result) => {
-      if (result.data?.patient_id) setFormData((c) => c.patient_id ? c : { ...c, patient_id: result.data.patient_id })
-    }).catch(() => {})
-  }, [])
-
   const handleDobChange = useCallback((dob) => {
-    setFormData(prev => ({ ...prev, dob, age: calculateAge(dob) }))
+    const calculated = calculateAgeWithUnit(dob)
+    setFormData(prev => ({
+      ...prev,
+      dob,
+      age: calculated.age,
+      age_unit: calculated.unit || prev.age_unit || 'Years'
+    }))
   }, [])
 
   const handleCountryChange = useCallback((country) => {
@@ -104,23 +107,35 @@ function NewPatient() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    const shouldGoToReport = e.nativeEvent.submitter?.value === 'reporting'
+    if (!formData.dob && String(formData.age).trim() === '') {
+      setSubmitError('Enter a date of birth or age.')
+      return
+    }
+    if (selectedScans.length === 0) {
+      setSubmitError('Please select at least one scan type (Adult Echo, Fetal Echo, or Pediatric Echo) from the List of Scans before saving.')
+      return
+    }
     setSubmitError('')
     setIsSubmitting(true)
     try {
       const patientResult = await patientService.createPatient(formData)
       const patient = patientResult.data
       const createdVisits = []
-      for (const visit of visits.filter((item) => item.visit_date)) {
+      const reportingRoutes = { 'Adult Echo': '/adult-echo-report', 'Fetal Echo': '/fetal-echo-report', 'Pediatric Echo': '/pediatric-echo-report', 'Ultrasound': '/ultrasound' }
+      let firstScan = null
+      const visitRows = visits.filter((item) => item.visit_date)
+      if (!visitRows.length) visitRows.push({ visit_date: new Date().toISOString(), referral_doctor: formData.family_doctor || '' })
+      for (const visit of visitRows) {
         const { id, ...visitPayload } = visit
         const result = await patientService.addVisit(patient.id, visitPayload)
         createdVisits.push(result.data)
       }
       for (const scanType of selectedScans) {
-        await scanService.createScan({ patient_id: patient.id, patient_display_id: patient.patient_id, visit_id: createdVisits[0]?.id || '', scan_type: scanType, status: 'draft' })
+        const scanResult = await scanService.createScan({ patient_id: patient.id, patient_display_id: patient.patient_id, visit_id: createdVisits[0]?.id || '', scan_type: scanType, status: 'Draft' })
+        if (!firstScan) firstScan = scanResult.data
       }
-      if (shouldGoToReport && selectedScans.length) navigate(`/echo-studies?patient=${patient.id}&visit=${createdVisits[0]?.id || ''}&type=${encodeURIComponent(selectedScans[0])}`)
-      else navigate('/search')
+      const route = reportingRoutes[selectedScans[0]]
+      navigate(route === '/ultrasound' ? route : `${route}/${firstScan.id}?patientId=${patient.id}&visitId=${createdVisits[0].id}`)
     } catch (error) {
       console.error('Error creating patient:', error)
       setSubmitError(error.response?.data?.detail || 'Unable to create the patient. Please check the required fields and try again.')
@@ -130,7 +145,9 @@ function NewPatient() {
   }
 
   const handleAddVisit = () => {
-    setVisits([...visits, { id: Date.now(), visit_date: '', referral_doctor: '', image_count: '0', avi: '0', pregnancy: '0', ob: '' }])
+    const now = new Date();
+    const formattedDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+    setVisits([...visits, { id: Date.now(), visit_date: formattedDateTime, referral_doctor: formData.family_doctor || '', image_count: '0', avi: '0', pregnancy: '0', ob: '' }])
   }
   const handleUpdateVisit = (id, field, value) => setVisits(visits.map(v => v.id === id ? { ...v, [field]: value } : v))
   const handleDeleteVisit = (id) => setVisits(visits.filter(v => v.id !== id))
@@ -177,6 +194,18 @@ function NewPatient() {
                       <label className={labelClass}>Middle Name</label>
                       <input type="text" className={inputClass} value={formData.middle_name} onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })} />
                     </div>
+                    <div>
+                      <label className={labelClass}>Date of Birth</label>
+                      <div className="relative">
+                        <input type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} />
+                        <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                      </div>
+                      {formData.dob && formData.age && (
+                        <p className="mt-1 text-xs text-teal-600 font-medium">
+                          Age: {formData.age} {formData.age_unit || 'Years'}
+                        </p>
+                      )}
+                    </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label className={labelClass}>Age</label>
@@ -184,16 +213,20 @@ function NewPatient() {
                       </div>
                       <div>
                         <label className={labelClass}>Unit</label>
-                        <select className={inputClass}><option>Years</option><option>Months</option><option>Days</option></select>
+                        <select
+                          className={selectClass}
+                          value={formData.age_unit || 'Years'}
+                          onChange={(e) => {
+                            const newUnit = e.target.value;
+                            const newAge = formData.dob ? calculateAgeForUnit(formData.dob, newUnit) : formData.age;
+                            setFormData({ ...formData, age_unit: newUnit, age: newAge });
+                          }}
+                        >
+                          <option value="Years">Years</option>
+                          <option value="Months">Months</option>
+                          <option value="Days">Days</option>
+                        </select>
                       </div>
-                    </div>
-                    <div>
-                      <label className={labelClass}>Date of Birth</label>
-                      <div className="relative">
-                        <input type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} />
-                        <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                      </div>
-                      {formData.dob && formData.age && <p className="mt-1 text-xs text-teal-600 font-medium">Age: {formData.age} years</p>}
                     </div>
                     <div>
                       <label className={labelClass}>Gender</label>
@@ -308,6 +341,48 @@ function NewPatient() {
                 </div>
               </div>
 
+              {/* Additional Information */}
+              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+                <div className="px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-teal-50 to-white">
+                  <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+                    <Building className="w-4 h-4 text-teal-600" /> Additional Information
+                  </h2>
+                </div>
+                <div className="p-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className={labelClass}>Aadhaar No</label>
+                      <input
+                        type="text"
+                        className={inputClass}
+                        value={formData.aadhaar_no}
+                        onChange={(e) => setFormData({ ...formData, aadhaar_no: e.target.value })}
+                        placeholder="XXXX XXXX XXXX"
+                      />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Referral Doctor / Institute</label>
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          className={inputClass}
+                          value={formData.family_doctor}
+                          onChange={(e) => setFormData({ ...formData, family_doctor: e.target.value })}
+                          placeholder="Doctor or hospital name"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setIsReferralModalOpen(true)}
+                          className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition text-xs font-semibold whitespace-nowrap"
+                        >
+                          Select Doctor
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               {/* Visits Section */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
                 <div className="px-4 py-3 border-b border-slate-200 flex items-center justify-between">
@@ -355,25 +430,36 @@ function NewPatient() {
             {/* Right Sidebar */}
             <div className="space-y-4">
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-rose-50 to-white">
+                <div className="px-4 py-3 border-b border-slate-200 bg-gradient-to-r from-rose-50 to-white flex items-center justify-between">
                   <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                    <Activity className="w-4 h-4 text-rose-600" /> List of Scans
+                    <Activity className="w-4 h-4 text-rose-600" /> List of Scans *
                   </h2>
+                  {selectedScans.length === 0 ? (
+                    <span className="text-[11px] font-semibold text-rose-600 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                      Required
+                    </span>
+                  ) : (
+                    <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                      ✓ {selectedScans.length} Selected
+                    </span>
+                  )}
                 </div>
                 <div className="p-3 space-y-2">
-                  {['Adult Echo', 'Fetal Echo', 'Pediatric Echo'].map(scanType => (
+                  {['Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'].map(scanType => (
                     <div key={scanType} role="button" tabIndex={0}
-                      onDoubleClick={(event) => { event.preventDefault(); navigate(`/echo-studies?type=${encodeURIComponent(scanType)}`) }}
-                      onKeyDown={(event) => { if (event.key === 'Enter') navigate(`/echo-studies?type=${encodeURIComponent(scanType)}`) }}
-                      title={`Double-click to open ${scanType}`}
                       className="flex items-center gap-3 rounded-lg border border-slate-200 p-3 transition hover:border-teal-300 hover:bg-teal-50 group">
                       <input type="checkbox" checked={selectedScans.includes(scanType)} onChange={() => toggleScan(scanType)} className="w-4 h-4 text-teal-600 rounded border-slate-300 focus:ring-teal-500" />
                       <span className="min-w-0 flex-1">
-                        <span className="block text-sm text-slate-700 group-hover:text-teal-700">{scanType}</span>
+                        <span className="block text-sm text-slate-700 group-hover:text-teal-700 font-medium">{scanType}</span>
                         <span className="block text-[11px] text-slate-400">Double-click to open</span>
                       </span>
                     </div>
                   ))}
+                  {selectedScans.length === 0 && (
+                    <p className="mt-2 text-xs text-rose-600 font-medium bg-rose-50 border border-rose-200 rounded-lg p-2 flex items-center gap-1.5">
+                      ⚠️ Select at least one scan to register patient
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -381,14 +467,7 @@ function NewPatient() {
                 <button type="button" onClick={handleAddVisit} className="w-full px-4 py-3 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition flex items-center justify-center gap-2 font-medium shadow-sm">
                   <Plus className="w-4 h-4" /> Add New Visit
                 </button>
-                <button type="button" onDoubleClick={() => setIsReferralModalOpen(true)} title="Double-click to manage referral doctors and hospitals" className="w-full px-4 py-3 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg transition flex items-center justify-center gap-2 font-medium">
-                  <User className="w-4 h-4" /> New Referral Doctor
-                </button>
-                <div className="pt-4 border-t border-slate-200">
-                  <button type="submit" value="reporting" className="w-full px-4 py-3 bg-slate-800 hover:bg-slate-900 text-white rounded-lg transition flex items-center justify-center gap-2 font-medium shadow-sm">
-                    <Activity className="w-4 h-4" /> Go to Scan
-                  </button>
-                </div>
+
               </div>
             </div>
           </div>
@@ -408,8 +487,13 @@ function NewPatient() {
                 <button type="button" onClick={() => window.print()} className="px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 rounded-lg transition flex items-center gap-2 text-sm font-medium">
                   <Printer className="w-4 h-4" /> Preview
                 </button>
-                <button type="submit" disabled={isSubmitting} className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition flex items-center gap-2 text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                  <Save className="w-4 h-4" /> {isSubmitting ? 'Saving...' : 'Save Patient'}
+                <button
+                  type="submit"
+                  disabled={isSubmitting || selectedScans.length === 0}
+                  title={selectedScans.length === 0 ? "Please select at least one scan type from the List of Scans" : "Save Patient"}
+                  className="px-6 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-lg transition flex items-center gap-2 text-sm font-medium shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Save className="w-4 h-4" /> {isSubmitting ? 'Saving...' : 'Save & Go to Reporting'}
                 </button>
               </div>
             </div>

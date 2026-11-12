@@ -137,6 +137,7 @@ export default function Dashboard() {
             adult_echo: statsResult.data.adult_echo ?? prev.adult_echo,
             fetal_echo: statsResult.data.fetal_echo ?? prev.fetal_echo,
             pediatric_echo: statsResult.data.pediatric_echo ?? prev.pediatric_echo,
+            ultrasound: statsResult.data.ultrasound ?? 0,
           }))
         }
 
@@ -376,6 +377,9 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-5 select-none">
+      <button type="button" onClick={() => navigate('/ultrasound')} className="secondary-button">
+        Ultrasound <span className="text-slate-500">— {stats.ultrasound ?? 0} scans; template pending</span>
+      </button>
       {/* 8 Stat Cards Grid (4 columns x 2 rows) */}
       <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
         {statCards.map((card) => {
