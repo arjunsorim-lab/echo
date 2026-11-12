@@ -1,10 +1,9 @@
-import { useEffect, useId, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { customOptionService } from '../api/customOptionService'
 
 // Choices are shared by report type and field. Entered report values are never
 // changed merely because the saved list is unavailable.
 export default function EditableOptions({ field, label, value, onChange, options = [], withPlus = true }) {
-  const id = useId()
   const [saved, setSaved] = useState([])
   const [adding, setAdding] = useState(false)
   const [newValue, setNewValue] = useState('')
@@ -43,10 +42,9 @@ export default function EditableOptions({ field, label, value, onChange, options
   return <div className="min-w-0 w-full">
     <div className="flex min-w-0 items-center gap-1.5">
       <div className="flex min-w-0 flex-1 items-center rounded-md border border-slate-300 bg-white">
-        <input aria-label={label} list={id} className="legacy-input min-w-0 w-full border-0" value={value ?? ''} onChange={event => onChange(event.target.value)} placeholder="Select or type..." />
-        <datalist id={id}>{choices.map(choice => <option key={choice} value={choice} />)}</datalist>
+        <input aria-label={label} className="legacy-input min-w-0 w-full border-0" value={value ?? ''} onChange={event => onChange(event.target.value)} placeholder="Select or type..." />
         <select aria-label={`Choose ${label}`} className="w-8 shrink-0 bg-transparent text-slate-500" value="" onChange={event => { if (event.target.value) onChange(event.target.value) }}>
-          <option value="">▾</option>{choices.map(choice => <option key={choice} value={choice}>{choice}</option>)}
+          <option value=""></option>{choices.map(choice => <option key={choice} value={choice}>{choice}</option>)}
         </select>
       </div>
       {withPlus && <button type="button" className="legacy-plus-button" aria-label={`Add ${label} choice`} aria-expanded={adding} onClick={() => { setAdding(open => !open); setNewValue(value || ''); setError('') }}>+</button>}

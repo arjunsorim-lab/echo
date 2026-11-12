@@ -356,8 +356,16 @@ function FetalEchoReport() {
   const [savedScanId, setSavedScanId] = useState(scanId || '')
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [savedReportPath, setSavedReportPath] = useState('')
   const [locked, setLocked] = useState(false)
   const { dirty, navigationDialog, markSaved } = useSavedNavigation(report)
+
+  useEffect(() => {
+    if (savedReportPath && !dirty) {
+      navigate(savedReportPath, { replace: true })
+      setSavedReportPath('')
+    }
+  }, [savedReportPath, dirty, navigate])
 
   const selectedPatient = useMemo(
     () => patients.find((patient) => String(patient.id) === String(selectedPatientId)),
@@ -584,7 +592,7 @@ function FetalEchoReport() {
           const query = new URLSearchParams()
           query.set('patientId', selectedPatientId)
           if (selectedVisitId) query.set('visitId', selectedVisitId)
-          navigate(`/fetal-echo-report/${nextScanId}?${query.toString()}`, { replace: true })
+          setSavedReportPath(`/fetal-echo-report/${nextScanId}?${query.toString()}`)
         }
         return true
       }

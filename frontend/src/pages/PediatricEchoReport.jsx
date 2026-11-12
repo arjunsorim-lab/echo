@@ -280,8 +280,15 @@ function PediatricEchoReport() {
   const [savedScanId, setSavedScanId] = useState(scanId || '')
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [savedReportPath, setSavedReportPath] = useState('')
   const [locked, setLocked] = useState(false)
   const { dirty, navigationDialog, markSaved, navigateSection } = useSavedNavigation(report)
+  useEffect(() => {
+    if (savedReportPath && !dirty) {
+      navigate(savedReportPath, { replace: true })
+      setSavedReportPath('')
+    }
+  }, [savedReportPath, dirty, navigate])
   const [isTagModalOpen, setIsTagModalOpen] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
@@ -458,7 +465,7 @@ function PediatricEchoReport() {
           const query = new URLSearchParams()
           query.set('patientId', selectedPatientId)
           if (selectedVisitId) query.set('visitId', selectedVisitId)
-          navigate(`/pediatric-echo-report/${nextScanId}?${query.toString()}`, { replace: true })
+          setSavedReportPath(`/pediatric-echo-report/${nextScanId}?${query.toString()}`)
         }
         return true
       }
