@@ -195,6 +195,9 @@ def init_db():
             FOREIGN KEY (patient_id) REFERENCES patients(id)
         )
     ''')
+    visit_columns = {row[1] for row in c.execute('PRAGMA table_info(visits)').fetchall()}
+    if 'report_template_id' not in visit_columns:
+        c.execute('ALTER TABLE visits ADD COLUMN report_template_id INTEGER')
 
     # 3. Scans table
     c.execute('''
@@ -795,11 +798,16 @@ def add_visit(patient_id: int, data: dict):
     avi = int(data.get('avi', 0)) if str(data.get('avi', 0)).isdigit() else 0
     pregnancy = int(data.get('pregnancy', 0)) if str(data.get('pregnancy', 0)).isdigit() else 0
     ob = data.get('ob', '')
+    report_template_id = data.get('report_template_id')
+    template = conn.execute('SELECT scan_type FROM report_templates WHERE id = ?', (report_template_id,)).fetchone() if report_template_id else None
+    if report_template_id and (not template or template['scan_type'] != scan_type):
+        conn.close()
+        raise HTTPException(422, 'Choose a report template matching the selected scan type.')
 
     cursor.execute('''
-        INSERT INTO visits (patient_id, visit_date, visit_type, doctor_id, diagnosis, notes, referral_doctor, image_count, avi, pregnancy, ob)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (patient_id, visit_date, visit_type, doctor_id, diagnosis, notes, referral_doctor, image_count, avi, pregnancy, ob))
+        INSERT INTO visits (patient_id, visit_date, visit_type, doctor_id, diagnosis, notes, referral_doctor, image_count, avi, pregnancy, ob, report_template_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (patient_id, visit_date, visit_type, doctor_id, diagnosis, notes, referral_doctor, image_count, avi, pregnancy, ob, report_template_id))
 
     visit_id = cursor.lastrowid
     if request_id:
@@ -826,16 +834,23 @@ def update_visit(patient_id: int, visit_id: int, data: dict):
         conn.close()
         raise HTTPException(409, 'A visit with a report cannot change scan type.')
 
+    report_template_id = data.get('report_template_id')
+    if report_template_id:
+        template = conn.execute('SELECT scan_type FROM report_templates WHERE id = ?', (report_template_id,)).fetchone()
+        if not template or template['scan_type'] != data.get('visit_type'):
+            conn.close()
+            raise HTTPException(422, 'Choose a report template matching the selected scan type.')
+
     cursor.execute('''
         UPDATE visits SET
             visit_date = ?, visit_type = ?, doctor_id = ?, diagnosis = ?, notes = ?,
-            referral_doctor = ?, image_count = ?, avi = ?, pregnancy = ?, ob = ?, updated_at = CURRENT_TIMESTAMP
+            referral_doctor = ?, image_count = ?, avi = ?, pregnancy = ?, ob = ?, report_template_id = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND patient_id = ?
     ''', (
         data.get('visit_date'), data.get('visit_type'), data.get('doctor_id'),
         data.get('diagnosis'), data.get('notes'), data.get('referral_doctor'),
         data.get('image_count', 0), data.get('avi', 0), data.get('pregnancy', 0),
-        data.get('ob', ''), visit_id, patient_id
+        data.get('ob', ''), report_template_id, visit_id, patient_id
     ))
 
     conn.commit()

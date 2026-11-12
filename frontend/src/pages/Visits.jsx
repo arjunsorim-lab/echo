@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback, useRef } from 'react'
+import { useEffect, useMemo, useState, useCallback } from 'react'
 import {
   Activity,
   Calendar,
@@ -24,7 +24,6 @@ import SearchableSelect from '../components/SearchableSelect'
 
 export default function Visits() {
   const navigate = useNavigate()
-  const requestKey = useRef(crypto.randomUUID())
   const [searchParams, setSearchParams] = useSearchParams()
   const patientParam =
     searchParams.get('patient') || searchParams.get('patientId') || searchParams.get('patient_id') || ''
@@ -107,11 +106,7 @@ export default function Visits() {
   }, [patientParam, patients, selectedPatient])
 
   const selectPatient = async (patientId, syncUrl = true) => {
-    requestKey.current = crypto.randomUUID()
     setSelectedPatient(patientId)
-    const selected = patients.find(p => String(p.id) === String(patientId))
-    const now = new Date()
-    setVisitData({visit_date:new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16),scan_type:'',referral_doctor:selected?.family_doctor || '',report_template_id:'',notes:''})
     setActiveScanFilter('')
     setStatus('')
 
@@ -156,15 +151,30 @@ export default function Visits() {
     return 'Adult Echo'
   }, [activeScanFilter, scans, patients, selectedPatient])
 
-  const templateForScanType = (scanType) => templates.find((template) => template.scan_type === scanType)
+  useEffect(() => {
+    const scanType = visitData.scan_type || defaultScanType
+    const matchingTemplate = templates.find((template) => template.scan_type === scanType)
+    if (!matchingTemplate) return
+    setVisitData((current) => current.report_template_id === String(matchingTemplate.id)
+      ? current
+      : { ...current, scan_type: current.scan_type || scanType, report_template_id: String(matchingTemplate.id) })
+  }, [defaultScanType, templates, visitData.scan_type, visitData.report_template_id])
 
-  const selectScanType = (scanType) => {
-    const matchingTemplate = templateForScanType(scanType)
-    setVisitData((current) => ({
-      ...current,
-      scan_type: scanType,
-      report_template_id: matchingTemplate ? String(matchingTemplate.id) : '',
-    }))
+  const openVisitReport = (visit) => {
+    if (!visit) return
+    const scan = scans.find((item) => String(item.visit_id) === String(visit.id))
+    const scanType = visit.visit_type || scan?.scan_type || activeScanFilter || 'Adult Echo'
+    const route = {
+      'Adult Echo': 'adult-echo-report',
+      'Fetal Echo': 'fetal-echo-report',
+      'Pediatric Echo': 'pediatric-echo-report',
+    }[scanType]
+    if (!route) {
+      navigate(`/echo-studies?patient=${selectedPatient}&visit=${visit.id}&type=${encodeURIComponent(scanType)}`)
+      return
+    }
+    const query = new URLSearchParams({ patientId: String(selectedPatient), visitId: String(visit.id) })
+    navigate(`/${route}${scan?.id ? `/${scan.id}` : ''}?${query}`)
   }
 
   // Determine which scan types a visit belongs to
@@ -173,7 +183,6 @@ export default function Visits() {
       const types = new Set()
       if (!visit) return []
 
-      if (visit.visit_type && ['Adult Echo','Fetal Echo','Pediatric Echo','Ultrasound'].includes(visit.visit_type)) types.add(visit.visit_type)
       // 1. Direct match via scans table visit_id
       for (const s of scans) {
         if (s.scan_type && String(s.visit_id) === String(visit.id)) {
@@ -247,58 +256,32 @@ export default function Visits() {
       alert('The selected patient record could not be found')
       return
     }
-    if (saving) return
     const selectedTmpl = templates.find((t) => String(t.id) === String(visitData.report_template_id))
-    if (!visitData.scan_type || !visitData.visit_date || !selectedTmpl || selectedTmpl.scan_type !== visitData.scan_type) {
+    const determinedScanType = visitData.scan_type || defaultScanType
+    if (!visitData.visit_date || !determinedScanType || !selectedTmpl || selectedTmpl.scan_type !== determinedScanType) {
       setStatus('Select a scan type, its matching report template, and a visit date.')
       return
     }
     setSaving(true)
     setStatus('')
     try {
-      const determinedScanType =
-        visitData.scan_type
-
       const result = await patientService.addVisit(selectedPatient, {
         ...visitData,
         patient_id: selectedPatient,
         patient_display_id: selectedPatientRecord.patient_id,
         patient_name: `${selectedPatientRecord.first_name || ''} ${selectedPatientRecord.last_name || ''}`.trim(),
+        scan_type: determinedScanType,
         visit_type: determinedScanType,
-        request_id: requestKey.current,
-        referral_doctor: visitData.referral_doctor || selectedPatientRecord.family_doctor || '',
+        report_template_id: Number(visitData.report_template_id),
       })
       const newVisit = result.data
-
-      // Create the visit-linked draft before opening its matching editor.
-      let createdScan
-      try {
-        const scanResult = await scanService.createScan({
-          patient_id: selectedPatient,
-          patient_display_id: selectedPatientRecord.patient_id,
-          visit_id: newVisit.id,
-          scan_type: determinedScanType,
-          status: 'draft',
-          normal: 1,
-        })
-        createdScan = scanResult.data
-        if (scanResult?.data) {
-          setScans((prev) => [scanResult.data, ...prev])
-        }
-      } catch (err) {
-        setStatus('Visit saved, but the report could not be created. Open this visit from history to retry.'); return
-      }
 
       setVisits([newVisit, ...visits])
       setAllVisits([newVisit, ...allVisits])
       setVisitData({ visit_date: '', scan_type: '', referral_doctor: '', report_template_id: '', notes: '' })
       setStatus(
-        `Visit added and linked to ${selectedPatientRecord.patient_id} — ${selectedPatientRecord.first_name} ${selectedPatientRecord.last_name}`
+        `Visit saved for ${selectedPatientRecord.patient_id} — ${selectedPatientRecord.first_name} ${selectedPatientRecord.last_name}. No scan report was created.`
       )
-      if (determinedScanType === 'Ultrasound') { setStatus('Ultrasound visit saved. Its clinical report template awaits confirmation.'); return }
-      const route = {'Adult Echo':'adult-echo-report','Fetal Echo':'fetal-echo-report','Pediatric Echo':'pediatric-echo-report'}[determinedScanType]
-      navigate('/' + route + '/' + createdScan.id + '?patientId=' + selectedPatient + '&visitId=' + newVisit.id)
-
     } catch (error) {
       alert(error.response?.data?.detail || 'Unable to add visit')
     } finally {
@@ -420,7 +403,7 @@ export default function Visits() {
       </section>
 
       {/* Main Visits Section + List of Scans Sidebar */}
-      <div className="w-full">
+      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
         {/* Left: Visits Management Table */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
@@ -500,10 +483,18 @@ export default function Visits() {
                 required
                 disabled={!patient || saving}
                 className="field-control disabled:bg-slate-100"
-                value={visitData.scan_type}
-                onChange={(event) => selectScanType(event.target.value)}
+                value={visitData.scan_type || defaultScanType}
+                onChange={(event) => {
+                  const scanType = event.target.value
+                  const matchingTemplate = templates.find((template) => template.scan_type === scanType)
+                  setVisitData((current) => ({
+                    ...current,
+                    scan_type: scanType,
+                    report_template_id: matchingTemplate ? String(matchingTemplate.id) : '',
+                  }))
+                }}
               >
-                <option value="">Select examination</option><option value="Adult Echo">Adult Echo</option><option value="Ultrasound">Ultrasound</option>
+                <option value="Adult Echo">Adult Echo</option>
                 <option value="Fetal Echo">Fetal Echo</option>
                 <option value="Pediatric Echo">Pediatric Echo</option>
               </select>
@@ -525,15 +516,14 @@ export default function Visits() {
                   }))
                 }}
               >
-                <option value="">{visitData.scan_type === 'Ultrasound' ? 'No template configured for Ultrasound' : 'Select template'}</option>
-                {templates.map((template) => (
+                <option value="">Select template</option>
+                {templates.filter((template) => template.scan_type === (visitData.scan_type || defaultScanType)).map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.title || template.name || template.scan_type}
                   </option>
                 ))}
               </select>
             </label>
-            <label className="field-label"><span>Referral Doctor / Institute</span><input className="field-control" value={visitData.referral_doctor} onChange={e=>setVisitData({...visitData,referral_doctor:e.target.value})} /></label>
             <label className="field-label">
               <span>Visit notes</span>
               <input
@@ -545,11 +535,11 @@ export default function Visits() {
               />
             </label>
             <button
-              disabled={!patient || saving || !visitData.visit_date}
+              disabled={!patient || saving || !visitData.visit_date || !visitData.scan_type || !visitData.report_template_id}
               className="primary-button self-end disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Save className="h-4 w-4" />
-              {saving ? 'Saving…' : 'Save & Go to Reporting'}
+              {saving ? 'Saving…' : 'Save Visit'}
             </button>
           </form>
 
@@ -564,7 +554,17 @@ export default function Visits() {
               <Stethoscope className="h-4 w-4" />
               New referral doctor
             </button>
-
+            <button
+              type="button"
+              disabled={!patient || !visits.length}
+              onClick={() => {
+                openVisitReport(visits[0])
+              }}
+              className="primary-button disabled:opacity-40"
+            >
+              <FileText className="h-4 w-4" />
+              Save and go to reporting
+            </button>
           </div>
 
           {/* Visits Table */}
@@ -577,7 +577,7 @@ export default function Visits() {
                   <th>Visit date</th>
                   <th>Scan Type</th>
                   <th>Referral doctor</th>
-                  <th>Notes / report status</th>
+                  <th>Notes</th>
                   <th>Action</th>
                 </tr>
               </thead>
@@ -587,26 +587,7 @@ export default function Visits() {
                   return (
                     <tr
                       key={visit.id || index}
-                      onClick={() => {
-                        const visitScan = scans.find((scan) =>
-                          String(scan.visit_id) === String(visit.id) &&
-                          (!activeScanFilter || scan.scan_type === activeScanFilter)
-                        )
-                        const targetType = activeScanFilter || visitScan?.scan_type || visitTypes[0] || 'Adult Echo'
-                        const reportPath = {
-                          'Adult Echo': 'adult-echo-report',
-                          'Fetal Echo': 'fetal-echo-report',
-                          'Pediatric Echo': 'pediatric-echo-report',
-                        }[targetType]
-
-                        if (reportPath) {
-                          const query = new URLSearchParams({ patientId: String(selectedPatient), visitId: String(visit.id || '') })
-                          navigate(`/${reportPath}${visitScan?.id ? `/${visitScan.id}` : ''}?${query}`)
-                          return
-                        }
-
-                        navigate(`/echo-studies?patient=${selectedPatient}&visit=${visit.id || ''}&type=${encodeURIComponent(targetType)}`)
-                      }}
+                      onClick={() => openVisitReport(visit)}
                       title="Click to open this visit's report"
                       className="cursor-pointer transition hover:bg-teal-50/60"
                     >
@@ -641,7 +622,7 @@ export default function Visits() {
                         )}
                       </td>
                       <td>{visit.referral_doctor || '—'}</td>
-                      <td>{scans.find(s => String(s.visit_id) === String(visit.id))?.status || 'No report'} — {visit.notes || '—'}</td>
+                      <td>{visit.notes || '—'}</td>
                       <td>
                         <button
                           type="button"
@@ -684,7 +665,98 @@ export default function Visits() {
           </div>
         </section>
 
+        {/* Right: List of Scans (Interactive Filter) */}
+        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm h-fit space-y-4">
+          <div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Activity className="h-5 w-5 text-teal-600" />
+                <h2 className="font-semibold text-slate-900">List of scans</h2>
+              </div>
+              {activeScanFilter && (
+                <button
+                  type="button"
+                  onClick={() => setActiveScanFilter('')}
+                  className="text-xs font-semibold text-teal-600 hover:text-teal-800 transition"
+                  title="Clear active filter"
+                >
+                  Clear filter
+                </button>
+              )}
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">
+              Click any scan to filter visits. Double-click to open study.
+            </p>
+          </div>
 
+          <div className="space-y-2">
+            {['Adult Echo', 'Fetal Echo', 'Pediatric Echo'].map((type) => {
+              const matchingScans = scans.filter((scan) => scan.scan_type === type)
+              const matchingVisits = visits.filter((v) => getVisitScanTypes(v).includes(type))
+              const count = Math.max(matchingScans.length, matchingVisits.length)
+              const isActive = activeScanFilter === type
+              return (
+                <button
+                  type="button"
+                  key={type}
+                  disabled={!selectedPatient}
+                  onClick={() => toggleScanFilter(type)}
+                  onDoubleClick={() => openEcho(type)}
+                  title={`Click to filter by ${type}. Double-click to open study.`}
+                  className={`flex w-full items-center justify-between rounded-lg border px-3 py-3 text-left transition ${
+                    isActive
+                      ? 'border-teal-500 bg-teal-50/90 ring-2 ring-teal-500/20 shadow-xs'
+                      : 'border-slate-200 bg-white hover:border-teal-300 hover:bg-slate-50'
+                  } disabled:cursor-not-allowed disabled:opacity-50`}
+                >
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={`block text-sm font-medium ${
+                        isActive ? 'font-bold text-teal-900' : 'text-slate-700'
+                      }`}
+                    >
+                      {type}
+                    </span>
+                    <span
+                      className={`mt-0.5 block text-[11px] ${
+                        isActive ? 'font-medium text-teal-600' : 'text-slate-400'
+                      }`}
+                    >
+                      {isActive ? '✓ Active filter · Click to clear' : 'Click to filter · Double-click to open'}
+                    </span>
+                  </span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                        isActive ? 'bg-teal-600 text-white' : 'bg-teal-50 text-teal-700'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                    {isActive && <Check className="h-4 w-4 text-teal-600" />}
+                  </div>
+                </button>
+              )
+            })}
+          </div>
+
+          <div className="pt-2 border-t border-slate-100">
+            <button
+              type="button"
+              disabled={!selectedPatient}
+              onClick={handleGoToScan}
+              className="primary-button w-full justify-center disabled:cursor-not-allowed disabled:opacity-50"
+              title={
+                activeScanFilter
+                  ? `Go to ${activeScanFilter} study`
+                  : 'Go to echo scan studies'
+              }
+            >
+              <Calendar className="h-4 w-4" />
+              <span>{activeScanFilter ? `Go to ${activeScanFilter}` : 'Go to scan'}</span>
+            </button>
+          </div>
+        </section>
       </div>
 
       <ReferralDoctorModal
