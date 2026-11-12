@@ -497,11 +497,12 @@ function FetalEchoReport() {
 
   useEffect(() => {
     if (!scanId) return
+    let active = true
 
     const fetchScan = async () => {
       try {
         const result = await scanService.getScan(scanId)
-        if (!result.success) return
+        if (!active || !result.success) return
 
         const scan = result.data
         setSelectedPatientId(scan.patient_id || selectedPatientId)
@@ -521,12 +522,14 @@ function FetalEchoReport() {
         markSaved(normalized)
         if(searchParams.get('preview')==='1')setIsReportPreviewOpen(true)
       } catch (error) {
+        if (!active) return
         console.error('Error loading fetal echo scan:', error)
         setStatusMessage('Could not load this fetal echo report.')
       }
     }
 
     fetchScan()
+    return () => { active = false }
   }, [scanId])
 
   useEffect(() => {

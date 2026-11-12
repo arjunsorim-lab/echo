@@ -418,7 +418,12 @@ function Home() {
       storage.setItem('echoai_token', result.token)
       navigate('/dashboard', { replace: true })
     } catch (error) {
-      setError(error.response?.data?.detail || 'Unable to sign in. Check the backend connection.')
+      if (!error.response) {
+        // Network error: the backend is not reachable (not running, wrong port, or CORS).
+        setError('Unable to reach the backend. Make sure the server is running on http://127.0.0.1:8002 and try again.')
+      } else {
+        setError(error.response.data?.detail || 'Sign-in failed. Please try again.')
+      }
     }
   }
 

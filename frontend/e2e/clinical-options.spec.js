@@ -3,6 +3,7 @@ import { loadFixture, login, reportUrl } from './fixture.js'
 
 let info
 test.beforeAll(async () => { info = await loadFixture() })
+const waitForReport = page => expect(page.getByLabel(/^Indication/)).toHaveValue('Dummy browser test only')
 
 for (const [route, label] of [
   ['/fetal-echo-report', 'Cardiac views'],
@@ -13,6 +14,7 @@ for (const [route, label] of [
     await login(page, 'l1', info.password)
     const scanType = route === '/fetal-echo-report' ? 'Fetal Echo' : route === '/adult-echo-report' ? 'Adult Echo' : 'Pediatric Echo'
     await page.goto(reportUrl(info, scanType))
+    await waitForReport(page)
     if (route === '/fetal-echo-report') await page.getByRole('button', { name: 'Echo details', exact: true }).click()
     const input = page.getByLabel(label, { exact: true }).first()
     const value = `Synthetic choice ${Date.now()}`
@@ -20,7 +22,10 @@ for (const [route, label] of [
     await page.getByLabel(`New ${label} choice`, { exact: true }).first().fill(value)
     await page.getByRole('button', { name: 'Add', exact: true }).click()
     await expect(input).toHaveValue(value)
+    await page.getByRole('button', { name: 'Save report', exact: true }).last().click()
+    await expect(page.getByRole('status')).toContainText('report saved', { ignoreCase: true })
     await page.reload()
+    await waitForReport(page)
     if (route === '/fetal-echo-report') await page.getByRole('button', { name: 'Echo details', exact: true }).click()
     const selector = page.getByLabel(`Choose ${label}`, { exact: true }).first()
     await expect(selector.locator('option', { hasText: value })).toHaveCount(1)
@@ -32,6 +37,7 @@ for (const [route, label] of [
 test('fetal abnormal findings require and retain their inline description', async ({ page }) => {
   await login(page, 'l1', info.password)
   await page.goto(reportUrl(info, 'Fetal Echo'))
+  await waitForReport(page)
   await page.getByRole('button', { name: 'Echo details', exact: true }).click()
   await page.getByLabel('Other lesions', { exact: true }).fill('Abnormal')
   await expect(page.getByLabel('Other lesions comment')).toBeVisible()
@@ -41,6 +47,7 @@ test('fetal abnormal findings require and retain their inline description', asyn
   await page.getByRole('button', { name: 'Save report', exact: true }).last().click()
   await expect(page.getByRole('status')).toContainText('Fetal echo report saved.')
   await page.reload()
+  await waitForReport(page)
   await page.getByRole('button', { name: 'Echo details', exact: true }).click()
   await expect(page.getByLabel('Other lesions comment')).toHaveValue('Synthetic description')
 })

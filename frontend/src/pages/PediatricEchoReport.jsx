@@ -375,11 +375,12 @@ function PediatricEchoReport() {
 
   useEffect(() => {
     if (!scanId) return
+    let active = true
 
     const fetchScan = async () => {
       try {
         const result = await scanService.getScan(scanId)
-        if (!result.success) return
+        if (!active || !result.success) return
 
         const scan = result.data
         setSelectedPatientId(scan.patient_id || selectedPatientId)
@@ -396,12 +397,14 @@ function PediatricEchoReport() {
         markSaved(normalized)
         if(searchParams.get('preview')==='1')setIsPreviewOpen(true)
       } catch (error) {
+        if (!active) return
         console.error('Error loading pediatric echo scan:', error)
         setStatusMessage('Could not load this pediatric echo report.')
       }
     }
 
     fetchScan()
+    return () => { active = false }
   }, [scanId])
 
   useEffect(() => {

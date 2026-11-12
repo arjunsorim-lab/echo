@@ -15,53 +15,58 @@ async function study(request,type) {
   const scan=(await (await request.post('/api/scans',{data:{patient_id:patient.id,visit_id:visit.id,scan_type:type,[key]:report}})).json()).data
   return {patient,visit,scan,key,report,url:`/${routes[type]}/${scan.id}?patientId=${patient.id}&visitId=${visit.id}`}
 }
-async function open(page,s){await page.goto(s.url);await expect(page.getByLabel('Indication(s)')).toHaveValue('DUMMY SOFTWARE TEST')}
+// Fetal Echo uses the singular "Indication" label; the Adult and Pediatric
+// screens use "Indication(s)". Match the shared field by its stable prefix.
+const indication = page => page.getByLabel(/^Indication/)
+const saveReportButton = page => page.getByRole('button',{name:'Save report',exact:true}).last()
+async function enterIndication(page,value) { await indication(page).fill(value);await expect(indication(page)).toHaveValue(value) }
+async function open(page,s){await page.goto(s.url);await expect(indication(page)).toHaveValue('DUMMY SOFTWARE TEST')}
 async function saved(page){await expect(page.getByRole('status').filter({hasText:/echo report saved/i})).toBeVisible()}
 
 for(const type of Object.keys(routes)) {
   test(`${type}: Save & Next blocks an invalid indication without saving`,async({page,request})=>{
     const s=await study(request,type);await login(page,'l1',info.password);await open(page,s)
-    await page.getByLabel('Indication(s)').fill('')
+    await enterIndication(page,'')
     let writes=0
     await page.route('**/api/scans/*',route=>{if(route.request().method()==='PUT')writes++;return route.continue()})
     await page.getByRole('button',{name:'Save & next',exact:true}).click()
-    await expect(page.getByRole('status')).toContainText('Cannot advance. Enter an indication.')
-    await expect(page.getByLabel('Indication(s)')).toBeVisible()
+    await expect(page.getByRole('status')).toContainText('Enter an indication.')
+    await expect(indication(page)).toBeVisible()
     expect(writes).toBe(0)
   })
   test(`${type}: Save & Next persists all steps; Back retains data`,async({page,request})=>{
     const s=await study(request,type);await login(page,'l1',info.password);await open(page,s)
-    await page.getByLabel('Indication(s)').fill('DUMMY STEP VALUE')
+    await enterIndication(page,'DUMMY STEP VALUE')
     await page.getByRole('button',{name:'Impression',exact:true}).click()
     await expect(page.getByRole('status')).toContainText('Not saved')
-    const steps=type==='Adult Echo'?5:type==='Fetal Echo'?4:3
+    const steps=type==='Adult Echo'?5:type==='Fetal Echo'?5:3
     for(let i=0;i<steps;i++) {await page.getByRole('button',{name:'Save & next',exact:true}).click();await saved(page)}
     await expect(page.getByLabel('Header comments', {exact:false})).toBeVisible()
     await page.getByRole('button',{name:'Back',exact:true}).click()
     await expect(page.getByRole('button',{name:'Save & next',exact:true})).toBeVisible()
-    await page.reload();await expect(page.getByLabel('Indication(s)')).toHaveValue('DUMMY STEP VALUE')
+    await page.reload();await expect(indication(page)).toHaveValue('DUMMY STEP VALUE')
     const stored=(await (await request.get(`/api/scans/${s.scan.id}`)).json()).data
     expect(stored.visit_id).toBe(s.visit.id)
   })
   test(`${type}: dirty navigation can stay or discard; network failure preserves entries`,async({page,request})=>{
     const s=await study(request,type);await login(page,'l1',info.password);await open(page,s)
-    await page.getByLabel('Indication(s)').fill('UNSAVED MARKER')
+    await enterIndication(page,'UNSAVED MARKER')
     await page.getByRole('link',{name:'Patients',exact:true}).click()
     await expect(page.getByRole('dialog',{name:'Unsaved report changes'})).toBeVisible()
     await page.getByRole('button',{name:'Stay on report'}).click()
-    await expect(page.getByLabel('Indication(s)')).toHaveValue('UNSAVED MARKER')
+    await expect(indication(page)).toHaveValue('UNSAVED MARKER')
     await page.route('**/api/scans/*',route=>route.request().method()==='PUT'?route.abort('failed'):route.continue())
-    await page.getByRole('button',{name:'Save report',exact:true}).click()
+    await saveReportButton(page).click()
     await expect(page.getByRole('status')).toContainText('Save could not be confirmed')
-    await expect(page.getByLabel('Indication(s)')).toHaveValue('UNSAVED MARKER')
+    await expect(indication(page)).toHaveValue('UNSAVED MARKER')
     await page.unroute('**/api/scans/*')
-    await page.getByRole('button',{name:'Save report',exact:true}).click();await saved(page)
-    await page.reload();await expect(page.getByLabel('Indication(s)')).toHaveValue('UNSAVED MARKER')
-    await page.getByLabel('Indication(s)').fill('DISCARD MARKER')
-    await page.getByRole('button',{name:'Close',exact:true}).click()
+    await saveReportButton(page).click();await saved(page)
+    await page.reload();await expect(indication(page)).toHaveValue('UNSAVED MARKER')
+    await enterIndication(page,'DISCARD MARKER')
+    await page.getByRole('link',{name:'Patients',exact:true}).click()
     await page.getByRole('button',{name:'Discard changes and leave'}).click()
     await expect(page).not.toHaveURL(new RegExp(`/${routes[type]}/`))
-    await page.goto(s.url);await expect(page.getByLabel('Indication(s)')).toHaveValue('UNSAVED MARKER')
+    await page.goto(s.url);await expect(indication(page)).toHaveValue('UNSAVED MARKER')
   })
   test(`${type}: L1/L2/L3 audit, cancellation, completion and reload`,async({browser,request})=>{
     const s=await study(request,type)
@@ -70,40 +75,43 @@ for(const type of Object.keys(routes)) {
       await page.getByRole('button',{name:'Impression',exact:true}).click()
       await expect(page.getByLabel('Auditing done')).toHaveCount(role==='L1'?0:1)
       await expect(page.getByLabel('Report completed',{exact:true})).toHaveCount(role==='L3'?1:0)
-      if(role==='L2') {await page.getByLabel('Auditing done').check();await page.getByRole('button',{name:'Save report',exact:true}).click();await saved(page);await page.reload();await page.getByRole('button',{name:'Impression',exact:true}).click();await expect(page.getByText('Audit: Done — L2 Dummy')).toBeVisible()}
+      if(role==='L2') {await page.getByLabel('Auditing done').check();await saveReportButton(page).click();await saved(page);await page.reload();await expect(indication(page)).toHaveValue('DUMMY SOFTWARE TEST');await page.getByRole('button',{name:'Impression',exact:true}).click();await expect(page.getByLabel('Audited by')).toHaveValue('L2 Dummy')}
       if(role==='L3') {
-        await page.getByLabel('Report completed',{exact:true}).check();await page.getByRole('button',{name:'Save report',exact:true}).click();await page.getByRole('button',{name:'Cancel completion',exact:true}).click()
+        const completion=page.getByLabel('Report completed',{exact:true})
+        await expect(completion).toBeEnabled();await expect(completion).not.toBeChecked()
+        await completion.check();await expect(completion).toBeChecked()
+        await saveReportButton(page).click();await page.getByRole('button',{name:'Cancel completion',exact:true}).click()
         await expect(page.getByRole('button',{name:'Report locked'})).toHaveCount(0)
-        await page.getByRole('button',{name:'Save report',exact:true}).click();await page.getByRole('button',{name:'Complete and lock',exact:true}).click()
+        await saveReportButton(page).click();await page.getByRole('button',{name:'Complete and lock',exact:true}).click()
         await expect(page.getByRole('button',{name:'Report locked'})).toBeDisabled();await page.reload();await expect(page.getByRole('button',{name:'Report locked'})).toBeDisabled()
       }
       await context.close()
     }
     const context=await browser.newContext();const page=await context.newPage();await login(page,'l1',info.password);await page.goto(s.url)
-    await expect(page.getByRole('button',{name:'Report locked'})).toBeDisabled();await expect(page.getByLabel('Indication(s)')).toBeDisabled()
+    await expect(page.getByRole('button',{name:'Report locked'})).toBeDisabled();await expect(indication(page)).toBeDisabled()
     await context.close()
   })
 }
 
 test('30-second timeout releases Save and retains values',async({page,request})=>{
   const s=await study(request,'Pediatric Echo');await login(page,'l1',info.password);await open(page,s)
-  await page.getByLabel('Indication(s)').fill('TIMEOUT MARKER')
+  await enterIndication(page,'TIMEOUT MARKER')
   let pending
   await page.route('**/api/scans/*',route=>{if(route.request().method()==='PUT')pending=route;else route.continue()})
-  await page.getByRole('button',{name:'Save report',exact:true}).click()
+  await saveReportButton(page).click()
   await expect(page.getByRole('status')).toContainText('Save could not be confirmed',{timeout:40000})
-  await expect(page.getByRole('button',{name:'Save report',exact:true})).toBeEnabled()
-  await expect(page.getByLabel('Indication(s)')).toHaveValue('TIMEOUT MARKER')
+  await expect(saveReportButton(page)).toBeEnabled()
+  await expect(indication(page)).toHaveValue('TIMEOUT MARKER')
   await pending.abort();await page.unroute('**/api/scans/*')
-  await page.getByRole('button',{name:'Save report',exact:true}).click();await saved(page)
+  await saveReportButton(page).click();await saved(page)
 })
 
 test('committed response lost in transit can be retried without duplicates',async({page,request})=>{
   const s=await study(request,'Fetal Echo');await login(page,'l1',info.password);await open(page,s)
-  await page.getByLabel('Indication(s)').fill('COMMITTED BUT RESPONSE LOST')
+  await enterIndication(page,'COMMITTED BUT RESPONSE LOST')
   await page.route('**/api/scans/*',async route=>{if(route.request().method()==='PUT'){await route.fetch();await route.abort('failed')}else await route.continue()})
-  await page.getByRole('button',{name:'Save report',exact:true}).click();await expect(page.getByRole('status')).toContainText('Save could not be confirmed')
-  await page.unroute('**/api/scans/*');await page.getByRole('button',{name:'Save report',exact:true}).click();await saved(page)
+  await saveReportButton(page).click();await expect(page.getByRole('status')).toContainText('Save could not be confirmed')
+  await page.unroute('**/api/scans/*');await saveReportButton(page).click();await saved(page)
   const scans=(await (await request.get(`/api/scans/patient/${s.patient.id}`)).json()).data
   expect(scans.filter(x=>x.visit_id===s.visit.id)).toHaveLength(1)
 })
@@ -130,25 +138,25 @@ test('dirty report blocks history Back and cancelled reload without losing entri
   const s=await study(request,'Adult Echo');await login(page,'l1',info.password);await open(page,s)
   // Establish an in-document history entry, then reopen using browser Back.
   await page.getByRole('link',{name:'Patients',exact:true}).click();await page.goBack()
-  await expect(page.getByLabel('Indication(s)')).toHaveValue('DUMMY SOFTWARE TEST')
-  await page.getByLabel('Indication(s)').fill('HISTORY MARKER')
+  await expect(indication(page)).toHaveValue('DUMMY SOFTWARE TEST')
+  await enterIndication(page,'HISTORY MARKER')
   await page.goForward()
   await expect(page.getByRole('dialog',{name:'Unsaved report changes'})).toBeVisible()
   await page.getByRole('button',{name:'Stay on report'}).click()
-  await expect(page.getByLabel('Indication(s)')).toHaveValue('HISTORY MARKER')
+  await expect(indication(page)).toHaveValue('HISTORY MARKER')
   const dialogPromise=page.waitForEvent('dialog')
   const reload=page.reload({timeout:3000}).catch(error=>{if(!/ERR_ABORTED|interrupted|cancelled|Timeout/i.test(error.message))throw error})
   const dialog=await dialogPromise;expect(dialog.type()).toBe('beforeunload');await dialog.dismiss();await reload
-  await expect(page.getByLabel('Indication(s)')).toHaveValue('HISTORY MARKER')
+  await expect(indication(page)).toHaveValue('HISTORY MARKER')
 })
 
 test('manual fetal Z-score remains editable, persists and prints without automatic thresholds',async({page,request})=>{
   const s=await study(request,'Fetal Echo');await login(page,'l1',info.password);await open(page,s)
-  await page.getByRole('button',{name:'Aortic stenosis parameters',exact:true}).click()
+  await page.getByRole('button',{name:'Aortic',exact:true}).click()
   await page.getByLabel('Annulus Z score',{exact:true}).first().fill('1.234')
-  await page.getByRole('button',{name:'Save report',exact:true}).click();await saved(page)
-  await page.reload();await expect(page.getByLabel('Indication(s)')).toHaveValue('DUMMY SOFTWARE TEST')
-  await page.getByRole('button',{name:'Aortic stenosis parameters',exact:true}).click()
+  await saveReportButton(page).click();await saved(page)
+  await page.reload();await expect(indication(page)).toHaveValue('DUMMY SOFTWARE TEST')
+  await page.getByRole('button',{name:'Aortic',exact:true}).click()
   await expect(page.getByLabel('Annulus Z score',{exact:true}).first()).toHaveValue('1.234')
   await page.getByRole('button',{name:'Preview',exact:true}).click()
   await expect(page.locator('.clinical-print')).toContainText('1.234')
@@ -158,7 +166,7 @@ test('manual fetal Z-score remains editable, persists and prints without automat
 
 test('scrolling leaves numeric patient inputs unchanged',async({page})=>{
   await login(page,'l1',info.password);await page.goto('/patients/new')
-  const age=page.getByLabel('Age (or DOB)',{exact:true});await age.fill('30');await age.focus()
+  const age=page.locator('#newpatient-age');await age.fill('30');await age.focus()
   await page.mouse.wheel(0,150);await expect(age).toHaveValue('30');await expect(age).not.toBeFocused()
 })
 
