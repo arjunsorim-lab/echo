@@ -731,12 +731,12 @@ function PregnancyDating({ report, updateReport, onLmpDateChange, validationAtte
   return <div>
     <h3 className="mb-4 border-b pb-3 font-semibold">Pregnancy dating</h3>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <label className="field-label">LMP<input type="date" aria-invalid={missingDate} className={`field-control ${missingDate ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.lmp.lmp_date || ''} onChange={e=>onLmpDateChange(e.target.value)} /></label>
+      <label className="field-label">LMP<input type="date" max={new Date().toISOString().slice(0,10)} aria-invalid={missingDate} className={`field-control ${missingDate ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.lmp.lmp_date || ''} onChange={e=>onLmpDateChange(e.target.value)} /></label>
       <label className="field-label">EDD<input type="date" aria-invalid={missingDate} className={`field-control ${missingDate ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.lmp.edd || ''} onChange={e=>updateReport(['lmp','edd'],e.target.value)} /></label>
       <label className="field-label">Gestational age – weeks<input type="number" min="0" className="field-control" value={report.ga_weeks || ''} onChange={e=>updateReport(['ga_weeks'],e.target.value)} /></label>
       <label className="field-label">Days<input type="number" min="0" className="field-control" value={report.ga_days || ''} onChange={e=>updateReport(['ga_days'],e.target.value)} /></label>
       <div className="field-label"><span>Dating method</span><AddableSelect field="fetal_dating_method" value={report.lmp.assigned_by} options={['lmp','user']} onChange={value=>updateReport(['lmp','assigned_by'],value)} /></div>
-      <label className="field-label">Embryo transfer date<input type="date" aria-invalid={missingDate} className={`field-control ${missingDate ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={typeof report.lmp.et_date === 'string' ? report.lmp.et_date : ''} onChange={e=>updateReport(['lmp','et_date'],e.target.value)} /></label>
+      <label className="field-label">Embryo transfer date<input type="date" max={new Date().toISOString().slice(0,10)} aria-invalid={missingDate} className={`field-control ${missingDate ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={typeof report.lmp.et_date === 'string' ? report.lmp.et_date : ''} onChange={e=>updateReport(['lmp','et_date'],e.target.value)} /></label>
       <label className="field-label">Blastocyst transfer date<input type="date" className="field-control" value={report.lmp.blastocyst_transfer_date || ''} onChange={e=>updateReport(['lmp','blastocyst_transfer_date'],e.target.value)} /></label>
       <div className="field-label"><span className={missingCount ? 'text-red-700' : ''}>Number of fetuses</span><AddableSelect field="fetal_count" aria-label="Number of fetuses" className={`field-control ${missingCount ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={String(report.no_of_fetuses || '')} options={['1','2','3']} onChange={value=>updateReport(['no_of_fetuses'],value)} /></div>
     </div>
@@ -1092,10 +1092,12 @@ function ToolbarButton({ icon: Icon, label, onClick }) {
 }
 
 function HeaderField({ label, value, onChange, className = '' }) {
+  const listId = label === 'Indication' ? 'common-fetal-indications' : undefined
   return (
     <label className={`field-label ${className}`}>
       {label}
-      <input className="field-control" value={value} onChange={(event) => onChange(event.target.value)} />
+      <input className="field-control" list={listId} value={value} onChange={(event) => onChange(event.target.value)} />
+      {listId && <datalist id={listId}>{['Routine fetal cardiac assessment','Suspected congenital heart disease','Abnormal obstetric ultrasound','Family history of congenital heart disease','Maternal diabetes','Maternal medication exposure','Arrhythmia'].map(item => <option key={item} value={item} />)}</datalist>}
     </label>
   )
 }

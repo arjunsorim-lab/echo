@@ -1,5 +1,5 @@
 // Structural checks only. No clinical equations, reference ranges or thresholds.
-export const REPORT_TITLES = { 'Adult Echo':'Adult Echocardiography', 'Pediatric Echo':'Paediatric Echocardiography', 'Fetal Echo':'Fetal Echocardiography' }
+export const REPORT_TITLES = { 'Adult Echo':'Adult Echocardiography', 'Pediatric Echo':'Paediatric Echocardiography', 'Fetal Echo':'Fetal Echocardiography', 'Ultrasound':'Ultrasound' }
 export const CLINICAL_GROUPS = ['echo_details','biometry','doppler','aortic','two_d_measurement','m_mode_measurement','doppler_measurement','pisa_measurement']
 export function reportSaveError(error) {
   const detail = error?.response?.data?.detail
@@ -34,6 +34,9 @@ export function reportErrors(report, fetal=false, completing=false, progressing=
     const dating=report.lmp || {}
     if((completing || progressing) && ![dating.lmp_date,dating.edd,dating.et_date].some(v=>typeof v==='string' && v.trim()))errors.push('Enter LMP, EDD or embryo transfer date.')
     for(const value of [dating.lmp_date,dating.edd,dating.et_date])if(value && (typeof value!=='string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(value)) || new Date(value).toISOString().slice(0,10)!==value))errors.push('Enter valid LMP, EDD or transfer dates.')
+    const today = new Date().toISOString().slice(0,10)
+    if(dating.lmp_date && dating.lmp_date > today)errors.push('LMP cannot be in the future.')
+    if(dating.et_date && dating.et_date > today)errors.push('Embryo transfer date cannot be in the future.')
     const count=String(report.no_of_fetuses || '')
     if(((completing || progressing) || count) && (!/^\d+$/.test(count) || Number(count)<1))errors.push('Enter the number of fetuses as a positive whole number.')
   }
