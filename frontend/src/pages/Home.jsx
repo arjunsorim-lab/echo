@@ -33,6 +33,7 @@ const demoUsers = [
     name: 'Dr Shanthi',
     role: 'Founder',
     email: 'dr.shanthi@echoai.com',
+    password: import.meta.env.VITE_FOUNDER_PASSWORD || '',
   },
 ]
 
@@ -400,7 +401,7 @@ function Home() {
 
   const useDemoUser = (user = demoUsers[0]) => {
     setEmail(user.email)
-    setPassword('')
+    setPassword(user.password || '')
     setError('')
     requestAnimationFrame(() => passwordInputRef.current?.focus())
   }
