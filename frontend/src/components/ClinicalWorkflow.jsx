@@ -13,7 +13,7 @@ export function useDerivedDefinitions() {
 export function DerivedStatus({ report }) {
   const states=Object.entries(report._derived_status || {})
   if(!states.length)return null
-  return <details className="no-print rounded-lg border bg-slate-50 p-3"><summary>Calculated measurement status — Pending Clinical Validation</summary><p className="my-2 text-sm">Calculated fields are read-only. Results require an approved formula and independently validated source inputs. Manual Z-scores remain editable; their reference and clinical validity require confirmation.</p>{states.map(([path,state])=><p className="text-sm" key={path}>{path.replaceAll('_',' ')}: {state.status}</p>)}</details>
+  return <details className="no-print rounded-lg border bg-slate-50 p-3"><summary className="cursor-pointer">Calculated measurement status — Pending Clinical Validation ({states.length} fields)</summary><p className="my-2 text-sm">Calculated fields are read-only until their formulas and source inputs are clinically validated.</p><div className="max-h-40 overflow-auto">{states.map(([path,state])=><p className="text-sm" key={path}>{path.replaceAll('_',' ')}: {state.status}</p>)}</div></details>
 }
 
 export function currentUser() {

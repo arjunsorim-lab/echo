@@ -156,6 +156,17 @@ export default function Visits() {
     return 'Adult Echo'
   }, [activeScanFilter, scans, patients, selectedPatient])
 
+  const templateForScanType = (scanType) => templates.find((template) => template.scan_type === scanType)
+
+  const selectScanType = (scanType) => {
+    const matchingTemplate = templateForScanType(scanType)
+    setVisitData((current) => ({
+      ...current,
+      scan_type: scanType,
+      report_template_id: matchingTemplate ? String(matchingTemplate.id) : '',
+    }))
+  }
+
   // Determine which scan types a visit belongs to
   const getVisitScanTypes = useCallback(
     (visit) => {
@@ -406,7 +417,7 @@ export default function Visits() {
       </section>
 
       {/* Main Visits Section + List of Scans Sidebar */}
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+      <div className="w-full">
         {/* Left: Visits Management Table */}
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
@@ -486,7 +497,7 @@ export default function Visits() {
                 disabled={!patient || saving}
                 className="field-control disabled:bg-slate-100"
                 value={visitData.scan_type}
-                onChange={(event) => setVisitData({ ...visitData, scan_type: event.target.value })}
+                onChange={(event) => selectScanType(event.target.value)}
               >
                 <option value="">Select examination</option><option value="Adult Echo">Adult Echo</option><option value="Ultrasound">Ultrasound</option>
                 <option value="Fetal Echo">Fetal Echo</option>

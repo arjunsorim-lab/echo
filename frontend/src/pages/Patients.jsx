@@ -13,7 +13,7 @@ import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 
 const PAGE_SIZE = 10
-const standardDisciplines = ['Adult Echo', 'Fetal Echo', 'Pediatric Echo']
+const standardDisciplines = ['Adult Echo', 'Ultrasound', 'Fetal Echo', 'Pediatric Echo']
 
 const normalizeId = (value) => String(value ?? '').trim()
 

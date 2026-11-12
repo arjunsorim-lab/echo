@@ -366,6 +366,7 @@ function FetalEchoReport() {
   const [savedScanId, setSavedScanId] = useState(scanId || '')
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [progressValidationAttempted, setProgressValidationAttempted] = useState(false)
   const [locked, setLocked] = useState(false)
   const { dirty, navigationDialog, markSaved, navigateSection } = useSavedNavigation(report)
 
@@ -618,7 +619,7 @@ function FetalEchoReport() {
   }
   const saveAndNext = async () => {
     const errors=reportErrors(report,true,false,true)
-    if(errors.length){setStatusMessage('Cannot advance. '+errors.join(' '));return}
+    if(errors.length){setProgressValidationAttempted(true);setIsLmpOpen(true);setStatusMessage('Complete the fields marked in red to continue.');return}
     if(await handleSave())changeStep(step+1)
   }
 
@@ -674,6 +675,7 @@ function FetalEchoReport() {
               label="Indication(s)"
               value={report.indication}
               onChange={(value) => updateReport(['indication'], value)}
+              className={progressValidationAttempted && !String(report.indication || '').trim() ? ' [&_input]:border-red-500 [&_input]:ring-1 [&_input]:ring-red-300' : ''}
             />
             <HeaderField
               label="Tag"
@@ -717,7 +719,7 @@ function FetalEchoReport() {
               <InlineField value={report.ga_days} onChange={(value) => updateReport(['ga_days'], value)} width="w-20" suffix="days" />
             </div>
 
-            {statusMessage && <span className="font-semibold text-blue-800">{statusMessage}</span>}
+            {statusMessage && <span role="alert" className={`font-semibold ${progressValidationAttempted ? 'text-red-700' : 'text-blue-800'}`}>{statusMessage}</span>}
           </div>
 
           <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50/50 p-3">
@@ -781,11 +783,12 @@ function FetalEchoReport() {
       {isLmpOpen && (
         <LmpModal
           report={report}
+          validationAttempted={progressValidationAttempted}
           updateReport={updateReport}
           onLmpDateChange={handleLmpDateChange}
           onClose={() => setIsLmpOpen(false)}
           onSave={handleSave}
-          onNext={async()=>{const errors=reportErrors({...report,indication:'Profile navigation'},true,false,true);if(errors.length){setStatusMessage('Cannot advance. '+errors.join(' '));return}if(await handleSave())setIsLmpOpen(false)}}
+          onNext={async()=>{const errors=reportErrors({...report,indication:'Profile navigation'},true,false,true);if(errors.length){setProgressValidationAttempted(true);setStatusMessage('Complete the fields marked in red to continue.');return}if(await handleSave())setIsLmpOpen(false)}}
           message={statusMessage}
           saving={isSaving} locked={locked}
         />
@@ -1199,7 +1202,7 @@ function ImpressionPanel({ report, updateReport }) {
 
 function ImagePanel() { return <aside className="rounded-xl border bg-slate-50 p-4"><h3 className="font-semibold">Visit images</h3><p className="mt-2 text-sm">Use the Images button above to import, select and print files linked to this visit.</p></aside> }
 
-function LmpModal({ report, updateReport, onLmpDateChange, onClose, onSave, onNext, message, saving, locked }) {
+function LmpModal({ report, validationAttempted, updateReport, onLmpDateChange, onClose, onSave, onNext, message, saving, locked }) {
   const ga = report.ga_weeks ? `${report.ga_weeks} weeks ${report.ga_days || '0'} days (entered)` : ''
 
   return (
@@ -1220,24 +1223,24 @@ function LmpModal({ report, updateReport, onLmpDateChange, onClose, onSave, onNe
             </label>
             <label className="field-label">
               LMP Date
-              <input type="date" className="field-control" value={report.lmp.lmp_date} onChange={(event) => onLmpDateChange(event.target.value)} />
+              <input type="date" aria-invalid={progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean)} className={`field-control ${progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean) ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.lmp.lmp_date} onChange={(event) => onLmpDateChange(event.target.value)} />
             </label>
             <label className="field-label">
               EDD
-              <input type="date" className="field-control" value={report.lmp.edd} onChange={(event) => updateReport(['lmp', 'edd'], event.target.value)} />
+              <input type="date" aria-invalid={progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean)} className={`field-control ${progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean) ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.lmp.edd} onChange={(event) => updateReport(['lmp', 'edd'], event.target.value)} />
             </label>
             <span className="rounded-lg bg-blue-50 px-3 py-2 font-semibold italic text-blue-800 lg:col-span-3">Gestation: {ga || 'Not entered — clinical calculation method awaits confirmation'}</span>
           </div>
           <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
             <label><input type="checkbox" checked={report.lmp.assigned_by === 'user'} onChange={(event) => updateReport(['lmp', 'assigned_by'], event.target.checked ? 'user' : 'lmp')} /> By user</label>
-            <label className="field-label">Embryo transfer date<input type="date" className="field-control" value={typeof report.lmp.et_date === 'string' ? report.lmp.et_date : ''} onChange={event => updateReport(['lmp', 'et_date'], event.target.value)} /></label>
+            <label className="field-label">Embryo transfer date<input type="date" aria-invalid={progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean)} className={`field-control ${progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean) ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={typeof report.lmp.et_date === 'string' ? report.lmp.et_date : ''} onChange={event => updateReport(['lmp', 'et_date'], event.target.value)} /></label>
             <label><input type="radio" checked={report.lmp.bt_date} onChange={(event) => updateReport(['lmp', 'bt_date'], event.target.checked)} /> BT Date</label>
           </div>
           <div className="grid gap-3 sm:grid-cols-[1fr_180px] sm:items-end">
             <span className="rounded-lg bg-teal-50 px-3 py-3 text-center font-semibold italic text-teal-800">Assigned by LMP</span>
             <label className="field-label">
               No. of Fetus
-              <select className="field-control" value={report.no_of_fetuses} onChange={(event) => updateReport(['no_of_fetuses'], event.target.value)}>
+              <select aria-invalid={progressValidationAttempted && !/^\d+$/.test(String(report.no_of_fetuses || ''))} className={`field-control ${progressValidationAttempted && !/^\d+$/.test(String(report.no_of_fetuses || '')) ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.no_of_fetuses} onChange={(event) => updateReport(['no_of_fetuses'], event.target.value)}>
               <option value="">Select number of fetuses</option>
               <option value="1">Single</option>
               <option value="2">Twin</option>
