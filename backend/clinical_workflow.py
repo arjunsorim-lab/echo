@@ -331,7 +331,7 @@ def prepare_scan(data, existing=None):
         merged['status'] = 'Draft' if not str(report.get('indication') or '').strip() else 'In Progress'
         impression.pop('completed_by', None)
         impression.pop('completed_at', None)
-    impression['report_title'] = TITLES.get(merged.get('scan_type'), merged.get('scan_type'))
+    impression['report_title'] = str(impression.get('report_title') or '').strip() or TITLES.get(merged.get('scan_type'), merged.get('scan_type'))
     impression['report_typed_by'] = previous_imp.get('report_typed_by') or user['name']
     # Explicit abnormal-option mapping is deliberately limited to the literal Abnormal option.
     def abnormal_comments(node):

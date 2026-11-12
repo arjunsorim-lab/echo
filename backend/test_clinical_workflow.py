@@ -178,11 +178,12 @@ class WorkflowTests(unittest.TestCase):
         patient={'patient_id':'TEST-DRAFT','first_name':'Dummy','last_name':'Draft','age':'30','gender':'F','street':'Test','state':'Tamil Nadu','country':'India','phone1':'1234567890','family_doctor':'Self'}
         pid=call('POST','/api/patients',patient,l1)[1]['data']['id']
         vid=call('POST',f'/api/patients/{pid}/visits',{'scan_type':'Fetal Echo','visit_date':'2026-11-10T09:00'},l1)[1]['data']['id']
-        report={'indication':'','lmp':{},'no_of_fetuses':'','doppler':{'mpi_method_1':{'rv_mpi':'999','rv_ict':'12'}},'impression':{}}
+        report={'indication':'','lmp':{},'no_of_fetuses':'','doppler':{'mpi_method_1':{'rv_mpi':'999','rv_ict':'12'}},'impression':{'report_title':'Custom fetal report'}}
         code,result=call('POST','/api/scans',{'patient_id':pid,'visit_id':vid,'scan_type':'Fetal Echo','fetal_echo_report':report},l1)
         self.assertEqual(code,200,result);sid=result['data']['id']
         self.assertEqual(result['data']['status'],'Draft');self.assertEqual(result['data']['normal'],0)
         saved=call('GET',f'/api/scans/{sid}',token=l1)[1]['data']['fetal_echo_report']
+        self.assertEqual(saved['impression']['report_title'],'Custom fetal report')
         self.assertEqual(saved['doppler']['mpi_method_1']['rv_mpi'],'');self.assertEqual(saved['doppler']['mpi_method_1']['rv_ict'],'12')
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':{**report,'lmp':{'lmp_date':'2026-02-30'}}},l1)[0],422)
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'adult_echo_report':report},l1)[0],422)

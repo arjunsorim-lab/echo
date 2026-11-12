@@ -160,10 +160,12 @@ export default function Visits() {
       : { ...current, scan_type: current.scan_type || scanType, report_template_id: String(matchingTemplate.id) })
   }, [defaultScanType, templates, visitData.scan_type, visitData.report_template_id])
 
-  const openVisitReport = (visit) => {
+  const openVisitReport = (visit, selectedType) => {
     if (!visit) return
-    const scan = scans.find((item) => String(item.visit_id) === String(visit.id))
-    const scanType = visit.visit_type || scan?.scan_type || activeScanFilter || 'Adult Echo'
+    const scan = scans.find((item) => String(item.visit_id) === String(visit.id) && (!selectedType || item.scan_type === selectedType))
+    const template = templates.find((item) => String(item.id) === String(visit.report_template_id))
+    const knownTypes = ['Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound']
+    const scanType = [selectedType, visit.scan_type, visit.visit_type, scan?.scan_type, template?.scan_type, activeScanFilter].find((type) => knownTypes.includes(type)) || 'Adult Echo'
     const route = {
       'Adult Echo': 'adult-echo-report',
       'Fetal Echo': 'fetal-echo-report',
@@ -304,7 +306,8 @@ export default function Visits() {
     if (!selectedPatient) return
     const matchingScan = scans.find((scan) => scan.scan_type === type)
     const visitId = matchingScan?.visit_id || visits[0]?.id || ''
-    navigate(`/echo-studies?patient=${selectedPatient}&visit=${visitId}&type=${encodeURIComponent(type)}`)
+    const visit = visits.find((item) => String(item.id) === String(visitId))
+    if (visit) openVisitReport(visit, type)
   }
 
   const handleGoToScan = () => {
@@ -312,7 +315,8 @@ export default function Visits() {
     if (activeScanFilter) {
       const matchingScan = scans.find((s) => s.scan_type === activeScanFilter)
       const visitId = matchingScan?.visit_id || visits[0]?.id || ''
-      navigate(`/echo-studies?patient=${selectedPatient}&visit=${visitId}&type=${encodeURIComponent(activeScanFilter)}`)
+      const visit = visits.find((item) => String(item.id) === String(visitId))
+      if (visit) openVisitReport(visit, activeScanFilter)
     } else {
       navigate(`/echo-studies?patient=${selectedPatient}`)
     }

@@ -33,7 +33,7 @@ const demoUsers = [
     name: 'Dr Shanthi',
     role: 'Founder',
     email: 'dr.shanthi@echoai.com',
-    password: import.meta.env.VITE_FOUNDER_PASSWORD || '',
+    password: import.meta.env.DEV ? (import.meta.env.VITE_FOUNDER_PASSWORD || '') : '',
   },
 ]
 

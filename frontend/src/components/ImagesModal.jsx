@@ -6,8 +6,9 @@ import ImageCompareModal from './ImageCompareModal'
 import OrganEditingModal from './OrganEditingModal'
 import TiffaTemplateModal from './TiffaTemplateModal'
 
-export default function ImagesModal({ open, onClose, patient, visitDate = '', visitId = '' }) {
+export default function ImagesModal({ open, onClose, patient, visitDate = '', visitId = '', initialTab = 'images' }) {
   const [activeTab, setActiveTab] = useState('images')
+  useEffect(() => { if (open) setActiveTab(initialTab) }, [open, initialTab])
   const [isCompareOpen, setIsCompareOpen] = useState(false)
   const [isOrganEditingOpen, setIsOrganEditingOpen] = useState(false)
   const [isTiffaOpen, setIsTiffaOpen] = useState(false)

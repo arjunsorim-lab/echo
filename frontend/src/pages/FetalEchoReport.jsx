@@ -19,25 +19,16 @@ import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 
 import ImagesModal from '../components/ImagesModal'
-import ReportConfigModal from '../components/ReportConfigModal'
 import SearchableSelect from '../components/SearchableSelect'
 import ExistingScansModal from '../components/ExistingScansModal'
 import ReferralLetterModal from '../components/ReferralLetterModal'
-
-const mainTabs = [
-  { id: 'scan', label: 'Scan' },
-  { id: 'impression', label: 'Impression' },
-]
+import AddableSelect from '../components/AddableSelect'
 
 const scanTabs = [
   { id: 'echo-details', label: 'Echo details' },
+  { id: 'aortic', label: 'Aortic' },
   { id: 'biometry', label: 'Biometry' },
   { id: 'doppler', label: 'Doppler' },
-]
-
-const imageTabs = [
-  { id: 'images', label: 'Images' },
-  { id: 'multiframes', label: 'MultiFrames' },
 ]
 
 const initialReport = {
@@ -353,10 +344,9 @@ function FetalEchoReport() {
   const [patients, setPatients] = useState([])
   const [selectedPatientId, setSelectedPatientId] = useState(searchParams.get('patientId') || '')
   const [selectedVisitId, setSelectedVisitId] = useState(searchParams.get('visitId') || '')
-  const [activeMainTab, setActiveMainTab] = useState('scan')
-  const [activeScanTab, setActiveScanTab] = useState('echo-details')
+  const [activeScanTab, setActiveScanTab] = useState('lmp')
+  const [visits, setVisits] = useState([])
   const [activeImageTab, setActiveImageTab] = useState('images')
-  const [isLmpOpen, setIsLmpOpen] = useState(!scanId)
   const [isImagesModalOpen, setIsImagesModalOpen] = useState(false)
   const [isReportPreviewOpen, setIsReportPreviewOpen] = useState(false)
   const [isExistingScansOpen, setIsExistingScansOpen] = useState(false)
@@ -365,9 +355,8 @@ function FetalEchoReport() {
   const [savedScanId, setSavedScanId] = useState(scanId || '')
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
-  const [progressValidationAttempted, setProgressValidationAttempted] = useState(false)
   const [locked, setLocked] = useState(false)
-  const { dirty, navigationDialog, markSaved, navigateSection } = useSavedNavigation(report)
+  const { dirty, navigationDialog, markSaved } = useSavedNavigation(report)
 
   const selectedPatient = useMemo(
     () => patients.find((patient) => String(patient.id) === String(selectedPatientId)),
@@ -484,6 +473,15 @@ function FetalEchoReport() {
 
     fetchPatients()
   }, [])
+
+  useEffect(() => {
+    if (!selectedPatientId) { setVisits([]); return }
+    let active = true
+    patientService.getVisits(selectedPatientId).then(result => {
+      if (active) setVisits(result.data || [])
+    }).catch(() => { if (active) setStatusMessage('Unable to load visits for this patient.') })
+    return () => { active = false }
+  }, [selectedPatientId])
 
   useEffect(() => {
     if (!scanId) return
@@ -610,15 +608,10 @@ function FetalEchoReport() {
     setReport(initializeDerived(blankReport(initialReport), 'Fetal Echo'))
     setStatusMessage('')
   }
-  const step = activeMainTab === 'impression' ? scanTabs.length : scanTabs.findIndex(tab=>tab.id===activeScanTab)
-  const changeStep = index => {
-    if(index<0){setIsLmpOpen(true);return}
-    setActiveMainTab(index===scanTabs.length?'impression':'scan')
-    if(index<scanTabs.length)setActiveScanTab(scanTabs[index].id)
-  }
+  const steps = ['lmp', ...scanTabs.map(tab => tab.id), 'impression']
+  const step = steps.indexOf(activeScanTab)
+  const changeStep = index => { if (steps[index]) setActiveScanTab(steps[index]) }
   const saveAndNext = async () => {
-    const errors=reportErrors(report,true,false,true)
-    if(errors.length){setProgressValidationAttempted(true);setIsLmpOpen(true);setStatusMessage('Complete the fields marked in red to continue.');return}
     if(await handleSave())changeStep(step+1)
   }
 
@@ -626,175 +619,49 @@ function FetalEchoReport() {
     <>
       {completionDialog}{navigationDialog}
       <div data-locked={locked ? 'true' : 'false'} className="no-print report-editor-form min-h-0 flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-slate-100 text-sm text-slate-900">
-      <div className="flex min-h-full flex-col gap-3">
-        <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-slate-200 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-teal-700">Fetal Echo Report</p>
-              <h2 className="text-xl font-semibold tracking-normal text-slate-950">
-                {getPatientName(selectedPatient) || 'Select patient'}
-                {selectedVisitId ? <span className="ml-2 text-sm font-medium text-slate-500">Visit #{selectedVisitId}</span> : null}
-              </h2>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={scatterNormalComments}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700"
-              >
-                ✓ Fill Normal Scan
-              </button>
-              <ToolbarButton icon={Save} label={isSaving ? 'Saving' : 'Save'} onClick={handleSave} />
-              {currentUser().role === 'L3' && <ToolbarButton icon={Trash2} label="Delete" onClick={handleDelete} />}
-              <ToolbarButton icon={RotateCcw} label="Clear" onClick={handleClear} />
-              <ToolbarButton icon={Printer} label="Preview" onClick={() => setIsReportPreviewOpen(true)} />
-              <ToolbarButton icon={FileImage} label="Images" onClick={() => setIsImagesModalOpen(true)} />
-              <ToolbarButton icon={X} label="Close" onClick={() => navigate('/search')} />
-            </div>
-          </div>
-
-          <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-[minmax(240px,1fr)_minmax(240px,1fr)_minmax(180px,0.55fr)_auto]">
-            <div className="field-label">
-              <span>Patient</span>
-              <SearchableSelect
-                options={patients.map((p) => ({
-                  value: p.id,
-                  label: `${p.patient_id || ''} — ${getPatientName(p)}`.trim(),
-                }))}
-                value={selectedPatientId}
-                disabled={Boolean(scanId || savedScanId || selectedVisitId) || isSaving}
-                onChange={(val) => setSelectedPatientId(val)}
-                placeholder="Select patient"
-                searchPlaceholder="Search patient ID or name..."
-              />
-            </div>
-
-            <HeaderField
-              label="Indication(s)"
-              value={report.indication}
-              onChange={(value) => updateReport(['indication'], value)}
-              className={progressValidationAttempted && !String(report.indication || '').trim() ? ' [&_input]:border-red-500 [&_input]:ring-1 [&_input]:ring-red-300' : ''}
-            />
-            <HeaderField
-              label="Tag"
-              value={report.tag}
-              onChange={(value) => updateReport(['tag'], value)}
-            />
-            <label className="flex items-end gap-2 pb-2 text-sm font-medium text-slate-700">
-              <input
-                type="checkbox"
-                checked={report.add_new_tag}
-                onChange={(event) => updateReport(['add_new_tag'], event.target.checked)}
-                className="h-5 w-5 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-              />
-              Add New
-            </label>
-          </div>
-        </section>
-
-        <section className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setIsExistingScansOpen(true)}
-                className="legacy-small-button"
-              >
-                <FolderOpen className="mr-1.5 h-4 w-4 text-teal-600" />
-                Open existing scans
-              </button>
-              <button
-                type="button"
-                onClick={() => setIsReferralLetterOpen(true)}
-                className="legacy-small-button"
-              >
-                <FileText className="mr-1.5 h-4 w-4 text-blue-600" />
-                Ref. Letter
-              </button>
-              <button type="button" onClick={() => setIsLmpOpen(true)} className="legacy-small-button">LMP</button>
-              <InlineField label="No. of fetuses" value={report.no_of_fetuses} onChange={(value) => updateReport(['no_of_fetuses'], value)} width="w-20" />
-              <InlineField label="GA" value={report.ga_weeks} onChange={(value) => updateReport(['ga_weeks'], value)} width="w-20" suffix="wks" />
-              <InlineField value={report.ga_days} onChange={(value) => updateReport(['ga_days'], value)} width="w-20" suffix="days" />
-            </div>
-
-            {statusMessage && <span role="alert" className={`font-semibold ${progressValidationAttempted ? 'text-red-700' : 'text-blue-800'}`}>{statusMessage}</span>}
-          </div>
-
-          <div className="mt-4 rounded-xl border border-teal-100 bg-teal-50/50 p-3">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-[0.12em] text-teal-700">Options to print</div>
-            <div className="flex flex-wrap gap-3">
-              {Object.entries({
-                biometry: 'Biometry',
-                doppler: 'Doppler',
-                percentile_bar: 'Percentile bar',
-                ga: 'GA',
-                biometry_table_name: 'Biometry table name',
-                echo_details_custom_report: 'Echo details custom report',
-                asp: 'ASP',
-              }).map(([key, label]) => (
-                <label key={key} className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm">
-                  <input
-                    type="checkbox"
-                    checked={report.print_options[key]}
-                    onChange={(event) => updateReport(['print_options', key], event.target.checked)}
-                    className="h-4 w-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500"
-                  />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <div className="grid min-h-0 flex-1 grid-cols-1 gap-3 xl:grid-cols-[minmax(0,1fr)_360px] 2xl:grid-cols-[minmax(0,1fr)_420px]">
-          <section className="min-w-0 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-            <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-slate-50 px-3 pt-3">
-              {mainTabs.map((tab) => (
-                <TabButton
-                  key={tab.id}
-                  active={activeMainTab === tab.id}
-                  onClick={() => navigateSection(() => setActiveMainTab(tab.id), setStatusMessage, locked ? [] : reportErrors(report, true, false, true))}
-                >
-                  {tab.label}
-                </TabButton>
-              ))}
-            </div>
-
-            <div className="min-h-0 overflow-auto p-4">
-              {activeMainTab === 'scan' ? (
-                <ScanPanel
-                  activeScanTab={activeScanTab}
-                  setActiveScanTab={(tab) => navigateSection(() => setActiveScanTab(tab), setStatusMessage, locked ? [] : reportErrors(report, true, false, true))}
-                  report={report}
-                  updateReport={updateReport}
-                  onToggleNormalComments={toggleNormalComments}
-                  isNormalCommentsPopulated={isNormalCommentsPopulated}
-                />
-              ) : (
-                <ImpressionPanel report={report} updateReport={updateReport} />
-              )}
-            </div>
-          </section>
+      <div className="flex min-h-full flex-col gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-4">
+          <div><h2 className="text-xl font-semibold">Fetal Echo reporting</h2><p className="text-sm text-slate-500">Patient-linked measurements, images, impression, referral letter and report output.</p></div>
+          <div className="flex gap-2"><span className="field-control">Fetal Echo</span><button type="button" onClick={handleSave} disabled={locked || isSaving} className="primary-button"><Save className="h-4 w-4" />{isSaving ? 'Saving…' : 'Save report'}</button></div>
         </div>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setIsExistingScansOpen(true)} className="secondary-button"><FolderOpen className="h-4 w-4" />Open existing scans</button>
+          <button type="button" onClick={() => setIsReferralLetterOpen(true)} className="secondary-button"><FileText className="h-4 w-4" />Ref. Letter</button>
+          <button type="button" onClick={() => { setActiveImageTab('images'); setIsImagesModalOpen(true) }} className="secondary-button"><FileImage className="h-4 w-4" />Images</button>
+          <button type="button" disabled={locked} onClick={scatterNormalComments} className="secondary-button">Fill normal scan</button>
+        </div>
+        <section className="rounded-xl border border-slate-200 p-4">
+          <h3 className="mb-4 border-b pb-3 font-semibold">Patient and visit</h3>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <div className="field-label"><span>Patient</span><SearchableSelect options={patients.map(p => ({value:p.id,label:`${p.patient_id || ''} — ${getPatientName(p)}`}))} value={selectedPatientId} disabled={Boolean(scanId || savedScanId || selectedVisitId) || isSaving} onChange={setSelectedPatientId} placeholder="Select patient" searchPlaceholder="Search patient ID or name..." /></div>
+            <label className="field-label">Visit<select className="field-control" value={selectedVisitId} disabled={Boolean(scanId || savedScanId) || isSaving} onChange={e=>setSelectedVisitId(e.target.value)}><option value="">Select visit</option>{visits.map(v=><option key={v.id} value={v.id}>{v.visit_date ? new Date(v.visit_date).toLocaleString() : `Visit ${v.id}`}</option>)}</select></label>
+            <HeaderField label="Report title" value={report.impression.report_title || ''} onChange={value=>updateReport(['impression','report_title'],value)} />
+            <HeaderField label="Indication" value={report.indication} onChange={value=>updateReport(['indication'],value)} />
+          </div>
+        </section>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <label className="field-label">Images per row<select className="field-control" value={report.images.columns || '1'} onChange={e=>updateReport(['images','columns'],e.target.value)}>{['1','2','3','4'].map(v=><option key={v}>{v}</option>)}</select></label>
+          <label className="field-label">Image width<input className="field-control" value={report.images.width || ''} onChange={e=>updateReport(['images','width'],e.target.value)} /></label>
+          <label className="field-label">Image height<input className="field-control" value={report.images.height || ''} onChange={e=>updateReport(['images','height'],e.target.value)} /></label>
+          <label className="field-label">Image rows<input className="field-control" value={report.images.rows_cols || ''} onChange={e=>updateReport(['images','rows_cols'],e.target.value)} /></label>
+          <label className="field-label">Investigation status<select className="field-control" disabled={locked} value={report.impression.report_completed ? 'completed' : 'in-progress'} onChange={e=>updateReport(['impression','report_completed'],e.target.value==='completed')}><option value="in-progress">In progress</option><option value="completed">Completed</option></select></label>
+        </div>
+        <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Fetal report sections">
+          {[{id:'lmp',label:'LMP details'},...scanTabs,{id:'impression',label:'Impression'},{id:'multiframes',label:'Multiframes'},{id:'preview',label:'Preview'}].map(tab => <TabButton key={tab.id} active={activeScanTab===tab.id} onClick={()=>{if(tab.id==='preview'){setIsReportPreviewOpen(true);return} if(tab.id==='multiframes'){setActiveImageTab('videos');setIsImagesModalOpen(true);return} setActiveScanTab(tab.id)}}>{tab.label}</TabButton>)}
+        </div>
+        <section className="min-w-0 flex-1 rounded-xl border border-slate-200 p-4">
+          {activeScanTab==='lmp' && <PregnancyDating report={report} updateReport={updateReport} onLmpDateChange={handleLmpDateChange} />}
+          {activeScanTab==='echo-details' && <EchoDetailsTab report={report} updateReport={updateReport} onToggleNormalComments={toggleNormalComments} isNormalCommentsPopulated={isNormalCommentsPopulated} />}
+          {activeScanTab==='aortic' && <AorticTab report={report} updateReport={updateReport} />}
+          {activeScanTab==='biometry' && <BiometryTab report={report} updateReport={updateReport} />}
+          {activeScanTab==='doppler' && <DopplerTab report={report} updateReport={updateReport} />}
+          {activeScanTab==='impression' && <ImpressionPanel report={report} updateReport={updateReport} />}
+        </section>
       </div>
-
-      {isLmpOpen && (
-        <LmpModal
-          report={report}
-          validationAttempted={progressValidationAttempted}
-          updateReport={updateReport}
-          onLmpDateChange={handleLmpDateChange}
-          onClose={() => setIsLmpOpen(false)}
-          onSave={handleSave}
-          onNext={async()=>{const errors=reportErrors({...report,indication:'Profile navigation'},true,false,true);if(errors.length){setProgressValidationAttempted(true);setStatusMessage('Complete the fields marked in red to continue.');return}if(await handleSave())setIsLmpOpen(false)}}
-          message={statusMessage}
-          saving={isSaving} locked={locked}
-        />
-      )}
 
       <ImagesModal
         open={isImagesModalOpen}
+        initialTab={activeImageTab}
         visitId={selectedVisitId}
         onClose={() => setIsImagesModalOpen(false)}
         patient={selectedPatient}
@@ -814,7 +681,7 @@ function FetalEchoReport() {
         report={report}
         scanId={savedScanId || scanId}
       />
-      <ClinicalFooter onSave={handleSave} saving={isSaving} locked={locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} onBack={()=>navigateSection(()=>changeStep(step-1),setStatusMessage)} onNext={step<scanTabs.length ? saveAndNext : undefined} />
+      <ClinicalFooter onSave={handleSave} saving={isSaving} locked={locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} onBack={()=>changeStep(step-1)} onNext={step<steps.length-1 ? saveAndNext : undefined} />
     </div>
     {isReportPreviewOpen && (
       <ClinicalPreview title="Fetal Echocardiography"         report={report}
@@ -829,35 +696,20 @@ function FetalEchoReport() {
   )
 }
 
-function ScanPanel({ activeScanTab, setActiveScanTab, report, updateReport, onToggleNormalComments, isNormalCommentsPopulated }) {
-  return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap gap-1 border-b border-slate-200 bg-slate-50 px-2 pt-2">
-        <TabButton active>Fetus</TabButton>
-      </div>
-      <div className="flex flex-wrap gap-1 border-b border-slate-200">
-        {scanTabs.map((tab) => (
-          <TabButton
-            key={tab.id}
-            active={activeScanTab === tab.id}
-            onClick={() => setActiveScanTab(tab.id)}
-          >
-            {tab.label}
-          </TabButton>
-        ))}
-      </div>
-      {activeScanTab === 'echo-details' && (
-        <EchoDetailsTab
-          report={report}
-          updateReport={updateReport}
-          onToggleNormalComments={onToggleNormalComments}
-          isNormalCommentsPopulated={isNormalCommentsPopulated}
-        />
-      )}
-      {activeScanTab === 'biometry' && <BiometryTab report={report} updateReport={updateReport} />}
-      {activeScanTab === 'doppler' && <DopplerTab report={report} updateReport={updateReport} />}
+function PregnancyDating({ report, updateReport, onLmpDateChange }) {
+  return <div>
+    <h3 className="mb-4 border-b pb-3 font-semibold">Pregnancy dating</h3>
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <label className="field-label">LMP<input type="date" className="field-control" value={report.lmp.lmp_date || ''} onChange={e=>onLmpDateChange(e.target.value)} /></label>
+      <label className="field-label">EDD<input type="date" className="field-control" value={report.lmp.edd || ''} onChange={e=>updateReport(['lmp','edd'],e.target.value)} /></label>
+      <label className="field-label">Gestational age – weeks<input type="number" min="0" className="field-control" value={report.ga_weeks || ''} onChange={e=>updateReport(['ga_weeks'],e.target.value)} /></label>
+      <label className="field-label">Days<input type="number" min="0" className="field-control" value={report.ga_days || ''} onChange={e=>updateReport(['ga_days'],e.target.value)} /></label>
+      <div className="field-label"><span>Dating method</span><AddableSelect field="fetal_dating_method" value={report.lmp.assigned_by} options={['lmp','user']} onChange={value=>updateReport(['lmp','assigned_by'],value)} /></div>
+      <label className="field-label">Embryo transfer date<input type="date" className="field-control" value={typeof report.lmp.et_date === 'string' ? report.lmp.et_date : ''} onChange={e=>updateReport(['lmp','et_date'],e.target.value)} /></label>
+      <label className="field-label">Blastocyst transfer date<input type="date" className="field-control" value={report.lmp.blastocyst_transfer_date || ''} onChange={e=>updateReport(['lmp','blastocyst_transfer_date'],e.target.value)} /></label>
+      <div className="field-label"><span>Number of fetuses</span><AddableSelect field="fetal_count" value={String(report.no_of_fetuses || '')} options={['1','2','3']} onChange={value=>updateReport(['no_of_fetuses'],value)} /></div>
     </div>
-  )
+  </div>
 }
 
 function EchoDetailsTab({ report, updateReport, onToggleNormalComments, isNormalCommentsPopulated }) {
@@ -1192,67 +1044,6 @@ function ImpressionPanel({ report, updateReport }) {
         <label className="field-label">Report typed by<input className="field-control" readOnly value={impression.report_typed_by || ''} /></label>
         <TextArea label="Equipment" value={impression.equipment} onChange={(value) => updateReport(['impression', 'equipment'], value)} rows={6} />
       </aside>
-    </div>
-  )
-}
-
-function ImagePanel() { return <aside className="rounded-xl border bg-slate-50 p-4"><h3 className="font-semibold">Visit images</h3><p className="mt-2 text-sm">Use the Images button above to import, select and print files linked to this visit.</p></aside> }
-
-function LmpModal({ report, validationAttempted, updateReport, onLmpDateChange, onClose, onSave, onNext, message, saving, locked }) {
-  const ga = report.ga_weeks ? `${report.ga_weeks} weeks ${report.ga_days || '0'} days (entered)` : ''
-
-  return (
-    <div role="dialog" aria-modal="true" aria-label="Fetal profile" className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4">
-      <div className="w-full max-w-3xl overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b border-slate-200 bg-slate-50 px-4 py-3 font-semibold">
-          <span className="text-lg text-slate-950">LMP details</span>
-          <button type="button" onClick={onClose} className="toolbar-button px-3">
-            <X className="h-4 w-4" />
-            Close
-          </button>
-        </div>
-        <div className="space-y-5 p-4">
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
-            <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
-              <input type="checkbox" checked={report.lmp.enabled} onChange={(event) => updateReport(['lmp', 'enabled'], event.target.checked)} />
-              LMP Date
-            </label>
-            <label className="field-label">
-              LMP Date
-              <input type="date" aria-invalid={progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean)} className={`field-control ${progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean) ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.lmp.lmp_date} onChange={(event) => onLmpDateChange(event.target.value)} />
-            </label>
-            <label className="field-label">
-              EDD
-              <input type="date" aria-invalid={progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean)} className={`field-control ${progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean) ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.lmp.edd} onChange={(event) => updateReport(['lmp', 'edd'], event.target.value)} />
-            </label>
-            <span className="rounded-lg bg-blue-50 px-3 py-2 font-semibold italic text-blue-800 lg:col-span-3">Gestation: {ga || 'Not entered — clinical calculation method awaits confirmation'}</span>
-          </div>
-          <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <label><input type="checkbox" checked={report.lmp.assigned_by === 'user'} onChange={(event) => updateReport(['lmp', 'assigned_by'], event.target.checked ? 'user' : 'lmp')} /> By user</label>
-            <label className="field-label">Embryo transfer date<input type="date" aria-invalid={progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean)} className={`field-control ${progressValidationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean) ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={typeof report.lmp.et_date === 'string' ? report.lmp.et_date : ''} onChange={event => updateReport(['lmp', 'et_date'], event.target.value)} /></label>
-            <label><input type="radio" checked={report.lmp.bt_date} onChange={(event) => updateReport(['lmp', 'bt_date'], event.target.checked)} /> BT Date</label>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-[1fr_180px] sm:items-end">
-            <span className="rounded-lg bg-teal-50 px-3 py-3 text-center font-semibold italic text-teal-800">Assigned by LMP</span>
-            <label className="field-label">
-              No. of Fetus
-              <select aria-invalid={progressValidationAttempted && !/^\d+$/.test(String(report.no_of_fetuses || ''))} className={`field-control ${progressValidationAttempted && !/^\d+$/.test(String(report.no_of_fetuses || '')) ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.no_of_fetuses} onChange={(event) => updateReport(['no_of_fetuses'], event.target.value)}>
-              <option value="">Select number of fetuses</option>
-              <option value="1">Single</option>
-              <option value="2">Twin</option>
-              <option value="3">Triplet</option>
-              </select>
-            </label>
-          </div>
-          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-200 pt-4">
-            <button type="button" onClick={() => updateReport(['lmp'], deepClone(initialReport.lmp))} className="legacy-action-button">Clear dating fields</button>
-            <button type="button" disabled={saving || locked} onClick={onNext} className="legacy-action-button">Save & next</button>
-            <button type="button" disabled={saving || locked} onClick={onSave} className="primary-button">{locked ? 'Report locked' : 'Save draft'}</button>
-          </div>
-          <p role="status" className="text-red-700">{message}</p>
-          <p className="text-center text-sm font-semibold text-slate-600">Clear dating fields resets the unsaved LMP, EDD and embryo-transfer entries.</p>
-        </div>
-      </div>
     </div>
   )
 }
