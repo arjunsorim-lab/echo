@@ -33,7 +33,6 @@ const scanTabs = [
   { id: 'echo-details', label: 'Echo details' },
   { id: 'biometry', label: 'Biometry' },
   { id: 'doppler', label: 'Doppler' },
-  { id: 'aortic', label: 'Aortic stenosis parameters' },
 ]
 
 const imageTabs = [
@@ -857,7 +856,6 @@ function ScanPanel({ activeScanTab, setActiveScanTab, report, updateReport, onTo
       )}
       {activeScanTab === 'biometry' && <BiometryTab report={report} updateReport={updateReport} />}
       {activeScanTab === 'doppler' && <DopplerTab report={report} updateReport={updateReport} />}
-      {activeScanTab === 'aortic' && <AorticTab report={report} updateReport={updateReport} />}
     </div>
   )
 }
@@ -1186,7 +1184,7 @@ function ImpressionPanel({ report, updateReport }) {
       </div>
 
       <aside className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-        <label className="field-label">Internal report classification<select className="field-control" value={impression.classification || ''} onChange={e => updateReport(['impression','classification'], e.target.value)}><option value="">Select classification</option>{['Normal','Abnormal','Ambiguous'].map(v => <option key={v}>{v}</option>)}</select></label>
+        <label className="field-label">Report type<select className="field-control" value={impression.classification || ''} onChange={e => updateReport(['impression','classification'], e.target.value)}><option value="">Select report type</option>{['Normal','Abnormal','Ambiguous'].map(v => <option key={v}>{v}</option>)}</select></label>
         <TextInput label="Primary consultant" value={impression.primary_consultant} onChange={(value) => updateReport(['impression', 'primary_consultant'], value)} />
         <TextArea label="Second consultant" value={impression.second_consultant} onChange={(value) => updateReport(['impression', 'second_consultant'], value)} rows={3} />
         <label className="field-label">Audited by<input className="field-control" readOnly value={impression.audited_by || ''} /></label>

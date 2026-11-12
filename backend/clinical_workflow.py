@@ -208,15 +208,26 @@ def serialize_contact(row):
 
 def validate_patient(data):
     required = ('patient_id', 'first_name', 'last_name', 'gender', 'state', 'country')
+    if 'referral_source' in data:
+        required += ('salutation', 'referral_source', 'district_city', 'zip_code', 'phone1')
     missing = [k.replace('_', ' ') for k in required if not str(data.get(k) or '').strip()]
     if not data.get('dob') and data.get('age') in (None, ''):
         missing.append('DOB or age')
     if not str(data.get('street') or data.get('address') or '').strip():
         missing.append('address')
-    if not any(any(ch.isdigit() for ch in str(data.get(k) or '')) for k in ('phone1', 'phone2', 'mobile')):
-        missing.append('one phone number')
-    if not data.get('family_doctor') and not data.get('referred_by'):
-        missing.append('referral doctor / institute or Self')
+    if 'referral_source' in data:
+        if data.get('referral_source') == 'Self':
+            pass
+        else:
+            if not str(data.get('referral_doctor') or '').strip():
+                missing.append('referral doctor')
+            if not str(data.get('referral_institute') or '').strip():
+                missing.append('referral doctor institute')
+    else:
+        if not any(any(ch.isdigit() for ch in str(data.get(k) or '')) for k in ('phone1', 'phone2', 'mobile')):
+            missing.append('one phone number')
+        if not data.get('family_doctor') and not data.get('referred_by'):
+            missing.append('referral doctor / institute or Self')
     if missing:
         raise HTTPException(422, 'Required: ' + ', '.join(missing))
     if data.get('dob'):

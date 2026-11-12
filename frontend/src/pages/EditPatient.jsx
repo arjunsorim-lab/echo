@@ -17,6 +17,7 @@ import {
   CheckCircle2,
 } from 'lucide-react'
 import { patientService } from '../api/patientService'
+import { referralDoctorService } from '../api/referralDoctorService'
 import AddableSelect from '../components/AddableSelect'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
 import {
@@ -65,6 +66,11 @@ function EditPatient() {
     fax: '',
     aadhaar_no: '',
     family_doctor: '',
+    referral_doctor: '',
+    referral_institute: '',
+    referral_source: '',
+    audit_done: 'No',
+    report_done: 'No',
     taluk: '',
     area: '',
     area_po: '',
@@ -75,6 +81,28 @@ function EditPatient() {
   const [submitError, setSubmitError] = useState('')
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false)
   const [zipLookupStatus, setZipLookupStatus] = useState('')
+  const [referralDoctors, setReferralDoctors] = useState([])
+
+  useEffect(() => {
+    referralDoctorService.getReferralDoctors()
+      .then((result) => setReferralDoctors(result.data || []))
+      .catch(() => setReferralDoctors([]))
+  }, [])
+
+  const referralLabel = (record) => record.doctor_type === 'hospital'
+    ? record.institution_name || record.name || ''
+    : [record.salutation, record.first_name, record.middle_name, record.last_name].filter(Boolean).join(' ')
+
+  const selectReferralRecord = (record) => {
+    const name = referralLabel(record)
+    setFormData((current) => ({
+      ...current,
+      family_doctor: name,
+      referral_doctor: name,
+      referral_institute: record.doctor_type === 'hospital' ? name : (record.parent_institution || record.institution_name || record.hospital || ''),
+      referral_source: 'Referral centre / institute',
+    }))
+  }
 
   const countries = Object.keys(COUNTRY_DIAL_CODES)
   const availableStates = getStatesForCountry(formData.country)
@@ -263,6 +291,7 @@ function EditPatient() {
                         options={salutations}
                         value={formData.salutation}
                         onChange={(value) => setFormData({ ...formData, salutation: value })}
+                        disabled
                       />
                     </div>
                     <div>
@@ -294,6 +323,7 @@ function EditPatient() {
                         className={inputClass}
                         value={formData.middle_name}
                         onChange={(e) => setFormData({ ...formData, middle_name: e.target.value })}
+                        readOnly aria-readonly="true" title="Locked after registration"
                       />
                     </div>
                     <div>
@@ -323,6 +353,7 @@ function EditPatient() {
                           className={inputClass}
                           value={formData.age}
                           onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+                          readOnly aria-readonly="true" title="Locked after registration"
                           placeholder="Age"
                           onWheel={(e) => e.currentTarget.blur()}
                         />
@@ -332,6 +363,7 @@ function EditPatient() {
                         <select
                           className={selectClass}
                           value={formData.age_unit || 'Years'}
+                          disabled
                           onChange={(e) => {
                             const newUnit = e.target.value;
                             const newAge = formData.dob ? calculateAgeForUnit(formData.dob, newUnit) : formData.age;
@@ -610,24 +642,43 @@ function EditPatient() {
                     <div>
                       <label htmlFor="editpatient-family_doctor" className={labelClass}>Referral Doctor / Institute</label>
                       <div className="flex gap-2">
-                        <input
-                        id="editpatient-family_doctor"
-                        type="text"
-                          className={inputClass}
-                          value={formData.family_doctor}
-                          onChange={(e) =>
-                            setFormData({ ...formData, family_doctor: e.target.value })
-                          }
-                          placeholder="Doctor or hospital name"
-                        />
+                        <select id="editpatient-family_doctor" className={selectClass} value={formData.referral_doctor || formData.family_doctor || ''} disabled={formData.referral_source === 'Self'} onChange={(event) => {
+                          const record = referralDoctors.find((item) => referralLabel(item) === event.target.value)
+                          if (record) selectReferralRecord(record)
+                          else setFormData((current) => ({ ...current, family_doctor: event.target.value, referral_doctor: event.target.value, referral_source: event.target.value ? 'Referral centre / institute' : current.referral_source }))
+                        }}>
+                          <option value="">Select Doctor</option>
+                          {(formData.referral_doctor || formData.family_doctor) && !referralDoctors.some((item) => referralLabel(item) === (formData.referral_doctor || formData.family_doctor)) && <option value={formData.referral_doctor || formData.family_doctor}>{formData.referral_doctor || formData.family_doctor}</option>}
+                          {referralDoctors.map((record) => <option key={record.id} value={referralLabel(record)}>{referralLabel(record)}</option>)}
+                        </select>
                         <button
                           type="button"
                           onClick={() => setIsReferralModalOpen(true)}
+                          disabled={formData.referral_source === 'Self'}
                           className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition text-xs font-semibold whitespace-nowrap"
                         >
-                          Select Doctor
+                          Add Doctor
                         </button>
                       </div>
+                    </div>
+                    <div>
+                      <label htmlFor="editpatient-referral_source" className={labelClass}>Referral Source</label>
+                      <select id="editpatient-referral_source" className={selectClass} value={formData.referral_source || ''} onChange={(event) => {
+                        if (event.target.value === 'Self') setFormData({ ...formData, referral_source: 'Self', family_doctor: 'Self', referral_doctor: 'Self', referral_institute: 'Self' })
+                        else setFormData({ ...formData, referral_source: event.target.value, family_doctor: '', referral_doctor: '', referral_institute: '' })
+                      }}><option value="">Select source</option><option>Self</option><option>Referral centre / institute</option></select>
+                    </div>
+                    <div>
+                      <label htmlFor="editpatient-referral_institute" className={labelClass}>Referral Doctor's Institute</label>
+                      <input id="editpatient-referral_institute" type="text" className={inputClass} value={formData.referral_institute || ''} onChange={(event) => setFormData({ ...formData, referral_institute: event.target.value })} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Audit done</label>
+                      <select className={selectClass} value={formData.audit_done || 'No'} onChange={(event) => setFormData({ ...formData, audit_done: event.target.value })}><option>No</option><option>Yes</option></select>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Report done</label>
+                      <select className={selectClass} value={formData.report_done || 'No'} onChange={(event) => setFormData({ ...formData, report_done: event.target.value })}><option>No</option><option>Yes</option></select>
                     </div>
                   </div>
                 </div>
@@ -719,15 +770,14 @@ function EditPatient() {
       <ReferralDoctorModal
         open={isReferralModalOpen}
         onClose={() => setIsReferralModalOpen(false)}
-        onSelect={(record) =>
-          setFormData({
-            ...formData,
-            family_doctor:
-              record.doctor_type === 'hospital'
-                ? record.institution_name
-                : `${record.first_name || ''} ${record.last_name || ''}`.trim(),
-          })
-        }
+        onSaved={(record) => {
+          if (record) {
+            setReferralDoctors((current) => [...current.filter((item) => item.id !== record.id), record])
+            selectReferralRecord(record)
+          }
+          setIsReferralModalOpen(false)
+        }}
+        onSelect={(record) => { selectReferralRecord(record); setIsReferralModalOpen(false) }}
       />
     </>
   )

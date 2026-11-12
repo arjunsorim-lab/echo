@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, Plus, X } from 'lucide-react'
 import { customOptionService } from '../api/customOptionService'
 
-export default function AddableSelect({ field, value, onChange, options = [], className = 'field-control', required, 'aria-required': ariaRequired, id, name, 'aria-label': ariaLabel }) {
+export default function AddableSelect({ field, value, onChange, options = [], className = 'field-control', required, disabled = false, 'aria-required': ariaRequired, id, name, 'aria-label': ariaLabel }) {
   const [customOptions, setCustomOptions] = useState([])
   const [isAdding, setIsAdding] = useState(false)
   const [newValue, setNewValue] = useState('')
@@ -49,6 +49,7 @@ export default function AddableSelect({ field, value, onChange, options = [], cl
           value={value || ''}
           onChange={(event) => onChange(event.target.value)}
           required={required}
+          disabled={disabled}
           aria-required={ariaRequired ?? required ?? undefined}
           id={id}
           name={name}
@@ -59,6 +60,7 @@ export default function AddableSelect({ field, value, onChange, options = [], cl
         </select>
         <button
           type="button"
+          disabled={disabled}
           title={`Add ${field.replaceAll('_', ' ')}`}
           onClick={() => { setIsAdding(!isAdding); setError('') }}
           className="legacy-plus-button"
@@ -86,7 +88,7 @@ export default function AddableSelect({ field, value, onChange, options = [], cl
       {customOptions.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
           {customOptions.map((option) => (
-            <button key={option} type="button" onClick={() => onChange(option)} className="rounded-full border border-teal-200 bg-teal-50 px-2 py-1 text-xs text-teal-800 hover:bg-teal-100">
+            <button key={option} type="button" disabled={disabled} onClick={() => onChange(option)} className="rounded-full border border-teal-200 bg-teal-50 px-2 py-1 text-xs text-teal-800 hover:bg-teal-100 disabled:opacity-50">
               {option}
             </button>
           ))}

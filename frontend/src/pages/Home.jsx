@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   ArrowRight,
@@ -380,6 +380,7 @@ function Home() {
   const [remember, setRemember] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
+  const passwordInputRef = useRef(null)
 
   useEffect(() => {
     Promise.allSettled([scanService.getDashboardStats(), patientService.getPatients()])
@@ -401,6 +402,7 @@ function Home() {
     setEmail(user.email)
     setPassword('')
     setError('')
+    requestAnimationFrame(() => passwordInputRef.current?.focus())
   }
 
   const handleLogin = async (event) => {
@@ -447,6 +449,7 @@ function Home() {
                   type="text"
                   value={email}
                   onChange={(e) => { setEmail(e.target.value); setError('') }}
+                  name="username"
                   className="min-w-0 flex-1 bg-transparent text-sm text-[#08145f] outline-none placeholder:text-slate-400"
                   placeholder="Email address or username"
                   autoComplete="username"
@@ -461,8 +464,10 @@ function Home() {
                 <Lock className="h-4 w-4 shrink-0 text-slate-400" />
                 <input
                   type={showPassword ? 'text' : 'password'}
+                  ref={passwordInputRef}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); setError('') }}
+                  name="password"
                   className="min-w-0 flex-1 bg-transparent text-sm text-[#08145f] outline-none placeholder:text-slate-400"
                   placeholder="Password"
                   autoComplete="current-password"

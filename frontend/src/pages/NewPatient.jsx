@@ -9,17 +9,14 @@ import {
   Mail,
   User,
   Plus,
-  Trash2,
   Printer,
   Activity,
   Building,
 } from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { referralDoctorService } from '../api/referralDoctorService'
-import { scanService } from '../api/scanService'
 import AddableSelect from '../components/AddableSelect'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
-import { workspaceService } from '../api/workspaceService'
 import {
   getStatesForCountry,
   getCitiesForState,
@@ -42,7 +39,7 @@ function NewPatient() {
     age: '',
     age_unit: 'Years',
     dob: '',
-    gender: 'M',
+    gender: '',
     marital_status: '',
     ethnic_origin: '',
     street: '',
@@ -57,13 +54,16 @@ function NewPatient() {
     fax: '',
     aadhaar_no: '',
     family_doctor: '',
+    referral_doctor: '',
+    referral_institute: '',
+    referral_source: '',
+    audit_done: 'No',
+    report_done: 'No',
     taluk: '',
     area: '',
     area_po: '',
   })
 
-  const [visits, setVisits] = useState([])
-  const [selectedScans, setSelectedScans] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false)
@@ -91,6 +91,20 @@ function NewPatient() {
     }
     return options
   }, [referralDoctors, formData.family_doctor])
+
+  const selectReferral = (name) => {
+    if (name === 'Self') {
+      setFormData((current) => ({ ...current, family_doctor: 'Self', referral_doctor: 'Self', referral_institute: 'Self', referral_source: 'Self' }))
+      return
+    }
+    const record = referralDoctors.find((doctor) => (doctor.doctor_type === 'hospital'
+      ? (doctor.institution_name || doctor.hospital_name || '')
+      : `${doctor.first_name || ''} ${doctor.last_name || ''}`.trim()) === name)
+    const institute = record?.doctor_type === 'hospital'
+      ? name
+      : record?.parent_institution || record?.institution_name || record?.hospital_name || ''
+    setFormData((current) => ({ ...current, family_doctor: name, referral_doctor: name, referral_institute: institute, referral_source: 'Referral centre / institute' }))
+  }
 
   const countries = Object.keys(COUNTRY_DIAL_CODES)
   const availableStates = getStatesForCountry(formData.country)
@@ -134,9 +148,9 @@ function NewPatient() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     const missing = []
-    for (const key of ['patient_id','first_name','last_name','gender','street','state','country','family_doctor']) if (!String(formData[key] || '').trim()) missing.push(key.replace(/_/g, ' '))
+    for (const key of ['patient_id','salutation','first_name','last_name','gender','street','zip_code','country','state','district_city','phone1','referral_source']) if (!String(formData[key] || '').trim()) missing.push(key.replace(/_/g, ' '))
     if (!formData.dob && formData.age === '') missing.push('DOB or age')
-    if (![formData.phone1,formData.phone2,formData.mobile].some(v => /\d/.test(v))) missing.push('one phone number')
+    if (formData.referral_source !== 'Self' && (!formData.referral_doctor || !formData.referral_institute)) missing.push('referral doctor and institute')
     if (missing.length) { setSubmitError('Required: ' + missing.join(', ')); return }
     setSubmitError('')
     setIsSubmitting(true)
@@ -151,15 +165,6 @@ function NewPatient() {
       setIsSubmitting(false)
     }
   }
-
-  const handleAddVisit = () => {
-    const now = new Date();
-    const formattedDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    setVisits([...visits, { id: Date.now(), visit_date: formattedDateTime, referral_doctor: formData.family_doctor || '', image_count: '0', avi: '0', pregnancy: '0', ob: '' }])
-  }
-  const handleUpdateVisit = (id, field, value) => setVisits(visits.map(v => v.id === id ? { ...v, [field]: value } : v))
-  const handleDeleteVisit = (id) => setVisits(visits.filter(v => v.id !== id))
-  const toggleScan = (scanType) => setSelectedScans(prev => prev.includes(scanType) ? prev.filter(s => s !== scanType) : [...prev, scanType])
 
   const inputClass = "w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition"
   const selectClass = "w-full px-3 py-2 pr-8 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-500 focus:border-transparent transition appearance-none bg-white"
@@ -187,8 +192,8 @@ function NewPatient() {
                       <input id="newpatient-patient_id" type="text" className={inputClass} value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })} required aria-required="true" placeholder="e.g., TM0012026" />
                     </div>
                     <div>
-                      <label htmlFor="newpatient-salutation" className={labelClass}>Salutation</label>
-                      <AddableSelect id="newpatient-salutation" field="patient_salutation" className={selectClass} options={salutations} value={formData.salutation} onChange={(value) => setFormData({ ...formData, salutation: value })} />
+                      <label htmlFor="newpatient-salutation" className={labelClass + ' required'}>Salutation</label>
+                      <AddableSelect id="newpatient-salutation" field="patient_salutation" className={selectClass} options={salutations} value={formData.salutation} onChange={(value) => setFormData({ ...formData, salutation: value })} required aria-required="true" />
                     </div>
                     <div>
                       <label htmlFor="newpatient-first_name" className={labelClass + ' required'}>First Name</label>
@@ -205,7 +210,7 @@ function NewPatient() {
                     <div>
                       <label htmlFor="newpatient-dob" className={labelClass + ' required'}>Date of Birth (or age)</label>
                       <div className="relative">
-                        <input id="newpatient-dob" type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} aria-required="true" />
+                        <input id="newpatient-dob" type="date" className={`${inputClass} pr-10`} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} aria-required="true" required={!formData.age} />
                         <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                       </div>
                       {formData.dob && formData.age && (
@@ -217,7 +222,7 @@ function NewPatient() {
                     <div className="grid grid-cols-2 gap-2">
                       <div>
                         <label htmlFor="newpatient-age" className={labelClass + ' required'}>Age (or DOB)</label>
-                        <input id="newpatient-age" type="number" className={inputClass} value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="Age" aria-required="true" onWheel={(e) => e.currentTarget.blur()} />
+                        <input id="newpatient-age" type="number" min="0" className={inputClass} value={formData.age} onChange={(e) => setFormData({ ...formData, age: e.target.value })} placeholder="Age" aria-required="true" required={!formData.dob} onWheel={(e) => e.currentTarget.blur()} />
                       </div>
                       <div>
                         <label className={labelClass}>Unit</label>
@@ -288,8 +293,8 @@ function NewPatient() {
                       </div>
                     </div>
                     <div>
-                      <label htmlFor="newpatient-zip_code" className={labelClass}>Zip Code</label>
-                      <input id="newpatient-zip_code" type="text" className={inputClass} value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value)} maxLength={10} placeholder="Enter zip / pincode" />
+                      <label htmlFor="newpatient-zip_code" className={labelClass + ' required'}>Zip Code</label>
+                      <input id="newpatient-zip_code" type="text" className={inputClass} value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value)} maxLength={10} placeholder="Enter zip / pincode" required aria-required="true" />
                       {zipLookupStatus === 'found' && <p className="mt-1 text-xs text-teal-600 font-medium">✓ Taluk &amp; Post auto-filled</p>}
                       {zipLookupStatus === 'notfound' && <p className="mt-1 text-xs text-amber-500 font-medium">Pincode not in database — fill manually</p>}
                     </div>
@@ -303,8 +308,8 @@ function NewPatient() {
                       <AddableSelect id="newpatient-state" field="patient_state" className={selectClass} options={availableStates} value={formData.state} onChange={handleStateChange} required aria-required="true" />
                     </div>
                     <div>
-                      <label htmlFor="newpatient-district_city" className={labelClass}>District/City</label>
-                      <AddableSelect id="newpatient-district_city" field="patient_district_city" className={selectClass} options={availableCities} value={formData.district_city} onChange={(value) => setFormData({ ...formData, district_city: value })} />
+                      <label htmlFor="newpatient-district_city" className={labelClass + ' required'}>District/City</label>
+                      <AddableSelect id="newpatient-district_city" field="patient_district_city" className={selectClass} options={availableCities} value={formData.district_city} onChange={(value) => setFormData({ ...formData, district_city: value })} required aria-required="true" />
                     </div>
                   </div>
                 </div>
@@ -320,8 +325,8 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                      <label htmlFor="newpatient-phone1" className={labelClass + ' required'}>Phone (at least one required)</label>
-                      <input id="newpatient-phone1" type="tel" className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} />
+                      <label htmlFor="newpatient-phone1" className={labelClass + ' required'}>Primary Phone</label>
+                      <input id="newpatient-phone1" type="tel" className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} required aria-required="true" />
                     </div>
                     <div>
                       <label htmlFor="newpatient-phone2" className={labelClass}>Phone 2</label>
@@ -370,17 +375,28 @@ function NewPatient() {
                       />
                     </div>
                     <div>
-                      <label htmlFor="newpatient-family_doctor" className={labelClass + ' required'}>Referral Doctor / Institute</label>
+                      <label htmlFor="newpatient-referral-source" className={labelClass + ' required'}>Referral Source</label>
+                      <select id="newpatient-referral-source" className={selectClass} value={formData.referral_source} onChange={(event) => {
+                        if (event.target.value === 'Self') selectReferral('Self')
+                        else setFormData((current) => ({ ...current, referral_source: event.target.value, family_doctor: '', referral_doctor: '', referral_institute: '' }))
+                      }} required aria-required="true">
+                        <option value="">Select source</option><option value="Self">Self</option><option value="Referral centre / institute">Referral centre / institute</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label htmlFor="newpatient-family_doctor" className={labelClass + (formData.referral_source !== 'Self' ? ' required' : '')}>Referral Doctor *</label>
                       <div className="flex gap-2">
                         <select
                           id="newpatient-family_doctor"
                           className={selectClass}
                           value={formData.family_doctor}
-                          onChange={(e) => setFormData({ ...formData, family_doctor: e.target.value })}
-                          required
-                          aria-required="true"
+                          onChange={(e) => selectReferral(e.target.value)}
+                          required={formData.referral_source !== 'Self'}
+                          aria-required={formData.referral_source !== 'Self'}
+                          disabled={formData.referral_source === 'Self'}
                         >
                           <option value="">Select doctor or institute</option>
+                          {formData.referral_source === 'Self' && <option value="Self">Self</option>}
                           {referralOptions.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
                           ))}
@@ -388,12 +404,25 @@ function NewPatient() {
                         <button
                           type="button"
                           onClick={() => setIsReferralModalOpen(true)}
+                          disabled={formData.referral_source === 'Self'}
                           className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition text-xs font-semibold whitespace-nowrap"
                         >
                           <Plus className="h-3.5 w-3.5" />
                           Add Doctor
                         </button>
                       </div>
+                    </div>
+                    <div>
+                      <label htmlFor="newpatient-referral-institute" className={labelClass + (formData.referral_source !== 'Self' ? ' required' : '')}>Referral Doctor's Institute</label>
+                      <input id="newpatient-referral-institute" type="text" className={inputClass} value={formData.referral_institute} onChange={(event) => setFormData({ ...formData, referral_institute: event.target.value })} required={formData.referral_source !== 'Self'} disabled={formData.referral_source === 'Self'} />
+                    </div>
+                    <div>
+                      <label className={labelClass}>Audit done</label>
+                      <select className={selectClass} value={formData.audit_done} onChange={(event) => setFormData({ ...formData, audit_done: event.target.value })}><option>No</option><option>Yes</option></select>
+                    </div>
+                    <div>
+                      <label className={labelClass}>Report done</label>
+                      <select className={selectClass} value={formData.report_done} onChange={(event) => setFormData({ ...formData, report_done: event.target.value })}><option>No</option><option>Yes</option></select>
                     </div>
                   </div>
                 </div>
@@ -436,15 +465,15 @@ function NewPatient() {
           loadReferralDoctors()
           const name = record.doctor_type === 'hospital'
             ? (record.institution_name || record.hospital_name || '')
-            : `${record.first_name || ''} ${record.last_name || ''}`.trim()
-          if (name) setFormData((current) => ({ ...current, family_doctor: name }))
+            : `${record.salutation || ''} ${record.first_name || ''} ${record.last_name || ''}`.trim()
+          if (name) setFormData((current) => ({ ...current, family_doctor: name, referral_doctor: name, referral_institute: record.doctor_type === 'hospital' ? name : (record.parent_institution || record.institution_name || record.hospital_name || ''), referral_source: 'Referral centre / institute' }))
         }}
         onSelect={(record) => {
           loadReferralDoctors()
           const name = record.doctor_type === 'hospital'
             ? (record.institution_name || record.hospital_name || '')
             : `${record.first_name || ''} ${record.last_name || ''}`.trim()
-          setFormData((current) => ({ ...current, family_doctor: name || current.family_doctor }))
+          setFormData((current) => ({ ...current, family_doctor: name || current.family_doctor, referral_doctor: name || current.referral_doctor, referral_institute: record.doctor_type === 'hospital' ? name : (record.parent_institution || record.institution_name || record.hospital_name || current.referral_institute), referral_source: 'Referral centre / institute' }))
         }}
       />
     </>

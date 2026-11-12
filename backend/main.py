@@ -143,6 +143,11 @@ def init_db():
             emergency_contact_relation TEXT,
             fax TEXT,
             family_doctor TEXT,
+            referral_doctor TEXT,
+            referral_institute TEXT,
+            referral_source TEXT,
+            audit_done TEXT DEFAULT 'No',
+            report_done TEXT DEFAULT 'No',
             referred_by TEXT,
             registration_date TEXT,
             referred_by_doctor_id INTEGER,
@@ -166,6 +171,11 @@ def init_db():
         'ethnic_origin': 'TEXT',
         'fax': 'TEXT',
         'family_doctor': 'TEXT',
+        'referral_doctor': 'TEXT',
+        'referral_institute': 'TEXT',
+        'referral_source': 'TEXT',
+        'audit_done': "TEXT DEFAULT 'No'",
+        'report_done': "TEXT DEFAULT 'No'",
         'age_unit': "TEXT DEFAULT 'Years'",
     }
     existing_patient_columns = {
@@ -516,6 +526,11 @@ def _map_patient_row(row):
     patient['country'] = patient.get('country') or 'India'
     patient['fax'] = patient.get('fax') or ''
     patient['family_doctor'] = patient.get('family_doctor') or ''
+    patient['referral_doctor'] = patient.get('referral_doctor') or patient['family_doctor']
+    patient['referral_institute'] = patient.get('referral_institute') or ''
+    patient['referral_source'] = patient.get('referral_source') or ('Self' if patient['family_doctor'] == 'Self' else '')
+    patient['audit_done'] = patient.get('audit_done') or 'No'
+    patient['report_done'] = patient.get('report_done') or 'No'
     patient['age_unit'] = patient.get('age_unit') or 'Years'
     patient['visit_count'] = patient.get('visit_count', 0)
 
@@ -632,6 +647,11 @@ def create_patient(data: dict):
     emergency_contact_relation = data.get('emergency_contact_relation', '')
     fax = data.get('fax', '')
     family_doctor = data.get('family_doctor', '')
+    referral_doctor = data.get('referral_doctor', '')
+    referral_institute = data.get('referral_institute', '')
+    referral_source = data.get('referral_source', '')
+    audit_done = data.get('audit_done', 'No')
+    report_done = data.get('report_done', 'No')
     referred_by = data.get('referred_by', '')
     registration_date = data.get('registration_date') or datetime.now().strftime("%Y-%m-%d")
     referred_by_doctor_id = data.get('referred_by_doctor_id')
@@ -644,15 +664,18 @@ def create_patient(data: dict):
                 city, district_city, state, pincode, zip_code, country, ethnic_origin,
                 aadhar_number, abha_number, blood_group, marital_status, occupation,
                 religion, nationality, emergency_contact_name, emergency_contact_phone,
-                emergency_contact_relation, fax, family_doctor, referred_by, registration_date, referred_by_doctor_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                emergency_contact_relation, fax, family_doctor, referral_doctor, referral_institute,
+                referral_source, audit_done, report_done, referred_by, registration_date, referred_by_doctor_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
             patient_id, salutation, first_name, middle_name, last_name, gender, age, age_unit, dob,
             mobile, phone1, phone2, email, street, street, area, area_po, taluk,
             city, city, state, pincode, pincode, country, ethnic_origin,
             aadhar_number, abha_number, blood_group, marital_status, occupation,
             religion, nationality, emergency_contact_name, emergency_contact_phone,
-            emergency_contact_relation, fax, family_doctor, referred_by, registration_date, referred_by_doctor_id
+            emergency_contact_relation, fax, family_doctor or referral_doctor, referral_doctor,
+            referral_institute, referral_source, audit_done, report_done, referred_by, registration_date,
+            referred_by_doctor_id
         ))
 
         new_id = cursor.lastrowid
@@ -679,7 +702,7 @@ def update_patient(patient_id: int, data: dict):
     if not current:
         conn.close()
         raise HTTPException(404, 'Patient not found')
-    for field in ('patient_id', 'first_name', 'last_name', 'dob', 'gender'):
+    for field in ('patient_id', 'salutation', 'first_name', 'middle_name', 'last_name', 'dob', 'gender', 'age', 'age_unit'):
         if field in data and str(data[field] or '') != str(current[field] or ''):
             conn.close()
             raise HTTPException(409, 'Patient ID, first name, surname/initial, DOB and gender are locked after registration.')
@@ -703,6 +726,7 @@ def update_patient(patient_id: int, data: dict):
                 religion = ?, nationality = ?, emergency_contact_name = ?,
                 emergency_contact_phone = ?, emergency_contact_relation = ?, fax = ?, family_doctor = ?,
                 referred_by = ?, registration_date = ?, referred_by_doctor_id = ?,
+                referral_doctor = ?, referral_institute = ?, referral_source = ?, audit_done = ?, report_done = ?,
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ''', (
@@ -714,7 +738,9 @@ def update_patient(patient_id: int, data: dict):
             data.get('blood_group'), data.get('marital_status'), data.get('occupation'), data.get('religion'),
             data.get('nationality', 'Indian'), data.get('emergency_contact_name'), data.get('emergency_contact_phone'),
             data.get('emergency_contact_relation'), data.get('fax'), data.get('family_doctor'), data.get('referred_by'),
-            data.get('registration_date'), data.get('referred_by_doctor_id'), patient_id
+            data.get('registration_date'), data.get('referred_by_doctor_id'),
+            data.get('referral_doctor'), data.get('referral_institute'), data.get('referral_source'),
+            data.get('audit_done', 'No'), data.get('report_done', 'No'), patient_id
         ))
 
         if cursor.rowcount == 0:
