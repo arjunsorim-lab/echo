@@ -10,7 +10,7 @@ from datetime import datetime, date
 import os
 import shutil
 import secrets
-from clinical_workflow import install as install_workflow, validate_patient, prepare_scan, require_role, contact_payload, serialize_contact, actor
+from clinical_workflow import install as install_workflow, validate_patient, prepare_scan, require_role, contact_payload, serialize_contact, actor, report_object
 
 app = FastAPI(title="Echo AI Backend", version="1.0.0")
 
@@ -103,6 +103,27 @@ def init_db():
     c = conn.cursor()
 
     c.execute('''CREATE TABLE IF NOT EXISTS patient_contact_history (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id INTEGER NOT NULL, changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, changed_by TEXT NOT NULL, changes TEXT NOT NULL, FOREIGN KEY(patient_id) REFERENCES patients(id))''')
+    c.execute('''CREATE TABLE IF NOT EXISTS clinical_field_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scan_id INTEGER NOT NULL REFERENCES scans(id),
+        patient_id INTEGER NOT NULL REFERENCES patients(id),
+        visit_id INTEGER NOT NULL REFERENCES visits(id),
+        changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        changed_by TEXT NOT NULL,
+        role TEXT NOT NULL,
+        field_path TEXT NOT NULL,
+        previous_value TEXT,
+        new_value TEXT
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS report_correction_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        scan_id INTEGER NOT NULL REFERENCES scans(id),
+        patient_id INTEGER NOT NULL REFERENCES patients(id),
+        visit_id INTEGER NOT NULL REFERENCES visits(id),
+        changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        changed_by TEXT NOT NULL,
+        reason TEXT NOT NULL
+    )''')
     # OPD / network patient masters map into the local patient record without
     # duplicating demographics or changing the clinic's manually assigned ID.
     c.execute('''CREATE TABLE IF NOT EXISTS patient_master_links (
@@ -965,6 +986,21 @@ def _map_scan_row(scan_row):
             pass
     return d
 
+def _json_value(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True)
+
+def _report_field_changes(before, after, path=''):
+    changes = []
+    if isinstance(before, dict) and isinstance(after, dict):
+        for key in sorted(set(before) | set(after)):
+            if key.startswith('_legacy_') or key == 'correction_workflow':
+                continue
+            child = f'{path}.{key}' if path else key
+            changes.extend(_report_field_changes(before.get(key), after.get(key), child))
+    elif before != after:
+        changes.append((path, before, after))
+    return changes
+
 # Scans Endpoints
 @app.get('/api/scans')
 def get_scans():
@@ -1056,6 +1092,14 @@ def create_scan(data: dict):
     ))
 
     scan_id = cursor.lastrowid
+    initial_report, _ = report_object(data)
+    current_actor = actor.get() or {}
+    for field_path, previous_value, new_value in _report_field_changes({}, initial_report):
+        conn.execute('''INSERT INTO clinical_field_history
+            (scan_id, patient_id, visit_id, changed_by, role, field_path, previous_value, new_value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+            (scan_id, patient_id, visit_id, current_actor.get('name', 'unknown'), current_actor.get('role', 'unknown'),
+             field_path, _json_value(previous_value), _json_value(new_value)))
     conn.commit()
     inserted = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
     conn.close()
@@ -1107,10 +1151,83 @@ def update_scan(scan_id: int, data: dict):
         data.get('signedByRight'), data.get('typedBy'), data.get('reviewedBy'), data.get('icdCode'), scan_id
     ))
 
+    old_report, _ = report_object(dict(existing))
+    new_report, _ = report_object({**data, 'findings': findings if findings is not None else existing['findings']})
+    changes = _report_field_changes(old_report, new_report)
+    current_actor = actor.get() or {}
+    for field_path, previous_value, new_value in changes:
+        conn.execute('''INSERT INTO clinical_field_history
+            (scan_id, patient_id, visit_id, changed_by, role, field_path, previous_value, new_value)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+            (scan_id, data.get('patient_id'), data.get('visit_id'), current_actor.get('name', 'unknown'),
+             current_actor.get('role', 'unknown'), field_path, _json_value(previous_value), _json_value(new_value)))
+
     conn.commit()
     updated = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
     conn.close()
     return {"success": True, "data": _map_scan_row(updated)}
+
+@app.get('/api/scans/{scan_id}/history')
+def get_scan_history(scan_id: int):
+    require_role('L2')
+    conn = get_db()
+    if not conn.execute('SELECT 1 FROM scans WHERE id = ?', (scan_id,)).fetchone():
+        conn.close()
+        raise HTTPException(404, 'Report not found.')
+    rows = conn.execute('''SELECT changed_at, changed_by, role, field_path, previous_value, new_value
+        FROM clinical_field_history WHERE scan_id = ? ORDER BY id DESC LIMIT 1000''', (scan_id,)).fetchall()
+    conn.close()
+    result = []
+    for row in rows:
+        item = dict(row)
+        for field in ('previous_value', 'new_value'):
+            try:
+                item[field] = json.loads(item[field])
+            except (ValueError, TypeError):
+                pass
+        result.append(item)
+    return {'success': True, 'data': result}
+
+@app.post('/api/scans/{scan_id}/correction')
+def authorize_report_correction(scan_id: int, data: dict):
+    user = require_role('L3')
+    reason = str(data.get('reason') or '').strip()
+    if len(reason) < 10:
+        raise HTTPException(422, 'Enter a correction reason of at least 10 characters.')
+    conn = get_db()
+    conn.execute('BEGIN IMMEDIATE')
+    row = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(404, 'Report not found.')
+    if str(row['status'] or '').lower() != 'completed':
+        conn.close()
+        raise HTTPException(409, 'Only completed reports can enter the correction workflow.')
+    mapped = _map_scan_row(row)
+    report, key = report_object(mapped)
+    if not report or not key:
+        conn.close()
+        raise HTTPException(422, 'The completed report content could not be read.')
+    report['correction_workflow'] = {
+        'active': True, 'reason': reason, 'authorized_by': user['name'],
+        'authorized_at': datetime.utcnow().isoformat(timespec='seconds') + 'Z'
+    }
+    impression = report.setdefault('impression', {})
+    impression.update(audit_done=False, audited_by='', audited_at='', report_completed=False)
+    serialized = json.dumps(report)
+    conn.execute('UPDATE scans SET findings = ?, status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                 (serialized, 'Correction In Progress', scan_id))
+    conn.execute('''INSERT INTO report_correction_history (scan_id, patient_id, visit_id, changed_by, reason)
+        VALUES (?, ?, ?, ?, ?)''', (scan_id, row['patient_id'], row['visit_id'], user['name'], reason))
+    conn.execute('''INSERT INTO clinical_field_history
+        (scan_id, patient_id, visit_id, changed_by, role, field_path, previous_value, new_value)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)''',
+        (scan_id, row['patient_id'], row['visit_id'], user['name'], user['role'], 'correction_workflow',
+         _json_value({'active': False}), _json_value(report['correction_workflow'])))
+    conn.commit()
+    updated = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
+    conn.close()
+    return {'success': True, 'data': _map_scan_row(updated)}
 
 
 @app.delete('/api/scans/{scan_id}')

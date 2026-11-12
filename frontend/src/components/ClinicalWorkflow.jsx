@@ -20,17 +20,42 @@ export function useCompletionConfirmation() {
   useEffect(()=>()=>resolver.current?.(false),[])
   return {
     confirmCompletion:()=>resolver.current ? Promise.resolve(false) : new Promise(resolve=>{resolver.current=resolve;setPending(true)}),
-    completionDialog:pending && <div className="no-print fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true" aria-label="Complete clinical report" onKeyDown={event=>{if(event.key==='Escape')answer(false)}}><div className="max-w-lg rounded-xl bg-white p-6 shadow-xl"><h2 className="text-lg font-bold">Complete and lock this report?</h2><p className="my-4">Confirm that you have reviewed the patient, visit and report preview. Completion locks clinical changes. A correction workflow has not been approved.</p><div className="flex gap-3"><button autoFocus type="button" className="secondary-button" onClick={()=>answer(false)}>Cancel completion</button><button type="button" className="primary-button" onClick={()=>answer(true)}>Complete and lock</button></div></div></div>
+    completionDialog:pending && <div className="no-print fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/60 p-4" role="dialog" aria-modal="true" aria-label="Complete clinical report" onKeyDown={event=>{if(event.key==='Escape')answer(false)}}><div className="max-w-lg rounded-xl bg-white p-6 shadow-xl"><h2 className="text-lg font-bold">Complete and lock this report?</h2><p className="my-4">Confirm that you have reviewed the patient, visit and report preview. Completion locks clinical changes. A senior approver can authorize a correction with a recorded reason.</p><div className="flex gap-3"><button autoFocus type="button" className="secondary-button" onClick={()=>answer(false)}>Cancel completion</button><button type="button" className="primary-button" onClick={()=>answer(true)}>Complete and lock</button></div></div></div>
   }
 }
-export function ApprovalControls({ report, updateReport }) {
+export function ApprovalControls({ report, updateReport, scanId, locked = false }) {
   const role = currentUser().role
   const imp = report.impression || {}
-  return <div className="flex flex-wrap items-center gap-4 rounded-lg border border-slate-200 p-3">
-    <span>Audit: {imp.audit_done ? `Done — ${imp.audited_by || ''}` : 'Pending'}</span>
-    {['L2', 'L3'].includes(role) && <label><input type="checkbox" checked={Boolean(imp.audit_done)} onChange={e => updateReport(['impression', 'audit_done'], e.target.checked)} /> Auditing done</label>}
-    {role === 'L3' && <label><input type="checkbox" checked={Boolean(imp.report_completed)} onChange={e => updateReport(['impression', 'report_completed'], e.target.checked)} /> Report completed</label>}
-    {imp.report_completed && <span>Completed reports are read-only after saving.</span>}
+  const [history, setHistory] = useState(null)
+  const [message, setMessage] = useState('')
+  const loadHistory = async () => {
+    if (!scanId) { setMessage('Save the report before viewing its change history.'); return }
+    try { const response = await api.get(`/scans/${scanId}/history`); setHistory(response.data.data || []); setMessage('') }
+    catch (error) { setMessage(error.response?.data?.detail || 'Unable to load report history.') }
+  }
+  const authorizeCorrection = async () => {
+    if (!scanId) return
+    const reason = window.prompt('Enter the reason for correcting this completed report (at least 10 characters).')
+    if (reason === null) return
+    try { await api.post(`/scans/${scanId}/correction`, { reason }); window.location.reload() }
+    catch (error) { setMessage(error.response?.data?.detail || 'Unable to authorize report correction.') }
+  }
+  return <div className="space-y-3 rounded-lg border border-slate-200 p-3">
+    <div className="flex flex-wrap items-center gap-4">
+      <span>Audit: {imp.audit_done ? `Done — ${imp.audited_by || ''}` : 'Pending'}</span>
+      {['L2', 'L3'].includes(role) && !locked && <label><input type="checkbox" checked={Boolean(imp.audit_done)} onChange={e => updateReport(['impression', 'audit_done'], e.target.checked)} /> Auditing done</label>}
+      {role === 'L3' && !locked && <label><input type="checkbox" checked={Boolean(imp.report_completed)} onChange={e => updateReport(['impression', 'report_completed'], e.target.checked)} /> Report completed</label>}
+      {imp.report_completed && <span>Completed reports are read-only after saving.</span>}
+      {['L2', 'L3'].includes(role) && scanId && <button type="button" className="secondary-button" onClick={loadHistory}>Change history</button>}
+      {role === 'L3' && imp.report_completed && <button type="button" className="secondary-button" onClick={authorizeCorrection}>Authorize correction</button>}
+    </div>
+    {message && <p role="status" className="text-sm text-red-700">{message}</p>}
+    {history && <div className="max-h-64 overflow-auto rounded border bg-slate-50 p-3" aria-label="Clinical report change history">
+      {history.length ? history.map((entry,index)=><div key={`${entry.changed_at}-${index}`} className="border-b py-2 text-xs last:border-0">
+        <p className="font-semibold">{entry.field_path} · {entry.changed_by} ({entry.role}) · {entry.changed_at}</p>
+        <p>Previous: {JSON.stringify(entry.previous_value)}</p><p>New: {JSON.stringify(entry.new_value)}</p>
+      </div>) : <p>No clinical field changes recorded.</p>}
+    </div>}
   </div>
 }
 export function ClinicalFooter({ onSave, saving, locked, message, patientId, onBack, onNext }) {

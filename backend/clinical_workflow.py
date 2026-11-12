@@ -257,14 +257,28 @@ def prepare_scan(data, existing=None):
     for field in ('patient_id', 'visit_id', 'scan_type'):
         if old.get(field) not in (None, '') and field in data and str(data[field]) != str(old[field]):
             raise HTTPException(409, 'An existing report cannot be moved to a different patient, visit or scan type.')
-    if str(old.get('status') or '').lower() == 'completed':
+    previous, _ = report_object(old)
+    correction = previous.get('correction_workflow') if isinstance(previous, dict) else None
+    correction_active = isinstance(correction, dict) and correction.get('active') is True
+    if str(old.get('status') or '').lower() == 'completed' and not correction_active:
         raise HTTPException(409, 'Completed reports are read-only. A correction workflow has not been approved.')
     merged = {**old, **data}
     expected_key = dict(zip(('Adult Echo', 'Pediatric Echo', 'Fetal Echo'), REPORT_KEYS)).get(merged.get('scan_type'))
     if any(key in data and (key != expected_key or not isinstance(data[key], dict)) for key in REPORT_KEYS):
         raise HTTPException(422, 'Clinical report content must match the selected scan type.')
     report, key = report_object(merged)
-    previous, _ = report_object(old)
+    if correction_active and user['role'] != 'L3':
+        old_for_audit = json.loads(json.dumps(previous))
+        new_for_audit = json.loads(json.dumps(report))
+        old_imp = old_for_audit.setdefault('impression', {})
+        new_imp = new_for_audit.setdefault('impression', {})
+        old_audit = old_imp.pop('audit_done', False)
+        new_audit = new_imp.pop('audit_done', False)
+        for field in ('audited_by', 'audited_at'):
+            old_imp.pop(field, None)
+            new_imp.pop(field, None)
+        if user['role'] != 'L2' or old_audit or not new_audit or old_for_audit != new_for_audit:
+            require_role('L3')
     if not report:
         if str(merged.get('status', '')).lower() == 'completed':
             raise HTTPException(422, 'A clinical report is required before completion.')
@@ -278,6 +292,8 @@ def prepare_scan(data, existing=None):
     completing = bool(report.get('impression', {}).get('report_completed')) or str(data.get('status', '')).lower() == 'completed'
     if completing:
         require_role('L3')
+        if not report.get('impression', {}).get('audit_done'):
+            raise HTTPException(422, 'Auditing must be done before report completion.')
     # Incomplete drafts can be saved. Mandatory profile fields gate progression/completion.
     if completing and not str(report.get('indication') or '').strip():
         raise HTTPException(422, 'An indication is required before completion.')
@@ -320,8 +336,13 @@ def prepare_scan(data, existing=None):
         impression['report_completed'] = True
         impression['completed_by'] = user['name']
         impression['completed_at'] = time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime())
+        if correction_active:
+            correction['active'] = False
+            correction['completed_by'] = user['name']
+            correction['completed_at'] = impression['completed_at']
+            report['correction_workflow'] = correction
     else:
-        merged['status'] = 'Draft' if not str(report.get('indication') or '').strip() else 'In Progress'
+        merged['status'] = 'Correction In Progress' if correction_active else ('Draft' if not str(report.get('indication') or '').strip() else 'In Progress')
         impression.pop('completed_by', None)
         impression.pop('completed_at', None)
     impression['report_title'] = TITLES.get(merged.get('scan_type'), merged.get('scan_type'))

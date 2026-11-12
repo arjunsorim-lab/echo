@@ -671,10 +671,6 @@ function FetalEchoReport() {
           </div>
         </section>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label className="field-label">Images per row<select className="field-control" value={report.images.columns || '1'} onChange={e=>updateReport(['images','columns'],e.target.value)}>{['1','2','3','4'].map(v=><option key={v}>{v}</option>)}</select></label>
-          <label className="field-label">Image width<input className="field-control" value={report.images.width || ''} onChange={e=>updateReport(['images','width'],e.target.value)} /></label>
-          <label className="field-label">Image height<input className="field-control" value={report.images.height || ''} onChange={e=>updateReport(['images','height'],e.target.value)} /></label>
-          <label className="field-label">Image rows<input className="field-control" value={report.images.rows_cols || ''} onChange={e=>updateReport(['images','rows_cols'],e.target.value)} /></label>
           <label className="field-label">Investigation status<select className="field-control" data-role-locked={currentUser().role !== 'L3' ? 'true' : undefined} disabled={locked || currentUser().role !== 'L3'} value={report.impression.report_completed ? 'completed' : 'in-progress'} onChange={e=>updateReport(['impression','report_completed'],e.target.value==='completed')}><option value="in-progress">In progress</option><option value="completed">Completed</option></select></label>
         </div>
         <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Fetal report sections">
@@ -687,7 +683,7 @@ function FetalEchoReport() {
           {activeScanTab==='aortic' && <AorticTab report={report} updateReport={updateReport} />}
           {activeScanTab==='biometry' && <BiometryTab report={report} updateReport={updateReport} />}
           {activeScanTab==='doppler' && <DopplerTab report={report} updateReport={updateReport} />}
-          {activeScanTab==='impression' && <ImpressionPanel report={report} updateReport={updateReport} />}
+          {activeScanTab==='impression' && <ImpressionPanel report={report} updateReport={updateReport} scanId={savedScanId || scanId} locked={locked} />}
         </section></ClinicalComments.Provider>
       </div>
 
@@ -1043,12 +1039,12 @@ function AorticTab({ report, updateReport }) {
   )
 }
 
-function ImpressionPanel({ report, updateReport }) {
+function ImpressionPanel({ report, updateReport, scanId, locked }) {
   const impression = report.impression
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="min-w-0 space-y-3"><ApprovalControls report={report} updateReport={updateReport} />
+      <div className="min-w-0 space-y-3"><ApprovalControls report={report} updateReport={updateReport} scanId={scanId} locked={locked} />
         <label className="field-label">Report title<input className="field-control" readOnly value="Fetal Echocardiography" /></label>
         <TextInput label="First line of report" value={impression.first_line} onChange={(value) => updateReport(['impression', 'first_line'], value)} />
         <TextArea label="Header comments - (F11 - Show previous header comments)" value={impression.header_comments} onChange={(value) => updateReport(['impression', 'header_comments'], value)} rows={3} />
@@ -1065,7 +1061,7 @@ function ImpressionPanel({ report, updateReport }) {
       <aside className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
         <label className="field-label">Report type<select className="field-control" value={impression.classification || ''} onChange={e => updateReport(['impression','classification'], e.target.value)}><option value="">Select report type</option>{['Normal','Abnormal','Ambiguous'].map(v => <option key={v}>{v}</option>)}</select></label>
         <TextInput label="Primary consultant" value={impression.primary_consultant} onChange={(value) => updateReport(['impression', 'primary_consultant'], value)} />
-        <TextArea label="Second consultant" value={impression.second_consultant} onChange={(value) => updateReport(['impression', 'second_consultant'], value)} rows={3} />
+        <TextArea label="Secondary consultant" value={impression.second_consultant} onChange={(value) => updateReport(['impression', 'second_consultant'], value)} rows={3} />
         <label className="field-label">Audited by<input className="field-control" readOnly value={impression.audited_by || ''} /></label>
         <TextArea label="Reviewed by" value={impression.reviewed_by} onChange={(value) => updateReport(['impression', 'reviewed_by'], value)} rows={3} />
         <label className="field-label">Report typed by<input className="field-control" readOnly value={impression.report_typed_by || ''} /></label>

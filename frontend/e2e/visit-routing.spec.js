@@ -26,7 +26,11 @@ test('saving a new visit opens its selected report and retains visit-specific re
     expect(response.ok()).toBeTruthy()
     const visits = (await response.json()).data
     expect(visits.find(visit => String(visit.id) === visitId)?.referral_doctor).toBe('Self')
-    if (type === 'Ultrasound') await expect(page.getByText('Visit recorded.', { exact: false })).toBeVisible()
+    if (type === 'Ultrasound') {
+      await expect(page.getByRole('heading', { name: 'Ultrasound reporting' })).toBeVisible()
+      await expect(page.getByLabel('Patient')).toHaveValue(new RegExp(info.patient_display_id))
+      await expect(page.getByLabel('Visit')).toHaveValue(/2026-11-12/)
+    }
     else {
       await page.getByRole('button', { name: 'Save report', exact: true }).last().click()
       await expect(page).toHaveURL(new RegExp(`/${route}/[0-9]+\\?`))

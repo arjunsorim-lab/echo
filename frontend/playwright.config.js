@@ -23,7 +23,7 @@ export default defineConfig({
       timeout: 120000,
     },
     {
-      command: 'VITE_API_TARGET=http://127.0.0.1:55323 npm run dev -- --host 127.0.0.1 --port 55324 --strictPort',
+      command: 'VITE_API_URL=/api VITE_API_TARGET=http://127.0.0.1:55323 npm run dev -- --host 127.0.0.1 --port 55324 --strictPort',
       url: 'http://127.0.0.1:55324',
       reuseExistingServer: false,
       timeout: 120000,

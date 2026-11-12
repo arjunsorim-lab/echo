@@ -645,7 +645,7 @@ function PediatricEchoReport() {
                   isNormalCommentsPopulated={isNormalCommentsPopulated}
                 />
               ) : (
-                <ImpressionPanel report={report} updateReport={updateReport} />
+                <ImpressionPanel report={report} updateReport={updateReport} scanId={savedScanId || scanId} locked={locked} />
               )}
             </div>
           </section>
@@ -938,12 +938,12 @@ function DopplerTab({ report, updateReport }) {
   )
 }
 
-function ImpressionPanel({ report, updateReport }) {
+function ImpressionPanel({ report, updateReport, scanId, locked }) {
   const impression = report.impression
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-      <div className="min-w-0 space-y-3"><ApprovalControls report={report} updateReport={updateReport} />
+      <div className="min-w-0 space-y-3"><ApprovalControls report={report} updateReport={updateReport} scanId={scanId} locked={locked} />
         <label className="field-label">Report title<input className="field-control" readOnly value="Paediatric Echocardiography" /></label>
         <TextInput label="First line of report" value={impression.first_line} onChange={(value) => updateReport(['impression', 'first_line'], value)} />
         <TextArea label="Header comments - (F11 - Show previous header comments)" value={impression.header_comments} onChange={(value) => updateReport(['impression', 'header_comments'], value)} rows={3} />
@@ -960,7 +960,7 @@ function ImpressionPanel({ report, updateReport }) {
       <aside className="min-w-0 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
         <label className="field-label">Report type<select className="field-control" value={impression.classification || ''} onChange={e => updateReport(['impression','classification'], e.target.value)}><option value="">Select report type</option>{['Normal','Abnormal','Ambiguous'].map(v => <option key={v}>{v}</option>)}</select></label>
         <TextInput label="Primary consultant" value={impression.primary_consultant} onChange={(value) => updateReport(['impression', 'primary_consultant'], value)} />
-        <TextArea label="Second consultant" value={impression.second_consultant} onChange={(value) => updateReport(['impression', 'second_consultant'], value)} rows={3} />
+        <TextArea label="Secondary consultant" value={impression.second_consultant} onChange={(value) => updateReport(['impression', 'second_consultant'], value)} rows={3} />
         <label className="field-label">Audited by<input className="field-control" readOnly value={impression.audited_by || ''} /></label>
         <TextArea label="Reviewed by" value={impression.reviewed_by} onChange={(value) => updateReport(['impression', 'reviewed_by'], value)} rows={3} />
         <label className="field-label">Report typed by<input className="field-control" readOnly value={impression.report_typed_by || ''} /></label>

@@ -33,7 +33,7 @@ test('new patient and fetal visit flow preserves report through audit and comple
   await expect(page.getByRole('status')).toContainText('Enter LMP, EDD or embryo transfer date.')
   await expect(page.getByLabel('LMP', { exact: true })).toHaveAttribute('aria-invalid', 'true')
   await expect(page.getByLabel('Number of fetuses')).toHaveClass(/border-red-500/)
-  await page.getByLabel('Indication', { exact: true }).fill('Synthetic indication')
+  await page.getByRole('combobox', { name: 'Indication' }).fill('Synthetic indication')
   await page.getByLabel('LMP', { exact: true }).fill('2026-06-01')
   await page.getByLabel('Number of fetuses').selectOption('1')
   await page.getByRole('button', { name: 'Echo details', exact: true }).click()

@@ -194,6 +194,28 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(saved['impression']['audited_by'],'L2 Test')
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'conclusion':'changed'},l3)[0],409)
         self.assertEqual(call('DELETE',f'/api/scans/{sid}',token=l3)[0],409)
+        history_code,history=call('GET',f'/api/scans/{sid}/history',token=l2)
+        self.assertEqual(history_code,200,history)
+        self.assertTrue(any(item['field_path']=='indication' for item in history['data']))
+        self.assertEqual(call('GET',f'/api/scans/{sid}/history',token=l1)[0],403)
+        self.assertEqual(call('POST',f'/api/scans/{sid}/correction',{'reason':'Test correction requested by L1'},l1)[0],403)
+        self.assertEqual(call('POST',f'/api/scans/{sid}/correction',{'reason':'too short'},l3)[0],422)
+        code,correction=call('POST',f'/api/scans/{sid}/correction',{'reason':'Correct a synthetic test finding'},l3)
+        self.assertEqual(code,200,correction)
+        self.assertEqual(correction['data']['status'],'Correction In Progress')
+        corrected=call('GET',f'/api/scans/{sid}',token=l3)[1]['data']['fetal_echo_report']
+        corrected['impression']['final_impression']='Corrected synthetic test report'
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':corrected},l1)[0],403)
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':corrected},l3)[0],200)
+        corrected=call('GET',f'/api/scans/{sid}',token=l3)[1]['data']['fetal_echo_report']
+        corrected['impression']['audit_done']=True
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':corrected},l2)[0],200)
+        corrected=call('GET',f'/api/scans/{sid}',token=l3)[1]['data']['fetal_echo_report']
+        corrected['impression']['report_completed']=True
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':corrected},l3)[0],200)
+        corrected=call('GET',f'/api/scans/{sid}',token=l3)[1]['data']['fetal_echo_report']
+        self.assertFalse(corrected['correction_workflow']['active'])
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'conclusion':'locked again'},l3)[0],409)
         self.assertEqual(call('DELETE',f'/api/patients/{pid}',token=l3)[0],409)
         self.assertEqual(call('PUT',f'/api/resources/scans/{sid}',{'status':'draft'},l1)[0],403)
         self.assertEqual(call('GET','/api/resources/unknown',token=l3)[0],404)
@@ -239,6 +261,11 @@ class WorkflowTests(unittest.TestCase):
             invalid = copy.deepcopy(report)
             invalid['impression'][required] = '   '
             self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':invalid},l3)[0],422)
+        report['impression']['report_completed']=False
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l1)[0],200)
+        report['impression']['audit_done']=True
+        self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},self.roles['L2'])[0],200)
+        report['impression']['report_completed']=True
         code,result=call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':report},l3);self.assertEqual(code,200,result)
         self.assertEqual(result['data']['fetal_echo_report']['impression']['completed_by'],'Dr Shanthi')
         self.assertTrue(result['data']['fetal_echo_report']['impression']['completed_at'])
@@ -310,7 +337,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertTrue((self.folder/'uploads'/record['url'].split('/')[-1]).exists())
         self.assertEqual(call('PUT',route,layout,token)[0],422)
         self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',{'status':'Uploaded'},token)[0],200)
-        final={'indication':'Synthetic test','no_of_fetuses':'1','lmp':{'edd':'2027-01-01'},'impression':{'primary_consultant':'Synthetic consultant','final_impression':'Test only','header_comments':'Synthetic header','disclaimer_comments':'Synthetic disclaimer','report_completed':True}}
+        final={'indication':'Synthetic test','no_of_fetuses':'1','lmp':{'edd':'2027-01-01'},'impression':{'primary_consultant':'Synthetic consultant','final_impression':'Test only','header_comments':'Synthetic header','disclaimer_comments':'Synthetic disclaimer','audit_done':True,'report_completed':True}}
         code,result=call('POST','/api/scans',{'patient_id':pid,'visit_id':vid,'scan_type':'Fetal Echo','fetal_echo_report':final},self.l3)
         self.assertEqual(code,200,result)
         self.assertEqual(call('DELETE',f'/api/resources/media-records/{record["id"]}',token=token)[0],409)
