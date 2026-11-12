@@ -248,11 +248,14 @@ export default function Visits() {
       return
     }
     if (saving) return
-    if (!visitData.scan_type || !visitData.visit_date) { setStatus('Select a scan type and visit date.'); return }
+    const selectedTmpl = templates.find((t) => String(t.id) === String(visitData.report_template_id))
+    if (!visitData.scan_type || !visitData.visit_date || !selectedTmpl || selectedTmpl.scan_type !== visitData.scan_type) {
+      setStatus('Select a scan type, its matching report template, and a visit date.')
+      return
+    }
     setSaving(true)
     setStatus('')
     try {
-      const selectedTmpl = templates.find((t) => String(t.id) === String(visitData.report_template_id))
       const determinedScanType =
         visitData.scan_type
 
@@ -492,8 +495,9 @@ export default function Visits() {
               />
             </label>
             <label className="field-label">
-              <span>Scan type</span>
+              <span>Scan type *</span>
               <select
+                required
                 disabled={!patient || saving}
                 className="field-control disabled:bg-slate-100"
                 value={visitData.scan_type}
@@ -505,8 +509,9 @@ export default function Visits() {
               </select>
             </label>
             <label className="field-label">
-              <span>Report template</span>
+              <span>Report template *</span>
               <select
+                required
                 disabled={!patient || saving}
                 className="field-control disabled:bg-slate-100"
                 value={visitData.report_template_id}
@@ -520,7 +525,7 @@ export default function Visits() {
                   }))
                 }}
               >
-                <option value="">Select template</option>
+                <option value="">{visitData.scan_type === 'Ultrasound' ? 'No template configured for Ultrasound' : 'Select template'}</option>
                 {templates.map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.title || template.name || template.scan_type}
