@@ -26,5 +26,10 @@ test('saving a new visit opens its selected report and retains visit-specific re
     const visits = (await response.json()).data
     expect(visits.find(visit => String(visit.id) === visitId)?.referral_doctor).toBe(`Dummy ${type} referral`)
     if (type === 'Ultrasound') await expect(page.getByText('Visit recorded.', { exact: false })).toBeVisible()
+    else {
+      await page.getByRole('button', { name: 'Save report', exact: true }).last().click()
+      await expect(page).toHaveURL(new RegExp(`/${route}/[0-9]+\\?`))
+      await expect(page.getByRole('dialog', { name: 'Unsaved report changes' })).toHaveCount(0)
+    }
   }
 })
