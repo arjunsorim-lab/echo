@@ -24,7 +24,7 @@ class WorkflowTests(unittest.TestCase):
         source = Path(__file__).parent
         sqlite3.connect(cls.folder / 'test.db').close()
         sock = socket.socket(); sock.bind(('127.0.0.1', 0)); cls.port = sock.getsockname()[1]; sock.close()
-        env = {**os.environ, 'DB_PATH':str(cls.folder/'test.db'), 'ECHOAI_USERS_PATH':str(cls.folder/'users.json'), 'ECHOAI_PASSWORD':'Workflow-test-only!42', 'PORT':str(cls.port), 'UPLOADS_DIR':str(cls.folder/'uploads'), 'ECHOAI_MAX_UPLOAD_BYTES':'1024'}
+        env = {**os.environ, 'DB_PATH':str(cls.folder/'test.db'), 'ECHOAI_USERS_PATH':str(cls.folder/'users.json'), 'ECHOAI_PASSWORD':'Workflow-test-only!42', 'PORT':str(cls.port), 'UPLOADS_DIR':str(cls.folder/'uploads'), 'ECHOAI_MAX_UPLOAD_BYTES':'1024', 'ALLOWED_ORIGINS':'https://echo-j3gd.onrender.com,http://localhost:3000,http://127.0.0.1:3000'}
         cls.log = open(cls.folder/'server.log', 'w')
         cls.server = subprocess.Popen([sys.executable, 'main.py'], cwd=source, env=env, stdout=cls.log, stderr=cls.log)
         cls.base=f'http://127.0.0.1:{cls.port}'
@@ -87,6 +87,33 @@ class WorkflowTests(unittest.TestCase):
             with urllib.request.urlopen(request,timeout=10) as r:return r.status,json.load(r)
         except urllib.error.HTTPError as e:
             with e:return e.code,json.load(e)
+
+    def test_cors_headers_on_preflight_and_auth_failure(self):
+        origin='https://echo-j3gd.onrender.com'
+        preflight=urllib.request.Request(
+            self.base+'/api/auth/login',
+            headers={
+                'Origin':origin,
+                'Access-Control-Request-Method':'POST',
+                'Access-Control-Request-Headers':'authorization,content-type',
+            },
+            method='OPTIONS',
+        )
+        with urllib.request.urlopen(preflight,timeout=10) as response:
+            self.assertEqual(response.status,200)
+            self.assertEqual(response.headers.get('Access-Control-Allow-Origin'),origin)
+            self.assertEqual(response.headers.get('Access-Control-Allow-Credentials'),'true')
+
+        unauthenticated=urllib.request.Request(
+            self.base+'/api/auth/me',headers={'Origin':origin},method='GET'
+        )
+        with self.assertRaises(urllib.error.HTTPError) as raised:
+            urllib.request.urlopen(unauthenticated,timeout=10)
+        response=raised.exception
+        with response:
+            self.assertEqual(response.code,401)
+            self.assertEqual(response.headers.get('Access-Control-Allow-Origin'),origin)
+            self.assertEqual(response.headers.get('Access-Control-Allow-Credentials'),'true')
 
     def test_complete_workflow(self):
         call=self.call;l1=self.roles['L1'];l2=self.roles['L2'];l3=self.roles['L3']

@@ -1696,16 +1696,6 @@ async def security_headers(request, call_next):
         response.headers['Cache-Control'] = 'no-store'
     return response
 
-# Install CORS after the route protection middleware so its headers are also
-# attached to authentication failures returned directly by that middleware.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
-)
-
 app.mount('/uploads', StaticFiles(directory=UPLOADS_DIR, check_dir=False), name='uploads')
 
 @app.get('/{full_path:path}', include_in_schema=False)
@@ -1729,6 +1719,16 @@ def serve_frontend(full_path: str):
             "version": "1.0.0",
         })
     raise HTTPException(status_code=404, detail='Frontend build not found')
+
+# Wrap the completed app so CORS runs outside every early-returning middleware,
+# including authentication failures and security headers.
+app = CORSMiddleware(
+    app,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 if __name__ == '__main__':
     import uvicorn
