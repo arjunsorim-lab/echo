@@ -128,6 +128,14 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual([item['value'] for item in self.call('GET','/api/custom-options?field='+field,token=token)[1]['data']],['Synthetic choice'])
         self.assertEqual(self.call('GET','/api/custom-options?field=test_other_field',token=token)[1]['data'],[])
 
+    def test_registration_accepts_any_phone_and_doctor_or_institute(self):
+        patient = {'patient_id':'TEST-ALTERNATE-CONTACT','salutation':'Ms.','first_name':'Dummy','last_name':'Patient','age':'30','gender':'F','street':'Synthetic address','zip_code':'600001','district_city':'Chennai','state':'Tamil Nadu','country':'India','referral_source':'Referral centre / institute','referral_doctor':'','referral_institute':'Dummy clinic','phone1':'','phone2':'1234567890','mobile':''}
+        self.assertEqual(self.call('POST','/api/patients',patient,self.l3)[0],200)
+        no_phone = {**patient,'patient_id':'TEST-NO-CONTACT','phone2':'','mobile':'+91'}
+        self.assertEqual(self.call('POST','/api/patients',no_phone,self.l3)[0],422)
+        no_referral = {**patient,'patient_id':'TEST-NO-REFERRAL','referral_institute':''}
+        self.assertEqual(self.call('POST','/api/patients',no_referral,self.l3)[0],422)
+
     def test_complete_workflow(self):
         call=self.call;l1=self.roles['L1'];l2=self.roles['L2'];l3=self.roles['L3']
         self.assertEqual(call('GET','/api/patients')[0],401)
@@ -196,7 +204,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(code,200,result);sid=result['data']['id']
         self.assertEqual(result['data']['status'],'Draft');self.assertEqual(result['data']['normal'],0)
         saved=call('GET',f'/api/scans/{sid}',token=l1)[1]['data']['fetal_echo_report']
-        self.assertEqual(saved['impression']['report_title'],'Custom fetal report')
+        self.assertEqual(saved['impression']['report_title'],'Fetal Echocardiography')
         self.assertEqual(saved['doppler']['mpi_method_1']['rv_mpi'],'');self.assertEqual(saved['doppler']['mpi_method_1']['rv_ict'],'12')
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'fetal_echo_report':{**report,'lmp':{'lmp_date':'2026-02-30'}}},l1)[0],422)
         self.assertEqual(call('PUT',f'/api/scans/{sid}',{'adult_echo_report':report},l1)[0],422)

@@ -4,6 +4,7 @@ import hashlib
 import json
 import math
 import os
+import re
 import secrets
 import threading
 import time
@@ -209,25 +210,19 @@ def serialize_contact(row):
 def validate_patient(data):
     required = ('patient_id', 'first_name', 'last_name', 'gender', 'state', 'country')
     if 'referral_source' in data:
-        required += ('salutation', 'referral_source', 'district_city', 'zip_code', 'phone1')
+        required += ('salutation', 'district_city', 'zip_code')
     missing = [k.replace('_', ' ') for k in required if not str(data.get(k) or '').strip()]
     if not data.get('dob') and data.get('age') in (None, ''):
         missing.append('DOB or age')
     if not str(data.get('street') or data.get('address') or '').strip():
         missing.append('address')
-    if 'referral_source' in data:
-        if data.get('referral_source') == 'Self':
-            pass
-        else:
-            if not str(data.get('referral_doctor') or '').strip():
-                missing.append('referral doctor')
-            if not str(data.get('referral_institute') or '').strip():
-                missing.append('referral doctor institute')
-    else:
-        if not any(any(ch.isdigit() for ch in str(data.get(k) or '')) for k in ('phone1', 'phone2', 'mobile')):
-            missing.append('one phone number')
-        if not data.get('family_doctor') and not data.get('referred_by'):
-            missing.append('referral doctor / institute or Self')
+    phones = [str(data.get(k) or '').strip() for k in ('phone1', 'phone2', 'mobile')]
+    if not any(any(ch.isdigit() for ch in phone) and not re.fullmatch(r'\+\d{1,4}', phone) for phone in phones):
+        missing.append('one phone number')
+    if not any(str(data.get(k) or '').strip() for k in ('referral_source', 'referral_doctor', 'referral_institute', 'family_doctor', 'referred_by')):
+        missing.append('referral doctor / institute or Self')
+    elif data.get('referral_source') not in (None, '', 'Self') and not any(str(data.get(k) or '').strip() for k in ('referral_doctor', 'referral_institute', 'family_doctor', 'referred_by')):
+        missing.append('referral doctor / institute')
     if missing:
         raise HTTPException(422, 'Required: ' + ', '.join(missing))
     if data.get('dob'):
@@ -331,7 +326,7 @@ def prepare_scan(data, existing=None):
         merged['status'] = 'Draft' if not str(report.get('indication') or '').strip() else 'In Progress'
         impression.pop('completed_by', None)
         impression.pop('completed_at', None)
-    impression['report_title'] = str(impression.get('report_title') or '').strip() or TITLES.get(merged.get('scan_type'), merged.get('scan_type'))
+    impression['report_title'] = TITLES.get(merged.get('scan_type'), merged.get('scan_type'))
     impression['report_typed_by'] = previous_imp.get('report_typed_by') or user['name']
     # Explicit abnormal-option mapping is deliberately limited to the literal Abnormal option.
     def abnormal_comments(node):

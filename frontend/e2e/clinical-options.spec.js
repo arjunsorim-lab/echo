@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { loadFixture, login } from './fixture.js'
+import { loadFixture, login, reportUrl } from './fixture.js'
 
 let info
 test.beforeAll(async () => { info = await loadFixture() })
@@ -11,7 +11,8 @@ for (const [route, label] of [
 ]) {
   test(`${route} saves and reuses a custom choice`, async ({ page }) => {
     await login(page, 'l1', info.password)
-    await page.goto(route)
+    const scanType = route === '/fetal-echo-report' ? 'Fetal Echo' : route === '/adult-echo-report' ? 'Adult Echo' : 'Pediatric Echo'
+    await page.goto(reportUrl(info, scanType))
     if (route === '/fetal-echo-report') await page.getByRole('button', { name: 'Echo details', exact: true }).click()
     const input = page.getByLabel(label, { exact: true }).first()
     const value = `Synthetic choice ${Date.now()}`
@@ -27,3 +28,19 @@ for (const [route, label] of [
     await expect(page.getByLabel(label, { exact: true }).first()).toHaveValue(value)
   })
 }
+
+test('fetal abnormal findings require and retain their inline description', async ({ page }) => {
+  await login(page, 'l1', info.password)
+  await page.goto(reportUrl(info, 'Fetal Echo'))
+  await page.getByRole('button', { name: 'Echo details', exact: true }).click()
+  await page.getByLabel('Other lesions', { exact: true }).fill('Abnormal')
+  await expect(page.getByLabel('Other lesions comment')).toBeVisible()
+  await page.getByRole('button', { name: 'Save report', exact: true }).last().click()
+  await expect(page.getByRole('status')).toContainText('Describe abnormal finding')
+  await page.getByLabel('Other lesions comment').fill('Synthetic description')
+  await page.getByRole('button', { name: 'Save report', exact: true }).last().click()
+  await expect(page.getByRole('status')).toContainText('Fetal echo report saved.')
+  await page.reload()
+  await page.getByRole('button', { name: 'Echo details', exact: true }).click()
+  await expect(page.getByLabel('Other lesions comment')).toHaveValue('Synthetic description')
+})

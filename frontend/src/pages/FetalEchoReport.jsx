@@ -356,9 +356,10 @@ function FetalEchoReport() {
   const [savedScanId, setSavedScanId] = useState(scanId || '')
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
+  const [progressValidationAttempted, setProgressValidationAttempted] = useState(false)
   const [savedReportPath, setSavedReportPath] = useState('')
   const [locked, setLocked] = useState(false)
-  const { dirty, navigationDialog, markSaved } = useSavedNavigation(report)
+  const { dirty, navigationDialog, markSaved, navigateSection } = useSavedNavigation(report)
 
   useEffect(() => {
     if (savedReportPath && !dirty) {
@@ -528,7 +529,7 @@ function FetalEchoReport() {
 
   useEffect(() => {
     const fields = document.querySelectorAll('.report-editor-form input, .report-editor-form select, .report-editor-form textarea')
-    for (const field of fields) field.disabled = locked || isSaving
+    for (const field of fields) field.disabled = locked || isSaving || field.dataset.roleLocked === 'true'
     const wheel = e => { if (e.target instanceof HTMLInputElement && e.target.type === 'number' || e.target instanceof HTMLSelectElement) e.target.blur() }
     document.addEventListener('wheel', wheel, {passive:true})
     return () => document.removeEventListener('wheel', wheel)
@@ -621,7 +622,26 @@ function FetalEchoReport() {
   const step = steps.indexOf(activeScanTab)
   const changeStep = index => { if (steps[index]) setActiveScanTab(steps[index]) }
   const saveAndNext = async () => {
+    const errors = reportErrors(report, true, false, true)
+    if (errors.length) {
+      setProgressValidationAttempted(true)
+      setActiveScanTab('lmp')
+      setStatusMessage(errors.join(' '))
+      return
+    }
     if(await handleSave())changeStep(step+1)
+  }
+  const openReportSection = id => {
+    const target = steps.indexOf(id)
+    if (target <= step || locked) { setActiveScanTab(id); return }
+    const errors = reportErrors(report, true, false, true)
+    if (errors.length) {
+      setProgressValidationAttempted(true)
+      setActiveScanTab('lmp')
+      setStatusMessage(errors.join(' '))
+      return
+    }
+    navigateSection(() => setActiveScanTab(id), setStatusMessage)
   }
 
   return (
@@ -644,8 +664,8 @@ function FetalEchoReport() {
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <div className="field-label"><span>Patient</span><SearchableSelect options={patients.map(p => ({value:p.id,label:`${p.patient_id || ''} — ${getPatientName(p)}`}))} value={selectedPatientId} disabled={Boolean(scanId || savedScanId || selectedVisitId) || isSaving} onChange={setSelectedPatientId} placeholder="Select patient" searchPlaceholder="Search patient ID or name..." /></div>
             <label className="field-label">Visit<select className="field-control" value={selectedVisitId} disabled={Boolean(scanId || savedScanId) || isSaving} onChange={e=>setSelectedVisitId(e.target.value)}><option value="">Select visit</option>{visits.map(v=><option key={v.id} value={v.id}>{v.visit_date ? new Date(v.visit_date).toLocaleString() : `Visit ${v.id}`}</option>)}</select></label>
-            <HeaderField label="Report title" value={report.impression.report_title || ''} onChange={value=>updateReport(['impression','report_title'],value)} />
-            <HeaderField label="Indication" value={report.indication} onChange={value=>updateReport(['indication'],value)} />
+            <label className="field-label">Report title<input className="field-control" readOnly value="Fetal Echocardiography" /></label>
+            <HeaderField label="Indication" value={report.indication} onChange={value=>updateReport(['indication'],value)} className={progressValidationAttempted && !String(report.indication || '').trim() ? '[&_input]:border-red-500 [&_input]:ring-1 [&_input]:ring-red-300' : ''} />
           </div>
         </section>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -653,13 +673,13 @@ function FetalEchoReport() {
           <label className="field-label">Image width<input className="field-control" value={report.images.width || ''} onChange={e=>updateReport(['images','width'],e.target.value)} /></label>
           <label className="field-label">Image height<input className="field-control" value={report.images.height || ''} onChange={e=>updateReport(['images','height'],e.target.value)} /></label>
           <label className="field-label">Image rows<input className="field-control" value={report.images.rows_cols || ''} onChange={e=>updateReport(['images','rows_cols'],e.target.value)} /></label>
-          <label className="field-label">Investigation status<select className="field-control" disabled={locked} value={report.impression.report_completed ? 'completed' : 'in-progress'} onChange={e=>updateReport(['impression','report_completed'],e.target.value==='completed')}><option value="in-progress">In progress</option><option value="completed">Completed</option></select></label>
+          <label className="field-label">Investigation status<select className="field-control" data-role-locked={currentUser().role !== 'L3' ? 'true' : undefined} disabled={locked || currentUser().role !== 'L3'} value={report.impression.report_completed ? 'completed' : 'in-progress'} onChange={e=>updateReport(['impression','report_completed'],e.target.value==='completed')}><option value="in-progress">In progress</option><option value="completed">Completed</option></select></label>
         </div>
         <div className="flex flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1" role="tablist" aria-label="Fetal report sections">
-          {[{id:'lmp',label:'LMP details'},...scanTabs,{id:'impression',label:'Impression'},{id:'multiframes',label:'Multiframes'},{id:'preview',label:'Preview'}].map(tab => <TabButton key={tab.id} active={activeScanTab===tab.id} onClick={()=>{if(tab.id==='preview'){setIsReportPreviewOpen(true);return} if(tab.id==='multiframes'){setActiveImageTab('videos');setIsImagesModalOpen(true);return} setActiveScanTab(tab.id)}}>{tab.label}</TabButton>)}
+          {[{id:'lmp',label:'LMP details'},...scanTabs,{id:'impression',label:'Impression'},{id:'multiframes',label:'Multiframes'},{id:'preview',label:'Preview'}].map(tab => <TabButton key={tab.id} active={activeScanTab===tab.id} onClick={()=>{if(tab.id==='preview'){setIsReportPreviewOpen(true);return} if(tab.id==='multiframes'){setActiveImageTab('videos');setIsImagesModalOpen(true);return} openReportSection(tab.id)}}>{tab.label}</TabButton>)}
         </div>
         <section className="min-w-0 flex-1 rounded-xl border border-slate-200 p-4">
-          {activeScanTab==='lmp' && <PregnancyDating report={report} updateReport={updateReport} onLmpDateChange={handleLmpDateChange} />}
+          {activeScanTab==='lmp' && <PregnancyDating report={report} updateReport={updateReport} onLmpDateChange={handleLmpDateChange} validationAttempted={progressValidationAttempted} />}
           {activeScanTab==='echo-details' && <EchoDetailsTab report={report} updateReport={updateReport} onToggleNormalComments={toggleNormalComments} isNormalCommentsPopulated={isNormalCommentsPopulated} />}
           {activeScanTab==='aortic' && <AorticTab report={report} updateReport={updateReport} />}
           {activeScanTab==='biometry' && <BiometryTab report={report} updateReport={updateReport} />}
@@ -705,18 +725,20 @@ function FetalEchoReport() {
   )
 }
 
-function PregnancyDating({ report, updateReport, onLmpDateChange }) {
+function PregnancyDating({ report, updateReport, onLmpDateChange, validationAttempted }) {
+  const missingDate = validationAttempted && ![report.lmp.lmp_date, report.lmp.edd, report.lmp.et_date].some(Boolean)
+  const missingCount = validationAttempted && !/^[1-9]\d*$/.test(String(report.no_of_fetuses || ''))
   return <div>
     <h3 className="mb-4 border-b pb-3 font-semibold">Pregnancy dating</h3>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <label className="field-label">LMP<input type="date" className="field-control" value={report.lmp.lmp_date || ''} onChange={e=>onLmpDateChange(e.target.value)} /></label>
-      <label className="field-label">EDD<input type="date" className="field-control" value={report.lmp.edd || ''} onChange={e=>updateReport(['lmp','edd'],e.target.value)} /></label>
+      <label className="field-label">LMP<input type="date" aria-invalid={missingDate} className={`field-control ${missingDate ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.lmp.lmp_date || ''} onChange={e=>onLmpDateChange(e.target.value)} /></label>
+      <label className="field-label">EDD<input type="date" aria-invalid={missingDate} className={`field-control ${missingDate ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={report.lmp.edd || ''} onChange={e=>updateReport(['lmp','edd'],e.target.value)} /></label>
       <label className="field-label">Gestational age – weeks<input type="number" min="0" className="field-control" value={report.ga_weeks || ''} onChange={e=>updateReport(['ga_weeks'],e.target.value)} /></label>
       <label className="field-label">Days<input type="number" min="0" className="field-control" value={report.ga_days || ''} onChange={e=>updateReport(['ga_days'],e.target.value)} /></label>
       <div className="field-label"><span>Dating method</span><AddableSelect field="fetal_dating_method" value={report.lmp.assigned_by} options={['lmp','user']} onChange={value=>updateReport(['lmp','assigned_by'],value)} /></div>
-      <label className="field-label">Embryo transfer date<input type="date" className="field-control" value={typeof report.lmp.et_date === 'string' ? report.lmp.et_date : ''} onChange={e=>updateReport(['lmp','et_date'],e.target.value)} /></label>
+      <label className="field-label">Embryo transfer date<input type="date" aria-invalid={missingDate} className={`field-control ${missingDate ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={typeof report.lmp.et_date === 'string' ? report.lmp.et_date : ''} onChange={e=>updateReport(['lmp','et_date'],e.target.value)} /></label>
       <label className="field-label">Blastocyst transfer date<input type="date" className="field-control" value={report.lmp.blastocyst_transfer_date || ''} onChange={e=>updateReport(['lmp','blastocyst_transfer_date'],e.target.value)} /></label>
-      <div className="field-label"><span>Number of fetuses</span><AddableSelect field="fetal_count" value={String(report.no_of_fetuses || '')} options={['1','2','3']} onChange={value=>updateReport(['no_of_fetuses'],value)} /></div>
+      <div className="field-label"><span className={missingCount ? 'text-red-700' : ''}>Number of fetuses</span><AddableSelect field="fetal_count" aria-label="Number of fetuses" className={`field-control ${missingCount ? 'border-red-500 ring-1 ring-red-300' : ''}`} value={String(report.no_of_fetuses || '')} options={['1','2','3']} onChange={value=>updateReport(['no_of_fetuses'],value)} /></div>
     </div>
   </div>
 }
@@ -745,7 +767,9 @@ function EchoDetailsTab({ report, updateReport, onToggleNormalComments, isNormal
             />
             Pericardial Effusion
           </label>
+          <FindingComment label="Pericardial effusion" value={report.echo_details.general.pericardial_effusion_comments} onChange={value=>updateReport(['echo_details','general','pericardial_effusion_comments'],value)} />
           <InlineField label="FHR" value={report.echo_details.general.fhr} onChange={(value) => updateReport(['echo_details', 'general', 'fhr'], value)} width="w-16" />
+          <FindingComment label="FHR" value={report.echo_details.general.fhr_comments} onChange={value=>updateReport(['echo_details','general','fhr_comments'],value)} />
         </Fieldset>
 
         <Fieldset title="4-Chamber details">
@@ -783,8 +807,8 @@ function EchoDetailsTab({ report, updateReport, onToggleNormalComments, isNormal
 
         <Fieldset title="Others">
           <div className="grid gap-3 lg:grid-cols-2">
-            <LegacyField label="Systemic veins" value={report.echo_details.others.systemic_veins} onChange={(value) => updateReport(['echo_details', 'others', 'systemic_veins'], value)} withPlus />
-            <LegacyField label="Pulmonary veins" value={report.echo_details.others.pulmonary_veins} onChange={(value) => updateReport(['echo_details', 'others', 'pulmonary_veins'], value)} withPlus />
+            <LegacyField label="Systemic veins" value={report.echo_details.others.systemic_veins} onChange={(value) => updateReport(['echo_details', 'others', 'systemic_veins'], value)} comment={report.echo_details.others.systemic_veins_comments} onComment={value => updateReport(['echo_details','others','systemic_veins_comments'],value)} withPlus />
+            <LegacyField label="Pulmonary veins" value={report.echo_details.others.pulmonary_veins} onChange={(value) => updateReport(['echo_details', 'others', 'pulmonary_veins'], value)} comment={report.echo_details.others.pulmonary_veins_comments} onComment={value => updateReport(['echo_details','others','pulmonary_veins_comments'],value)} withPlus />
           </div>
           <div className="mt-4 grid gap-3 lg:grid-cols-[auto_minmax(0,1fr)] lg:items-center">
             <label className="flex items-center gap-2">
@@ -795,7 +819,8 @@ function EchoDetailsTab({ report, updateReport, onToggleNormalComments, isNormal
               />
               Echogenic focus
             </label>
-            <LegacyField label="Other lesions" value={report.echo_details.others.other_lesions} onChange={(value) => updateReport(['echo_details', 'others', 'other_lesions'], value)} withPlus />
+            <LegacyField label="Other lesions" value={report.echo_details.others.other_lesions} onChange={(value) => updateReport(['echo_details', 'others', 'other_lesions'], value)} comment={report.echo_details.others.other_lesions_comments} onComment={value => updateReport(['echo_details','others','other_lesions_comments'],value)} withPlus />
+            <FindingComment label="Echogenic focus" value={report.echo_details.others.echogenic_focus_comments} onChange={value=>updateReport(['echo_details','others','echogenic_focus_comments'],value)} />
           </div>
         </Fieldset>
       </div>
@@ -1138,12 +1163,19 @@ const fetalFieldOptions = {
   'Pulmonary veins': ['Normal', 'TAPVC', 'PAPVC', 'Partial Anomalous'],
 }
 
-function LegacyField({ label, value, onChange, withPlus = false }) {
+function FindingComment({ label, value, onChange, required = false }) {
+  const [showComment, setShowComment] = useState(false)
+  return <div><button type="button" className="text-xs font-medium text-teal-700 underline" onClick={() => setShowComment(open => !open)}>{showComment || value || required ? 'Comment' : 'Add comment'}</button>{(showComment || value || required) && <textarea aria-label={`${label} comment`} aria-required={required} className={`field-control mt-1 h-16 py-2 ${required && !String(value || '').trim() ? 'border-red-500' : ''}`} value={value || ''} onChange={event => onChange(event.target.value)} />}</div>
+}
+
+function LegacyField({ label, value, onChange, withPlus = false, comment, onComment }) {
   const field = `fetal_${label.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`
+  const needsComment = String(value || '').trim().toLowerCase() === 'abnormal'
   return (
     <div className="grid min-w-0 gap-1 sm:grid-cols-[minmax(140px,0.85fr)_minmax(0,1fr)] sm:items-center">
       <span className="text-sm font-medium text-slate-700">{label}</span>
       <EditableOptions field={field} label={label} value={value} onChange={onChange} options={fetalFieldOptions[label] || ['Normal', 'Abnormal', 'Not Visualised']} withPlus={withPlus} />
+      {onComment && <div className="sm:col-span-2"><FindingComment label={label} value={comment} onChange={onComment} required={needsComment} /></div>}
     </div>
   )
 }
@@ -1153,8 +1185,8 @@ function TwoColumnLegacyGrid({ rows, report, updateReport, withPlus = false }) {
     <div className="grid gap-3 lg:grid-cols-2">
       {rows.map(([leftLabel, leftPath, rightLabel, rightPath]) => (
         <div key={leftLabel} className="contents">
-          <LegacyField label={leftLabel} value={getByPath(report, leftPath)} onChange={(value) => updateReport(leftPath, value)} withPlus={withPlus} />
-          {rightLabel && <LegacyField label={rightLabel} value={getByPath(report, rightPath)} onChange={(value) => updateReport(rightPath, value)} withPlus={withPlus} />}
+          <LegacyField label={leftLabel} value={getByPath(report, leftPath)} onChange={(value) => updateReport(leftPath, value)} comment={getByPath(report, [...leftPath.slice(0,-1), `${leftPath.at(-1)}_comments`])} onComment={value => updateReport([...leftPath.slice(0,-1), `${leftPath.at(-1)}_comments`], value)} withPlus={withPlus} />
+          {rightLabel && <LegacyField label={rightLabel} value={getByPath(report, rightPath)} onChange={(value) => updateReport(rightPath, value)} comment={getByPath(report, [...rightPath.slice(0,-1), `${rightPath.at(-1)}_comments`])} onComment={value => updateReport([...rightPath.slice(0,-1), `${rightPath.at(-1)}_comments`], value)} withPlus={withPlus} />}
         </div>
       ))}
     </div>

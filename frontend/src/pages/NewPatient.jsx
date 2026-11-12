@@ -125,8 +125,7 @@ function NewPatient() {
   }, [])
 
   const handleCountryChange = useCallback((country) => {
-    const code = getDialCode(country)
-    setFormData(prev => ({ ...prev, country, state: '', district_city: '', mobile: code ? code + ' ' : '' }))
+    setFormData(prev => ({ ...prev, country, state: '', district_city: '', mobile: '' }))
     setZipLookupStatus('')
   }, [])
 
@@ -148,9 +147,10 @@ function NewPatient() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     const missing = []
-    for (const key of ['patient_id','salutation','first_name','last_name','gender','street','zip_code','country','state','district_city','phone1','referral_source']) if (!String(formData[key] || '').trim()) missing.push(key.replace(/_/g, ' '))
+    for (const key of ['patient_id','salutation','first_name','last_name','gender','street','zip_code','country','state','district_city','referral_source']) if (!String(formData[key] || '').trim()) missing.push(key.replace(/_/g, ' '))
     if (!formData.dob && formData.age === '') missing.push('DOB or age')
-    if (formData.referral_source !== 'Self' && (!formData.referral_doctor || !formData.referral_institute)) missing.push('referral doctor and institute')
+    if (![formData.phone1, formData.phone2, formData.mobile].some(phone => /\d/.test(phone))) missing.push('one phone number')
+    if (formData.referral_source !== 'Self' && !formData.referral_doctor && !formData.referral_institute) missing.push('referral doctor or institute')
     if (missing.length) { setSubmitError('Required: ' + missing.join(', ')); return }
     setSubmitError('')
     setIsSubmitting(true)
@@ -325,8 +325,8 @@ function NewPatient() {
                 <div className="p-3">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     <div>
-                      <label htmlFor="newpatient-phone1" className={labelClass + ' required'}>Primary Phone</label>
-                      <input id="newpatient-phone1" type="tel" className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} required aria-required="true" />
+                      <label htmlFor="newpatient-phone1" className={labelClass}>Primary Phone (one phone number required)</label>
+                      <input id="newpatient-phone1" type="tel" className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} />
                     </div>
                     <div>
                       <label htmlFor="newpatient-phone2" className={labelClass}>Phone 2</label>
@@ -384,15 +384,13 @@ function NewPatient() {
                       </select>
                     </div>
                     <div>
-                      <label htmlFor="newpatient-family_doctor" className={labelClass + (formData.referral_source !== 'Self' ? ' required' : '')}>Referral Doctor *</label>
+                      <label htmlFor="newpatient-family_doctor" className={labelClass}>Referral Doctor / Institute</label>
                       <div className="flex gap-2">
                         <select
                           id="newpatient-family_doctor"
                           className={selectClass}
                           value={formData.family_doctor}
                           onChange={(e) => selectReferral(e.target.value)}
-                          required={formData.referral_source !== 'Self'}
-                          aria-required={formData.referral_source !== 'Self'}
                           disabled={formData.referral_source === 'Self'}
                         >
                           <option value="">Select doctor or institute</option>
@@ -413,8 +411,8 @@ function NewPatient() {
                       </div>
                     </div>
                     <div>
-                      <label htmlFor="newpatient-referral-institute" className={labelClass + (formData.referral_source !== 'Self' ? ' required' : '')}>Referral Doctor's Institute</label>
-                      <input id="newpatient-referral-institute" type="text" className={inputClass} value={formData.referral_institute} onChange={(event) => setFormData({ ...formData, referral_institute: event.target.value })} required={formData.referral_source !== 'Self'} disabled={formData.referral_source === 'Self'} />
+                      <label htmlFor="newpatient-referral-institute" className={labelClass}>Referral Doctor's Institute</label>
+                      <input id="newpatient-referral-institute" type="text" className={inputClass} value={formData.referral_institute} onChange={(event) => setFormData({ ...formData, referral_institute: event.target.value })} disabled={formData.referral_source === 'Self'} />
                     </div>
                     <div>
                       <label className={labelClass}>Audit done</label>

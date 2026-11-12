@@ -683,7 +683,7 @@ def create_patient(data: dict):
             city, city, state, pincode, pincode, country, ethnic_origin,
             aadhar_number, abha_number, blood_group, marital_status, occupation,
             religion, nationality, emergency_contact_name, emergency_contact_phone,
-            emergency_contact_relation, fax, family_doctor or referral_doctor, referral_doctor,
+            emergency_contact_relation, fax, family_doctor or referral_doctor or referral_institute or ('Self' if referral_source == 'Self' else ''), referral_doctor,
             referral_institute, referral_source, audit_done, report_done, referred_by, registration_date,
             referred_by_doctor_id
         ))
