@@ -1,0 +1,30 @@
+import { test, expect } from '@playwright/test'
+import { loadFixture, login } from './fixture.js'
+
+test('saving a new visit opens its selected report and retains visit-specific referral', async ({ page }) => {
+  const info = await loadFixture()
+  await login(page, 'l1', info.password)
+  for (const [type, route] of [
+    ['Fetal Echo', 'fetal-echo-report'],
+    ['Adult Echo', 'adult-echo-report'],
+    ['Pediatric Echo', 'pediatric-echo-report'],
+    ['Ultrasound', 'echo-scan'],
+  ]) {
+    await page.goto(`/visits?patient=${info.patient_id}`)
+    const typeInput = page.getByLabel('Scan type *')
+    await expect(typeInput).toHaveValue('')
+    await page.getByLabel('Visit date and time *').fill('2026-11-12T10:00')
+    await typeInput.selectOption(type)
+    await expect(page.getByLabel('Report template *')).not.toHaveValue('')
+    await page.getByLabel('Referral Doctor / Institute').fill(`Dummy ${type} referral`)
+    await page.getByRole('button', { name: 'Save & Go to Reporting' }).click()
+    await expect(page).toHaveURL(new RegExp(`/${route}\\?`))
+    const visitId = new URL(page.url()).searchParams.get('visitId')
+    expect(visitId).toBeTruthy()
+    const response = await page.request.get(`/api/patients/${info.patient_id}/visits`)
+    expect(response.ok()).toBeTruthy()
+    const visits = (await response.json()).data
+    expect(visits.find(visit => String(visit.id) === visitId)?.referral_doctor).toBe(`Dummy ${type} referral`)
+    if (type === 'Ultrasound') await expect(page.getByText('Visit recorded.', { exact: false })).toBeVisible()
+  }
+})

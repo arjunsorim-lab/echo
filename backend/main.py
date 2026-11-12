@@ -404,6 +404,16 @@ def init_db():
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    for scan_type, title in (
+        ('Adult Echo', 'Standard Adult Echo Report'),
+        ('Fetal Echo', 'Comprehensive Fetal Echo Report'),
+        ('Pediatric Echo', 'Pediatric Congenital Echo Report'),
+        ('Ultrasound', 'Ultrasound placeholder'),
+    ):
+        c.execute('''INSERT INTO report_templates (title, scan_type, layout, views)
+            SELECT ?, ?, '', '[]'
+            WHERE NOT EXISTS (SELECT 1 FROM report_templates WHERE scan_type = ?)''',
+            (title, scan_type, scan_type))
 
     # 9. Clinical reports table
     c.execute('''
@@ -1171,9 +1181,20 @@ def get_custom_options(field: Optional[str] = None):
 
 @app.post('/api/custom-options')
 def create_custom_option(data: dict):
+    field = data.get('field')
+    value = data.get('value')
+    if not isinstance(field, str) or not field.strip() or not isinstance(value, str) or not value.strip():
+        raise HTTPException(422, 'A field and choice are required.')
+    field, value = field.strip(), value.strip()
+    if len(field) > 200 or len(value) > 500:
+        raise HTTPException(422, 'Field or choice is too long.')
     conn = get_db()
     cursor = conn.cursor()
-    cursor.execute('INSERT INTO custom_options (field, value) VALUES (?, ?)', (data.get('field'), data.get('value')))
+    existing = cursor.execute('SELECT * FROM custom_options WHERE field = ? AND value = ? COLLATE NOCASE', (field, value)).fetchone()
+    if existing:
+        conn.close()
+        return {"success": True, "data": dict(existing)}
+    cursor.execute('INSERT INTO custom_options (field, value) VALUES (?, ?)', (field, value))
     option_id = cursor.lastrowid
     conn.commit()
     inserted = conn.execute('SELECT * FROM custom_options WHERE id = ?', (option_id,)).fetchone()

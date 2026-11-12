@@ -107,6 +107,8 @@ export default function Visits() {
 
   const selectPatient = async (patientId, syncUrl = true) => {
     setSelectedPatient(patientId)
+    const chosenPatient = patients.find(item => String(item.id) === String(patientId))
+    setVisitData({ visit_date: '', scan_type: '', referral_doctor: chosenPatient?.family_doctor || '', report_template_id: '', notes: '' })
     setActiveScanFilter('')
     setStatus('')
 
@@ -152,7 +154,8 @@ export default function Visits() {
   }, [activeScanFilter, scans, patients, selectedPatient])
 
   useEffect(() => {
-    const scanType = visitData.scan_type || defaultScanType
+    const scanType = visitData.scan_type
+    if (!scanType || visitData.report_template_id) return
     const matchingTemplate = templates.find((template) => template.scan_type === scanType)
     if (!matchingTemplate) return
     setVisitData((current) => current.report_template_id === String(matchingTemplate.id)
@@ -170,12 +173,14 @@ export default function Visits() {
       'Adult Echo': 'adult-echo-report',
       'Fetal Echo': 'fetal-echo-report',
       'Pediatric Echo': 'pediatric-echo-report',
+      'Ultrasound': 'echo-scan',
     }[scanType]
     if (!route) {
       navigate(`/echo-studies?patient=${selectedPatient}&visit=${visit.id}&type=${encodeURIComponent(scanType)}`)
       return
     }
     const query = new URLSearchParams({ patientId: String(selectedPatient), visitId: String(visit.id) })
+    if (scanType === 'Ultrasound') query.set('type', scanType)
     navigate(`/${route}${scan?.id ? `/${scan.id}` : ''}?${query}`)
   }
 
@@ -259,7 +264,7 @@ export default function Visits() {
       return
     }
     const selectedTmpl = templates.find((t) => String(t.id) === String(visitData.report_template_id))
-    const determinedScanType = visitData.scan_type || defaultScanType
+    const determinedScanType = visitData.scan_type
     if (!visitData.visit_date || !determinedScanType || !selectedTmpl || selectedTmpl.scan_type !== determinedScanType) {
       setStatus('Select a scan type, its matching report template, and a visit date.')
       return
@@ -281,9 +286,7 @@ export default function Visits() {
       setVisits([newVisit, ...visits])
       setAllVisits([newVisit, ...allVisits])
       setVisitData({ visit_date: '', scan_type: '', referral_doctor: '', report_template_id: '', notes: '' })
-      setStatus(
-        `Visit saved for ${selectedPatientRecord.patient_id} — ${selectedPatientRecord.first_name} ${selectedPatientRecord.last_name}. No scan report was created.`
-      )
+      openVisitReport(newVisit, determinedScanType)
     } catch (error) {
       alert(error.response?.data?.detail || 'Unable to add visit')
     } finally {
@@ -468,7 +471,7 @@ export default function Visits() {
           {/* Add Visit Form */}
           <form
             onSubmit={addVisit}
-            className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 lg:grid-cols-[190px_160px_1fr_1fr_auto]"
+            className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 lg:grid-cols-[190px_160px_1fr_1fr_1fr]"
           >
             <label className="field-label">
               <span>Visit date and time *</span>
@@ -487,7 +490,7 @@ export default function Visits() {
                 required
                 disabled={!patient || saving}
                 className="field-control disabled:bg-slate-100"
-                value={visitData.scan_type || defaultScanType}
+                value={visitData.scan_type}
                 onChange={(event) => {
                   const scanType = event.target.value
                   const matchingTemplate = templates.find((template) => template.scan_type === scanType)
@@ -498,9 +501,11 @@ export default function Visits() {
                   }))
                 }}
               >
+                <option value="">Select examination</option>
                 <option value="Adult Echo">Adult Echo</option>
                 <option value="Fetal Echo">Fetal Echo</option>
                 <option value="Pediatric Echo">Pediatric Echo</option>
+                <option value="Ultrasound">Ultrasound</option>
               </select>
             </label>
             <label className="field-label">
@@ -516,18 +521,19 @@ export default function Visits() {
                   setVisitData((prev) => ({
                     ...prev,
                     report_template_id: tmplId,
-                    scan_type: tmpl?.scan_type || prev.scan_type || defaultScanType,
+                    scan_type: tmpl?.scan_type || prev.scan_type,
                   }))
                 }}
               >
                 <option value="">Select template</option>
-                {templates.filter((template) => template.scan_type === (visitData.scan_type || defaultScanType)).map((template) => (
+                {templates.filter((template) => template.scan_type === visitData.scan_type).map((template) => (
                   <option key={template.id} value={template.id}>
                     {template.title || template.name || template.scan_type}
                   </option>
                 ))}
               </select>
             </label>
+            <label className="field-label"><span>Referral Doctor / Institute</span><input disabled={!patient || saving} className="field-control disabled:bg-slate-100" value={visitData.referral_doctor} onChange={event => setVisitData({ ...visitData, referral_doctor: event.target.value })} /></label>
             <label className="field-label">
               <span>Visit notes</span>
               <input
@@ -538,38 +544,14 @@ export default function Visits() {
                 onChange={(event) => setVisitData({ ...visitData, notes: event.target.value })}
               />
             </label>
-            <button
+            <div className="flex flex-wrap gap-2 lg:col-span-full"><button
               disabled={!patient || saving || !visitData.visit_date || !visitData.scan_type || !visitData.report_template_id}
               className="primary-button self-end disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Save className="h-4 w-4" />
-              {saving ? 'Saving…' : 'Save Visit'}
-            </button>
+              {saving ? 'Saving…' : 'Save & Go to Reporting'}
+            </button><button type="button" disabled={!patient} onClick={() => setReferralOpen(true)} className="secondary-button disabled:opacity-40"><Stethoscope className="h-4 w-4" />New referral doctor</button></div>
           </form>
-
-          {/* Action Row */}
-          <div className="flex flex-wrap gap-2 border-b border-slate-200 px-4 py-3">
-            <button
-              type="button"
-              disabled={!patient}
-              onClick={() => setReferralOpen(true)}
-              className="secondary-button disabled:opacity-40"
-            >
-              <Stethoscope className="h-4 w-4" />
-              New referral doctor
-            </button>
-            <button
-              type="button"
-              disabled={!patient || !visits.length}
-              onClick={() => {
-                openVisitReport(visits[0])
-              }}
-              className="primary-button disabled:opacity-40"
-            >
-              <FileText className="h-4 w-4" />
-              Save and go to reporting
-            </button>
-          </div>
 
           {/* Visits Table */}
           <div className="overflow-x-auto">

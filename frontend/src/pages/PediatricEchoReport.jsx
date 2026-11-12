@@ -1,3 +1,4 @@
+import EditableOptions from '../components/EditableOptions'
 import { blankReport, mergeReport, reportSaveError } from '../reportValidation'
 import { isDerivedPath, recalculateDerived, initializeDerived } from '../derivedMeasurements'
 import { currentUser, useCompletionConfirmation, useDerivedDefinitions, ApprovalControls, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
@@ -1196,40 +1197,12 @@ function Fieldset({ title = '', className = '', children }) {
 }
 
 function ComboField({ label, value, onChange, withPlus = false }) {
-  const listId = `dl-ped-${label.toLowerCase().replace(/[^a-z0-9]/g, '-')}`
-  const defaultOptions = ['Normal', 'Abnormal', 'Intact', 'None', 'Good', 'Not visualised']
-
+  const field = `pediatric_${label.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`
   return (
-    <label className="grid min-w-0 gap-1 sm:grid-cols-[minmax(150px,0.8fr)_minmax(0,1fr)] sm:items-center">
+    <div className="grid min-w-0 gap-1 sm:grid-cols-[minmax(150px,0.8fr)_minmax(0,1fr)] sm:items-center">
       <span className="text-sm font-medium text-slate-700">{label}</span>
-      <span className="flex min-w-0 items-center gap-1.5">
-        <input
-          list={listId}
-          className="legacy-input w-full"
-          value={value || ''}
-          onChange={(event) => onChange(event.target.value)}
-          placeholder="Select or type..."
-        />
-        <datalist id={listId}>
-          {defaultOptions.map((opt) => (
-            <option key={opt} value={opt} />
-          ))}
-        </datalist>
-        {withPlus && (
-          <button
-            type="button"
-            className="legacy-plus-button"
-            title={`Add custom value for ${label}`}
-            onClick={() => {
-              const newVal = prompt(`Enter custom value for ${label}:`, value || '')
-              if (newVal !== null) onChange(newVal)
-            }}
-          >
-            +
-          </button>
-        )}
-      </span>
-    </label>
+      <EditableOptions field={field} label={label} value={value} onChange={onChange} options={['Normal', 'Abnormal', 'Intact', 'None', 'Good', 'Not visualised']} withPlus={withPlus} />
+    </div>
   )
 }
 
@@ -1245,16 +1218,13 @@ function MeasurementField({ label, value, onChange, suffix = '', compact = false
 
 function CheckValueField({ label, checked, value, onChecked, onValue }) {
   return (
-    <label className="grid min-w-0 gap-2 sm:grid-cols-[minmax(150px,1fr)_minmax(0,1fr)] sm:items-center">
-      <span className="flex items-center gap-2 text-sm font-medium text-slate-700">
+    <div className="grid min-w-0 gap-2 sm:grid-cols-[minmax(150px,1fr)_minmax(0,1fr)] sm:items-center">
+      <label className="flex items-center gap-2 text-sm font-medium text-slate-700">
         <input type="checkbox" checked={checked} onChange={(event) => onChecked(event.target.checked)} />
         {label}
-      </span>
-      <span className="flex min-w-0 gap-2">
-        <input className="legacy-input w-full" value={value || ''} onChange={(event) => onValue(event.target.value)} />
-        <button type="button" className="legacy-plus-button">+</button>
-      </span>
-    </label>
+      </label>
+      <EditableOptions field={`pediatric_${label.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`} label={label} value={value} onChange={onValue} />
+    </div>
   )
 }
 

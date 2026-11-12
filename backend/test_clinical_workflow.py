@@ -115,6 +115,19 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(response.headers.get('Access-Control-Allow-Origin'),origin)
             self.assertEqual(response.headers.get('Access-Control-Allow-Credentials'),'true')
 
+    def test_custom_choices_persist_and_are_scoped_to_field(self):
+        token = self.roles['L1']
+        field = 'test_fetal_cardiac_views'
+        self.assertEqual(self.call('POST','/api/custom-options',{'field':field,'value':'  '},token)[0],422)
+        code, result = self.call('POST','/api/custom-options',{'field':field,'value':'Synthetic choice'},token)
+        self.assertEqual(code,200)
+        choice_id = result['data']['id']
+        code, result = self.call('POST','/api/custom-options',{'field':field,'value':'synthetic choice'},token)
+        self.assertEqual(code,200)
+        self.assertEqual(result['data']['id'],choice_id)
+        self.assertEqual([item['value'] for item in self.call('GET','/api/custom-options?field='+field,token=token)[1]['data']],['Synthetic choice'])
+        self.assertEqual(self.call('GET','/api/custom-options?field=test_other_field',token=token)[1]['data'],[])
+
     def test_complete_workflow(self):
         call=self.call;l1=self.roles['L1'];l2=self.roles['L2'];l3=self.roles['L3']
         self.assertEqual(call('GET','/api/patients')[0],401)
