@@ -8,6 +8,7 @@ const reportRoutes = {
   'Adult Echo': '/adult-echo-report',
   'Fetal Echo': '/fetal-echo-report',
   'Pediatric Echo': '/pediatric-echo-report',
+  'Ultrasound': '/echo-scan',
 }
 
 const displayPatientName = (patient) => [patient?.salutation, patient?.first_name, patient?.middle_name, patient?.last_name]
@@ -63,11 +64,11 @@ export default function PatientRecords() {
   }), [scans])
 
   const openVisitReport = (visit) => {
-    navigate(`${reportRouteFor(visit.scan_type)}?patientId=${id}&visitId=${visit.id}&scatter=true`)
+    navigate(`${reportRouteFor(visit.scan_type || visit.visit_type)}?patientId=${id}&visitId=${visit.id}&type=${encodeURIComponent(visit.scan_type || visit.visit_type || '')}&scatter=true`)
   }
 
   const openScanReport = (scan) => {
-    navigate(`${reportRouteFor(scan.scan_type)}/${scan.id}?patientId=${id}&visitId=${scan.visit_id || ''}&scatter=true`)
+    navigate(`${reportRouteFor(scan.scan_type)}/${scan.id}?patientId=${id}&visitId=${scan.visit_id || ''}&type=${encodeURIComponent(scan.scan_type || '')}&scatter=true`)
   }
 
   if (loading) return <div className="p-8 text-sm text-slate-500">Loading patient records…</div>
@@ -117,7 +118,7 @@ export default function PatientRecords() {
           <div className="overflow-x-auto">
             <table className="data-table min-w-[760px]">
               <thead><tr><th>Visit date</th><th>Visit type</th><th>Scan type</th><th>Referral doctor</th><th /></tr></thead>
-              <tbody>{visits.map((visit) => <tr key={visit.id} className="hover:bg-teal-50/50"><td>{displayDate(visit.visit_date)}</td><td>{visit.visit_type || 'Consultation'}</td><td>{visit.scan_type || 'Fetal Echo'}</td><td>{visit.referral_doctor || '—'}</td><td><button type="button" className="text-sm font-semibold text-teal-700 hover:text-teal-900" onClick={() => openVisitReport(visit)}>Open visit</button></td></tr>)}</tbody>
+              <tbody>{visits.map((visit) => <tr key={visit.id} className="hover:bg-teal-50/50"><td>{displayDate(visit.visit_date)}</td><td>{visit.visit_type || 'Consultation'}</td><td>{visit.scan_type || visit.visit_type || '—'}</td><td>{visit.referral_doctor || '—'}</td><td><button type="button" className="text-sm font-semibold text-teal-700 hover:text-teal-900" onClick={() => openVisitReport(visit)}>Open visit</button></td></tr>)}</tbody>
             </table>
           </div>
         ) : <p className="p-8 text-center text-sm text-slate-500">No visits have been recorded for this patient.</p>}

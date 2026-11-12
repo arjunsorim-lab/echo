@@ -147,10 +147,10 @@ function NewPatient() {
   const handleSubmit = async (e) => {
     e.preventDefault()
     const missing = []
-    for (const key of ['patient_id','salutation','first_name','last_name','gender','street','zip_code','country','state','district_city','referral_source']) if (!String(formData[key] || '').trim()) missing.push(key.replace(/_/g, ' '))
+    for (const key of ['patient_id','first_name','last_name','gender','street','country','state']) if (!String(formData[key] || '').trim()) missing.push(key.replace(/_/g, ' '))
     if (!formData.dob && formData.age === '') missing.push('DOB or age')
     if (![formData.phone1, formData.phone2, formData.mobile].some(phone => /\d/.test(phone))) missing.push('one phone number')
-    if (formData.referral_source !== 'Self' && !formData.referral_doctor && !formData.referral_institute) missing.push('referral doctor or institute')
+    if (!formData.referral_doctor && !formData.referral_institute && !formData.family_doctor) missing.push('referral doctor or institute')
     if (missing.length) { setSubmitError('Required: ' + missing.join(', ')); return }
     setSubmitError('')
     setIsSubmitting(true)
@@ -192,8 +192,8 @@ function NewPatient() {
                       <input id="newpatient-patient_id" type="text" className={inputClass} value={formData.patient_id} onChange={(e) => setFormData({ ...formData, patient_id: e.target.value })} required aria-required="true" placeholder="e.g., TM0012026" />
                     </div>
                     <div>
-                      <label htmlFor="newpatient-salutation" className={labelClass + ' required'}>Salutation</label>
-                      <AddableSelect id="newpatient-salutation" field="patient_salutation" className={selectClass} options={salutations} value={formData.salutation} onChange={(value) => setFormData({ ...formData, salutation: value })} required aria-required="true" />
+                      <label htmlFor="newpatient-salutation" className={labelClass}>Salutation</label>
+                      <AddableSelect id="newpatient-salutation" field="patient_salutation" className={selectClass} options={salutations} value={formData.salutation} onChange={(value) => setFormData({ ...formData, salutation: value })} />
                     </div>
                     <div>
                       <label htmlFor="newpatient-first_name" className={labelClass + ' required'}>First Name</label>
@@ -293,8 +293,8 @@ function NewPatient() {
                       </div>
                     </div>
                     <div>
-                      <label htmlFor="newpatient-zip_code" className={labelClass + ' required'}>Zip Code</label>
-                      <input id="newpatient-zip_code" type="text" className={inputClass} value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value)} maxLength={10} placeholder="Enter zip / pincode" required aria-required="true" />
+                      <label htmlFor="newpatient-zip_code" className={labelClass}>Zip Code</label>
+                      <input id="newpatient-zip_code" type="text" className={inputClass} value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value)} maxLength={10} placeholder="Enter zip / pincode" />
                       {zipLookupStatus === 'found' && <p className="mt-1 text-xs text-teal-600 font-medium">✓ Taluk &amp; Post auto-filled</p>}
                       {zipLookupStatus === 'notfound' && <p className="mt-1 text-xs text-amber-500 font-medium">Pincode not in database — fill manually</p>}
                     </div>
@@ -308,8 +308,8 @@ function NewPatient() {
                       <AddableSelect id="newpatient-state" field="patient_state" className={selectClass} options={availableStates} value={formData.state} onChange={handleStateChange} required aria-required="true" />
                     </div>
                     <div>
-                      <label htmlFor="newpatient-district_city" className={labelClass + ' required'}>District/City</label>
-                      <AddableSelect id="newpatient-district_city" field="patient_district_city" className={selectClass} options={availableCities} value={formData.district_city} onChange={(value) => setFormData({ ...formData, district_city: value })} required aria-required="true" />
+                      <label htmlFor="newpatient-district_city" className={labelClass}>District/City</label>
+                      <AddableSelect id="newpatient-district_city" field="patient_district_city" className={selectClass} options={availableCities} value={formData.district_city} onChange={(value) => setFormData({ ...formData, district_city: value })} />
                     </div>
                   </div>
                 </div>
@@ -375,26 +375,15 @@ function NewPatient() {
                       />
                     </div>
                     <div>
-                      <label htmlFor="newpatient-referral-source" className={labelClass + ' required'}>Referral Source</label>
-                      <select id="newpatient-referral-source" className={selectClass} value={formData.referral_source} onChange={(event) => {
-                        if (event.target.value === 'Self') selectReferral('Self')
-                        else setFormData((current) => ({ ...current, referral_source: event.target.value, family_doctor: '', referral_doctor: '', referral_institute: '' }))
-                      }} required aria-required="true">
-                        <option value="">Select source</option><option value="Self">Self</option><option value="Referral centre / institute">Referral centre / institute</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label htmlFor="newpatient-family_doctor" className={labelClass}>Referral Doctor / Institute</label>
+                      <label htmlFor="newpatient-family_doctor" className={labelClass + ' required'}>Referral Doctor / Institute</label>
                       <div className="flex gap-2">
                         <select
                           id="newpatient-family_doctor"
                           className={selectClass}
                           value={formData.family_doctor}
                           onChange={(e) => selectReferral(e.target.value)}
-                          disabled={formData.referral_source === 'Self'}
                         >
                           <option value="">Select doctor or institute</option>
-                          {formData.referral_source === 'Self' && <option value="Self">Self</option>}
                           {referralOptions.map((option) => (
                             <option key={option.value} value={option.value}>{option.label}</option>
                           ))}
@@ -402,17 +391,12 @@ function NewPatient() {
                         <button
                           type="button"
                           onClick={() => setIsReferralModalOpen(true)}
-                          disabled={formData.referral_source === 'Self'}
                           className="flex items-center gap-1 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg transition text-xs font-semibold whitespace-nowrap"
                         >
                           <Plus className="h-3.5 w-3.5" />
                           Add Doctor
                         </button>
                       </div>
-                    </div>
-                    <div>
-                      <label htmlFor="newpatient-referral-institute" className={labelClass}>Referral Doctor's Institute</label>
-                      <input id="newpatient-referral-institute" type="text" className={inputClass} value={formData.referral_institute} onChange={(event) => setFormData({ ...formData, referral_institute: event.target.value })} disabled={formData.referral_source === 'Self'} />
                     </div>
                     <div>
                       <label className={labelClass}>Audit done</label>

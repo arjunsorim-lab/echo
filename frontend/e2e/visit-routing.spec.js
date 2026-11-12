@@ -16,7 +16,8 @@ test('saving a new visit opens its selected report and retains visit-specific re
     await page.getByLabel('Visit date and time *').fill('2026-11-12T10:00')
     await typeInput.selectOption(type)
     await expect(page.getByLabel('Report template *')).not.toHaveValue('')
-    await page.getByLabel('Referral Doctor / Institute').fill(`Dummy ${type} referral`)
+    await page.getByRole('button', { name: /Select doctor or institute|Self/ }).last().click()
+    await page.getByRole('button', { name: 'Self', exact: true }).last().click()
     await page.getByRole('button', { name: 'Save & Go to Reporting' }).click()
     await expect(page).toHaveURL(new RegExp(`/${route}\\?`))
     const visitId = new URL(page.url()).searchParams.get('visitId')
@@ -24,7 +25,7 @@ test('saving a new visit opens its selected report and retains visit-specific re
     const response = await page.request.get(`/api/patients/${info.patient_id}/visits`)
     expect(response.ok()).toBeTruthy()
     const visits = (await response.json()).data
-    expect(visits.find(visit => String(visit.id) === visitId)?.referral_doctor).toBe(`Dummy ${type} referral`)
+    expect(visits.find(visit => String(visit.id) === visitId)?.referral_doctor).toBe('Self')
     if (type === 'Ultrasound') await expect(page.getByText('Visit recorded.', { exact: false })).toBeVisible()
     else {
       await page.getByRole('button', { name: 'Save report', exact: true }).last().click()

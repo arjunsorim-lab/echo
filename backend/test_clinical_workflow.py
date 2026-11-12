@@ -136,6 +136,24 @@ class WorkflowTests(unittest.TestCase):
         no_referral = {**patient,'patient_id':'TEST-NO-REFERRAL','referral_institute':''}
         self.assertEqual(self.call('POST','/api/patients',no_referral,self.l3)[0],422)
 
+    def test_minimum_registration_history_and_ultrasound_count(self):
+        call = self.call
+        token = self.roles['L1']
+        patient = {'patient_id':'TEST-MINIMUM-REG', 'first_name':'Dummy', 'last_name':'Person', 'age':'30', 'gender':'F', 'street':'Synthetic', 'state':'Tamil Nadu', 'country':'India', 'phone2':'1234567890', 'referral_source':'Referral centre / institute', 'referral_institute':'Dummy centre'}
+        code, result = call('POST', '/api/patients', patient, token)
+        self.assertEqual(code, 200, result)
+        pid = result['data']['id']
+        self.assertEqual(call('POST', '/api/patients', patient, token)[0], 400)
+        self.assertEqual(call('PUT', f'/api/patients/{pid}', {'phone2':'0987654321', 'street':'Updated synthetic'}, token)[0], 200)
+        history = call('GET', f'/api/patients/{pid}/contact-history', token=token)[1]['data']
+        self.assertEqual(history[0]['changes']['phone2']['to'], '0987654321')
+        before = call('GET', '/api/dashboard/stats', token=token)[1]['data']['ultrasound']
+        code, visit = call('POST', f'/api/patients/{pid}/visits', {'visit_date':'2026-11-09T12:00', 'scan_type':'Ultrasound'}, token)
+        self.assertEqual(code, 200, visit)
+        self.assertEqual(call('GET', '/api/dashboard/stats', token=token)[1]['data']['ultrasound'], before + 1)
+        scans = call('GET', f'/api/scans/patient/{pid}', token=token)[1]['data']
+        self.assertTrue(any(scan['visit_id'] == visit['data']['id'] and scan['scan_type'] == 'Ultrasound' for scan in scans))
+
     def test_complete_workflow(self):
         call=self.call;l1=self.roles['L1'];l2=self.roles['L2'];l3=self.roles['L3']
         self.assertEqual(call('GET','/api/patients')[0],401)

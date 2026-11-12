@@ -19,7 +19,7 @@ test('new patient and fetal visit flow preserves report through audit and comple
   await page.locator('#newpatient-state').selectOption('Tamil Nadu')
   await page.locator('#newpatient-district_city').selectOption('Chennai')
   await page.locator('#newpatient-phone1').fill('1234567890')
-  await page.locator('#newpatient-referral-source').selectOption('Self')
+  await page.locator('#newpatient-family_doctor').selectOption('Self')
   await page.getByRole('button', { name: 'Save Patient' }).click()
   await page.waitForURL('**/visits?patient=*')
   const patientId = new URL(page.url()).searchParams.get('patient')

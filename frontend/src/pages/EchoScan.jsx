@@ -13,7 +13,7 @@ export default function EchoScan() {
  if(error)return <p role="alert">{error}</p>
  if(loading)return <p>Loading study…</p>
  const type=scan?.scan_type || params.get('type');const patient=scan?.patient_id || params.get('patient') || params.get('patientId');const visit=scan?.visit_id || params.get('visit') || params.get('visitId')
- if(type === 'Ultrasound')return <div><h2>Ultrasound</h2><p>Visit recorded. The detailed clinical report template awaits confirmation.</p><a href={'/visits?patient='+encodeURIComponent(patient || '')}>Return to patient visits</a></div>
+ if(type === 'Ultrasound')return <div><h2>Ultrasound</h2><label className="field-label">Report title<input className="field-control" readOnly value="Ultrasound" /></label><p>Visit recorded. The detailed clinical report template awaits confirmation.</p><a href={'/visits?patient='+encodeURIComponent(patient || '')}>Return to patient visits</a></div>
  if(!type||!routes[type])return <Navigate to={patient ? '/visits?patient='+patient : '/visits'} replace />
  return <Navigate to={'/'+routes[type]+(scan?.id?'/'+scan.id:'')+'?patientId='+encodeURIComponent(patient||'')+'&visitId='+encodeURIComponent(visit||'')} replace />
 }

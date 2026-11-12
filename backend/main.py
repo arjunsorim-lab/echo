@@ -10,7 +10,7 @@ from datetime import datetime, date
 import os
 import shutil
 import secrets
-from clinical_workflow import install as install_workflow, validate_patient, prepare_scan, require_role, contact_payload, serialize_contact
+from clinical_workflow import install as install_workflow, validate_patient, prepare_scan, require_role, contact_payload, serialize_contact, actor
 
 app = FastAPI(title="Echo AI Backend", version="1.0.0")
 
@@ -101,6 +101,8 @@ def init_db():
     except Exception:
         pass
     c = conn.cursor()
+
+    c.execute('''CREATE TABLE IF NOT EXISTS patient_contact_history (id INTEGER PRIMARY KEY AUTOINCREMENT, patient_id INTEGER NOT NULL, changed_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, changed_by TEXT NOT NULL, changes TEXT NOT NULL, FOREIGN KEY(patient_id) REFERENCES patients(id))''')
 
     # 1. Patients table
     c.execute('''
@@ -619,10 +621,7 @@ def create_patient(data: dict):
     conn = get_db()
     cursor = conn.cursor()
 
-    patient_id = data.get('patient_id')
-    if not patient_id:
-        count = conn.execute('SELECT COUNT(*) FROM patients').fetchone()[0]
-        patient_id = f"PAT{str(count + 1).zfill(6)}"
+    patient_id = data['patient_id'].strip()
 
     salutation = data.get('salutation', '')
     first_name = data.get('first_name', '')
@@ -704,6 +703,14 @@ def create_patient(data: dict):
         conn.close()
         raise HTTPException(status_code=400, detail="Patient ID already exists")
 
+@app.get('/api/patients/{patient_id}/contact-history')
+def get_patient_contact_history(patient_id: int):
+    with get_db() as conn:
+        if not conn.execute('SELECT 1 FROM patients WHERE id = ?', (patient_id,)).fetchone():
+            raise HTTPException(404, 'Patient not found')
+        rows = conn.execute('SELECT changed_at, changed_by, changes FROM patient_contact_history WHERE patient_id = ? ORDER BY id DESC', (patient_id,)).fetchall()
+        return {'success': True, 'data': [{**dict(row), 'changes': json.loads(row['changes'])} for row in rows]}
+
 @app.put('/api/patients/{patient_id}')
 def update_patient(patient_id: int, data: dict):
     conn = get_db()
@@ -757,8 +764,12 @@ def update_patient(patient_id: int, data: dict):
             conn.close()
             raise HTTPException(status_code=404, detail="Patient not found")
 
-        conn.commit()
+        fields = ('street', 'area', 'area_po', 'taluk', 'district_city', 'state', 'zip_code', 'country', 'phone1', 'phone2', 'mobile', 'email', 'fax', 'family_doctor', 'referral_doctor', 'referral_institute', 'referral_source')
         updated = conn.execute('SELECT * FROM patients WHERE id = ?', (patient_id,)).fetchone()
+        changes = {field: {'from': current[field], 'to': updated[field]} for field in fields if (current[field] or '') != (updated[field] or '')}
+        if changes:
+            conn.execute('INSERT INTO patient_contact_history (patient_id, changed_by, changes) VALUES (?, ?, ?)', (patient_id, (actor.get() or {}).get('username', 'unknown'), json.dumps(changes)))
+        conn.commit()
         conn.close()
         return {"success": True, "data": _map_patient_row(updated)}
     except sqlite3.IntegrityError:
@@ -846,6 +857,8 @@ def add_visit(patient_id: int, data: dict):
     ''', (patient_id, visit_date, visit_type, doctor_id, diagnosis, notes, referral_doctor, image_count, avi, pregnancy, ob, report_template_id))
 
     visit_id = cursor.lastrowid
+    if scan_type == 'Ultrasound':
+        conn.execute('INSERT INTO scans (patient_id, patient_display_id, visit_id, scan_type, scan_date, status) VALUES (?, ?, ?, ?, ?, ?)', (patient_id, patient['patient_id'], visit_id, scan_type, visit_date, 'draft'))
     if request_id:
         conn.execute('UPDATE visits SET request_id = ? WHERE id = ?', (request_id, visit_id))
     conn.commit()

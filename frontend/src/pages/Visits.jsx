@@ -18,6 +18,7 @@ import { QRCodeSVG } from 'qrcode.react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
+import { referralDoctorService } from '../api/referralDoctorService'
 import { workspaceService } from '../api/workspaceService'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
 import SearchableSelect from '../components/SearchableSelect'
@@ -38,6 +39,9 @@ export default function Visits() {
   const [status, setStatus] = useState('')
   const [templates, setTemplates] = useState([])
   const [referralOpen, setReferralOpen] = useState(false)
+  const [referralDoctors, setReferralDoctors] = useState([])
+  const loadReferralDoctors = useCallback(() => referralDoctorService.getReferralDoctors().then(result => setReferralDoctors(result.data || [])).catch(() => setReferralDoctors([])), [])
+  useEffect(() => { loadReferralDoctors() }, [loadReferralDoctors])
   const [visitData, setVisitData] = useState({
     visit_date: '',
     scan_type: '',
@@ -45,6 +49,10 @@ export default function Visits() {
     report_template_id: '',
     notes: '',
   })
+  const referralOptions = useMemo(() => {
+    const names = ['Self', ...referralDoctors.map(d => d.doctor_type === 'hospital' ? (d.institution_name || d.hospital_name || '') : `${d.first_name || ''} ${d.last_name || ''}`.trim()), visitData.referral_doctor].filter(Boolean)
+    return [...new Set(names)].map(name => ({ value: name, label: name }))
+  }, [referralDoctors, visitData.referral_doctor])
 
   // Map visit count for every patient across the entire system
   const visitCountsByPatient = useMemo(() => {
@@ -208,6 +216,7 @@ export default function Visits() {
       if (visitType.includes('fetal') || visitType.includes('routine fetal scan')) types.add('Fetal Echo')
       if (visitType.includes('pediatric')) types.add('Pediatric Echo')
       if (visitType.includes('adult')) types.add('Adult Echo')
+      if (visitType.includes('ultrasound')) types.add('Ultrasound')
 
       const text = `${visit.notes || ''} ${visit.diagnosis || ''} ${visit.ob || ''}`.toLowerCase()
       if (text.includes('adult echo') || text.includes('adult')) types.add('Adult Echo')
@@ -385,7 +394,7 @@ export default function Visits() {
             <PatientField label="Mobile" value={patient?.mobile} />
             <PatientField label="Fax" value={patient?.fax} />
             <PatientField label="Email" value={patient?.email} wide />
-            <PatientField label="Family doctor" value={patient?.family_doctor} wide />
+            <PatientField label="Referral Doctor / Institute" value={patient?.family_doctor} wide />
           </div>
           <div className="flex min-h-40 flex-col items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
             {patient ? (
@@ -533,7 +542,7 @@ export default function Visits() {
                 ))}
               </select>
             </label>
-            <label className="field-label"><span>Referral Doctor / Institute</span><input disabled={!patient || saving} className="field-control disabled:bg-slate-100" value={visitData.referral_doctor} onChange={event => setVisitData({ ...visitData, referral_doctor: event.target.value })} /></label>
+            <div className="field-label"><span>Referral Doctor / Institute</span><SearchableSelect options={referralOptions} value={visitData.referral_doctor} onChange={value => setVisitData(current => ({ ...current, referral_doctor: value }))} disabled={!patient || saving} placeholder="Select doctor or institute" /></div>
             <label className="field-label">
               <span>Visit notes</span>
               <input
@@ -676,7 +685,7 @@ export default function Visits() {
           </div>
 
           <div className="space-y-2">
-            {['Adult Echo', 'Fetal Echo', 'Pediatric Echo'].map((type) => {
+            {['Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'].map((type) => {
               const matchingScans = scans.filter((scan) => scan.scan_type === type)
               const matchingVisits = visits.filter((v) => getVisitScanTypes(v).includes(type))
               const count = Math.max(matchingScans.length, matchingVisits.length)
@@ -748,7 +757,7 @@ export default function Visits() {
       <ReferralDoctorModal
         open={referralOpen}
         onClose={() => setReferralOpen(false)}
-        onSaved={() => {}}
+        onSaved={loadReferralDoctors}
         onSelect={(record) =>
           setVisitData({
             ...visitData,

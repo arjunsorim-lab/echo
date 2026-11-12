@@ -209,8 +209,6 @@ def serialize_contact(row):
 
 def validate_patient(data):
     required = ('patient_id', 'first_name', 'last_name', 'gender', 'state', 'country')
-    if 'referral_source' in data:
-        required += ('salutation', 'district_city', 'zip_code')
     missing = [k.replace('_', ' ') for k in required if not str(data.get(k) or '').strip()]
     if not data.get('dob') and data.get('age') in (None, ''):
         missing.append('DOB or age')
