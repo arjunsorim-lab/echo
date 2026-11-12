@@ -18,13 +18,6 @@ app = FastAPI(title="Echo AI Backend", version="1.0.0")
 origins = [v.strip() for v in os.environ.get('ALLOWED_ORIGINS', os.environ.get('ECHOAI_ALLOWED_ORIGINS', 'http://127.0.0.1:3000,http://localhost:3000')).split(',') if v.strip()]
 if '*' in origins:
     raise RuntimeError('Wildcard CORS origins are not allowed with credentials.')
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type"],
-)
 
 # Use the bundled database locally and a persistent-disk path on Render.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -1661,6 +1654,16 @@ async def security_headers(request, call_next):
     if request.url.path.startswith(('/api/', '/uploads/')):
         response.headers['Cache-Control'] = 'no-store'
     return response
+
+# Install CORS after the route protection middleware so its headers are also
+# attached to authentication failures returned directly by that middleware.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
+)
 
 app.mount('/uploads', StaticFiles(directory=UPLOADS_DIR, check_dir=False), name='uploads')
 

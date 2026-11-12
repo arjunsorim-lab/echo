@@ -583,14 +583,26 @@ export default function Visits() {
                     <tr
                       key={visit.id || index}
                       onClick={() => {
-                        const targetType = activeScanFilter || visitTypes[0] || 'Adult Echo'
-                        navigate(
-                          `/echo-studies?patient=${selectedPatient}&visit=${visit.id || ''}&type=${encodeURIComponent(
-                            targetType
-                          )}`
+                        const visitScan = scans.find((scan) =>
+                          String(scan.visit_id) === String(visit.id) &&
+                          (!activeScanFilter || scan.scan_type === activeScanFilter)
                         )
+                        const targetType = activeScanFilter || visitScan?.scan_type || visitTypes[0] || 'Adult Echo'
+                        const reportPath = {
+                          'Adult Echo': 'adult-echo-report',
+                          'Fetal Echo': 'fetal-echo-report',
+                          'Pediatric Echo': 'pediatric-echo-report',
+                        }[targetType]
+
+                        if (reportPath) {
+                          const query = new URLSearchParams({ patientId: String(selectedPatient), visitId: String(visit.id || '') })
+                          navigate(`/${reportPath}${visitScan?.id ? `/${visitScan.id}` : ''}?${query}`)
+                          return
+                        }
+
+                        navigate(`/echo-studies?patient=${selectedPatient}&visit=${visit.id || ''}&type=${encodeURIComponent(targetType)}`)
                       }}
-                      title="Click to view study and report"
+                      title="Click to open this visit's report"
                       className="cursor-pointer transition hover:bg-teal-50/60"
                     >
                       <td>{index + 1}</td>

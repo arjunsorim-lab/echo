@@ -10,12 +10,6 @@ export function useDerivedDefinitions() {
   useEffect(()=>{api.get('/workflow/calculations').then(r=>setDefinitions(r.data.data || [])).catch(()=>setDefinitions([]))},[])
   return definitions
 }
-export function DerivedStatus({ report }) {
-  const states=Object.entries(report._derived_status || {})
-  if(!states.length)return null
-  return <details className="no-print rounded-lg border bg-slate-50 p-3"><summary className="cursor-pointer">Calculated measurement status — Pending Clinical Validation ({states.length} fields)</summary><p className="my-2 text-sm">Calculated fields are read-only until their formulas and source inputs are clinically validated.</p><div className="max-h-40 overflow-auto">{states.map(([path,state])=><p className="text-sm" key={path}>{path.replaceAll('_',' ')}: {state.status}</p>)}</div></details>
-}
-
 export function currentUser() {
   try { return JSON.parse(sessionStorage.getItem('echoai_user') || localStorage.getItem('echoai_user') || '{}') } catch { return {} }
 }
@@ -47,21 +41,6 @@ export function ClinicalFooter({ onSave, saving, locked, message, patientId, onB
     {patientId && <a className="secondary-button" href={`/visits?patient=${encodeURIComponent(patientId)}`}>Patient visit history</a>}
     <span role="status" aria-live="polite">{message || 'Save your changes before moving to another section.'}</span>
   </div>
-}
-export function FindingNotes({ report, updateReport }) {
-  const fields = []
-  const walk = (node, path = ['echo_details']) => {
-    for (const [key, value] of Object.entries(node || {})) {
-      if (value && typeof value === 'object') walk(value, [...path, key])
-      else if (typeof value === 'string' && !key.includes('comment')) fields.push({path:[...path,key],value})
-    }
-  }
-  walk(report.echo_details)
-  return <details className="no-print my-3 rounded-lg border bg-white p-3"><summary className="cursor-pointer font-semibold">Comments for individual findings</summary><div className="mt-3 grid gap-3 md:grid-cols-2">{fields.map(({path,value})=>{
-    const key=path.at(-1), parent=path.slice(0,-1).reduce((n,k)=>n?.[k],report)
-    const abnormal=value.trim().toLowerCase()==='abnormal'
-    return <label className="field-label" key={path.join('.')}><span>{path.slice(1).map(label).join(' / ')}{abnormal?' — description required':''}</span><textarea className="field-control" rows={2} value={parent?.[key+'_comments'] || ''} onChange={e=>updateReport([...path.slice(0,-1),key+'_comments'],e.target.value)}/></label>
-  })}</div></details>
 }
 export function useSavedNavigation(report) {
   const [saved, setSaved] = useState(JSON.stringify(report))

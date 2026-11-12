@@ -1,6 +1,6 @@
 import { blankReport, mergeReport, reportSaveError } from '../reportValidation'
 import { isDerivedPath, recalculateDerived, initializeDerived } from '../derivedMeasurements'
-import { currentUser, useCompletionConfirmation, DerivedStatus, useDerivedDefinitions, ApprovalControls, FindingNotes, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
+import { currentUser, useCompletionConfirmation, useDerivedDefinitions, ApprovalControls, ClinicalFooter, ClinicalPreview, reportErrors, useSavedNavigation } from '../components/ClinicalWorkflow'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
@@ -815,8 +815,6 @@ function FetalEchoReport() {
         report={report}
         scanId={savedScanId || scanId}
       />
-      <DerivedStatus report={report} />
-      <FindingNotes report={report} updateReport={updateReport} />
       <ClinicalFooter onSave={handleSave} saving={isSaving} locked={locked} message={locked ? 'Completed report — read-only.' : statusMessage} patientId={selectedPatientId} onBack={()=>navigateSection(()=>changeStep(step-1),setStatusMessage)} onNext={step<scanTabs.length ? saveAndNext : undefined} />
     </div>
     {isReportPreviewOpen && (
