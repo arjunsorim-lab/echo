@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Any, Dict
@@ -1744,7 +1744,7 @@ def delete_resource(resource: str, item_id: int):
 
 # Media Upload Endpoint
 def _media_layout_context(patient_id, visit_id, kind, mutable=False):
-    if kind not in ('compare', 'rule-2', 'rule-3', 'rule-4'):
+    if kind not in ('compare', 'rule-2', 'rule-3', 'rule-4', 'report'):
         raise HTTPException(422, 'Unknown image layout.')
     conn = get_db()
     if not conn.execute('SELECT 1 FROM visits WHERE id = ? AND patient_id = ?', (visit_id, patient_id)).fetchone():
@@ -1847,6 +1847,33 @@ async def upload_media(file: UploadFile = File(...), patient_id: Optional[int] =
     finally:
         conn.close()
         await file.close()
+
+@app.post('/api/media-export/{patient_id}/{visit_id}')
+def export_media(patient_id: int, visit_id: int, data: dict):
+    import io
+    import zipfile
+    ids = data.get('ids')
+    if not isinstance(ids, list) or not 1 <= len(ids) <= 16 or any(type(i) is not int for i in ids) or len(set(ids)) != len(ids):
+        raise HTTPException(422, 'Select between 1 and 16 distinct media records.')
+    with get_db() as conn:
+        if not conn.execute('SELECT 1 FROM visits WHERE id=? AND patient_id=?',(visit_id,patient_id)).fetchone():
+            raise HTTPException(404, 'Patient visit not found.')
+        records=[]
+        total=0
+        for media_id in ids:
+            row=conn.execute("SELECT * FROM media_records WHERE id=? AND patient_id=? AND visit_id=? AND status != 'Archived'",(media_id,patient_id,visit_id)).fetchone()
+            if not row: raise HTTPException(422, 'Selected media must belong to this patient visit.')
+            path=os.path.realpath(os.path.join(UPLOADS_DIR,os.path.basename(row['url'] or '')))
+            if not path.startswith(os.path.realpath(UPLOADS_DIR)+os.sep) or not os.path.isfile(path):
+                raise HTTPException(409, 'A selected file is unavailable. Refresh before exporting.')
+            total+=os.path.getsize(path)
+            if total>50*1024*1024: raise HTTPException(413, 'Export exceeds 50 MB. Select fewer files.')
+            records.append((dict(row),path))
+        output=io.BytesIO()
+        with zipfile.ZipFile(output,'w',zipfile.ZIP_DEFLATED) as archive:
+            for row,path in records:
+                archive.write(path,f"{row['id']}-{os.path.basename(row['name'] or 'image')}")
+        return Response(output.getvalue(),media_type='application/zip',headers={'Content-Disposition':f'attachment; filename="visit-{visit_id}-images.zip"'})
 
 @app.middleware('http')
 async def security_headers(request, call_next):

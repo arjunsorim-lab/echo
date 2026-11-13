@@ -1,3 +1,4 @@
+import ReportImages from './ReportImages'
 import { useEffect, useRef, useState } from 'react'
 import api from '../api/axios'
 import { useBlocker } from 'react-router-dom'
@@ -97,6 +98,7 @@ function Values({ node }) {
     : <div key={k} className="flex items-start gap-3 border-b border-slate-100 py-1"><span className="w-1/2 shrink-0">{label(k)}</span><span className="min-w-0 flex-1 whitespace-pre-wrap">{v === true ? 'Yes' : String(v)}</span></div>)
 }
 export function ClinicalPreview({ report, patient, visitId, title, onClose, status='Draft / In Progress', visit: suppliedVisit }) {
+  const [mediaReady,setMediaReady]=useState(false)
   const [context, setContext] = useState({visit:null,error:'',loading:Boolean(visitId && !suppliedVisit)})
   useEffect(() => {
     let active=true
@@ -111,7 +113,7 @@ export function ClinicalPreview({ report, patient, visitId, title, onClose, stat
   }, [patient?.id, visitId, suppliedVisit])
   const visit=suppliedVisit || context.visit
   const content = <div className="fixed inset-0 z-50 overflow-auto bg-slate-800/90 p-4 clinical-preview">
-    <div className="no-print mx-auto mb-3 flex max-w-4xl flex-wrap gap-3"><button disabled={context.loading || Boolean(context.error) || !patient} className="primary-button" onClick={() => window.print()}>Print / Save PDF</button><button className="secondary-button" onClick={onClose}>Close preview</button>{context.loading && <span className="text-white">Loading visit details…</span>}{context.error && <p role="alert" className="bg-white p-2 text-red-700">{context.error}</p>}</div>
+    <div className="no-print mx-auto mb-3 flex max-w-4xl flex-wrap gap-3"><button disabled={context.loading || Boolean(context.error) || !patient || !mediaReady} className="primary-button" onClick={() => window.print()}>Print / Save PDF</button><button className="secondary-button" onClick={onClose}>Close preview</button>{context.loading && <span className="text-white">Loading visit details…</span>}{context.error && <p role="alert" className="bg-white p-2 text-red-700">{context.error}</p>}</div>
     <article className="clinical-print mx-auto max-w-4xl bg-white p-10 text-slate-900">
       <header className="clinical-print-header mb-5 border-b pb-4"><h2 className="text-xl font-semibold">{[patient?.salutation, patient?.first_name, patient?.last_name].filter(Boolean).join(' ')}</h2><p>Patient ID: {patient?.patient_id || '—'} · DOB: {patient?.dob || '—'} · Age: {patient?.age ?? '—'} {patient?.age_unit || 'Years'} · Gender: {patient?.gender || '—'}</p><p>Address: {[patient?.street || patient?.address, patient?.area, patient?.district_city || patient?.city, patient?.state, patient?.country, patient?.zip_code || patient?.pincode].filter(Boolean).join(', ') || '—'}</p><p>Phone: {[patient?.mobile, patient?.phone1, patient?.phone2].filter(Boolean).join(' / ') || '—'} · Email: {patient?.email || '—'}</p><p>Visit: {visitId || '—'}{visit?.visit_date ? ` · Date: ${visit.visit_date}` : ''} · Referred by: {(visitId ? visit?.referral_doctor : patient?.referral_doctor || patient?.referral_institute || patient?.family_doctor) || '—'}</p><p>Report status: {status}</p></header>
       <h1 className="mb-3 text-center text-2xl font-bold">{title}</h1><p className="mb-5"><strong>Indication: </strong>{report.indication || '—'}</p>
@@ -124,6 +126,7 @@ export function ClinicalPreview({ report, patient, visitId, title, onClose, stat
       {report.impression?.footer_comments && <p className="whitespace-pre-wrap">{report.impression.footer_comments}</p>}
       {report.impression?.disclaimer_comments && <section className="mt-5 whitespace-pre-wrap"><h2 className="font-bold">Disclaimer</h2><p>{report.impression.disclaimer_comments}</p></section>}
       <footer className="mt-8 flex flex-wrap justify-between gap-6"><div>{report.impression?.primary_consultant && <><p className="text-sm">Primary consultant</p><p>{report.impression.primary_consultant}</p></>}</div>{report.impression?.second_consultant && <div><p className="text-sm">Secondary consultant</p><p>{report.impression.second_consultant}</p></div>}</footer>
+      <ReportImages patientId={patient?.id} visitId={visitId} onReady={setMediaReady}/>
     </article>
   </div>
   // Print content must not inherit an editor's no-print/overflow container.
