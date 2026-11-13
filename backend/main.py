@@ -12,6 +12,7 @@ import shutil
 import io
 import uuid
 import secrets
+import re
 from urllib.parse import quote
 from email.parser import BytesParser
 from email.policy import default as email_policy
@@ -590,6 +591,18 @@ def get_patients():
     conn.close()
     return {"success": True, "data": result}
 
+@app.get('/api/patient-id-availability')
+def check_patient_id_availability(patient_id: str):
+    patient_id = patient_id.strip()
+    if not patient_id:
+        raise HTTPException(status_code=400, detail="Patient ID is required")
+    conn = get_db()
+    try:
+        exists = conn.execute('SELECT 1 FROM patients WHERE patient_id = ?', (patient_id,)).fetchone() is not None
+        return {"available": not exists}
+    finally:
+        conn.close()
+
 @app.get('/api/patients/{patient_id}')
 def get_patient(patient_id: str):
     conn = get_db()
@@ -602,37 +615,44 @@ def get_patient(patient_id: str):
         raise HTTPException(status_code=404, detail="Patient not found")
     return {"success": True, "data": _map_patient_row(patient)}
 
-@app.post('/api/patients')
-def create_patient(data: dict):
-    conn = get_db()
+def _create_patient(data: dict, conn=None):
+    own_connection = conn is None
+    conn = conn or get_db()
     cursor = conn.cursor()
     
     patient_id = str(data.get('patient_id') or '').strip()
     if not patient_id:
-        conn.close()
+        if own_connection: conn.close()
         raise HTTPException(status_code=400, detail="Patient ID is required")
+    for field, label in [('first_name', 'First name'), ('mobile', 'Mobile number'), ('email', 'Email')]:
+        if not str(data.get(field) or '').strip():
+            if own_connection: conn.close()
+            raise HTTPException(status_code=400, detail=f"{label} is required")
+    if not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", str(data['email']).strip()):
+        if own_connection: conn.close()
+        raise HTTPException(status_code=400, detail="Enter a valid email address")
     duplicate = conn.execute('SELECT 1 FROM patients WHERE patient_id = ?', (patient_id,)).fetchone()
     if duplicate:
-        conn.close()
+        if own_connection: conn.close()
         raise HTTPException(status_code=400, detail="Patient ID already exists")
-    if not data.get('dob') and str(data.get('age') if data.get('age') is not None else '').strip() == '':
-        conn.close()
-        raise HTTPException(status_code=400, detail="Enter a date of birth or age")
+    if not data.get('dob'):
+        if own_connection: conn.close()
+        raise HTTPException(status_code=400, detail="Date of birth is required")
     if data.get('dob'):
         try:
             dob_date = datetime.strptime(str(data['dob']), '%Y-%m-%d').date()
         except ValueError:
-            conn.close()
+            if own_connection: conn.close()
             raise HTTPException(status_code=400, detail="Enter a valid date of birth")
         if dob_date > date.today():
-            conn.close()
+            if own_connection: conn.close()
             raise HTTPException(status_code=400, detail="Date of birth cannot be in the future")
     if data.get('age') not in (None, ''):
         try:
             if float(data['age']) < 0:
                 raise ValueError
         except (TypeError, ValueError):
-            conn.close()
+            if own_connection: conn.close()
             raise HTTPException(status_code=400, detail="Age must be a non-negative number")
     
     salutation = data.get('salutation', '')
@@ -694,14 +714,57 @@ def create_patient(data: dict):
         ))
         
         new_id = cursor.lastrowid
-        conn.commit()
+        if own_connection: conn.commit()
         
         inserted = conn.execute('SELECT * FROM patients WHERE id = ?', (new_id,)).fetchone()
-        conn.close()
+        if own_connection: conn.close()
         return {"success": True, "data": _map_patient_row(inserted)}
-    except sqlite3.IntegrityError as e:
-        conn.close()
+    except sqlite3.IntegrityError:
+        if own_connection: conn.close()
         raise HTTPException(status_code=400, detail="Patient ID already exists")
+
+@app.post('/api/patients')
+def create_patient(data: dict):
+    return _create_patient(data)
+
+@app.post('/api/patient-registration')
+def create_patient_registration(data: dict):
+    request_id = str(data.get('request_id') or '').strip()
+    visits = data.get('visits', [])
+    if not request_id or not isinstance(visits, list):
+        raise HTTPException(status_code=400, detail="Invalid registration request")
+    conn = get_db()
+    try:
+        conn.execute('BEGIN IMMEDIATE')
+        conn.execute('CREATE TABLE IF NOT EXISTS patient_registration_requests (request_id TEXT PRIMARY KEY, response TEXT NOT NULL)')
+        existing = conn.execute('SELECT response FROM patient_registration_requests WHERE request_id = ?', (request_id,)).fetchone()
+        if existing:
+            conn.commit()
+            return json.loads(existing['response'])
+        patient = _create_patient(data.get('patient') or {}, conn)['data']
+        created_visits = []
+        for visit in visits:
+            if not isinstance(visit, dict) or not visit.get('visit_date'):
+                raise HTTPException(status_code=400, detail="Each visit must have a date")
+            scan_type = visit.get('scan_type') or ''
+            if scan_type and scan_type not in ('Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'):
+                raise HTTPException(status_code=400, detail="Invalid scan type")
+            cursor = conn.execute('INSERT INTO visits (patient_id, visit_date, visit_type, report_template_id, notes, referral_doctor) VALUES (?, ?, ?, ?, ?, ?)',
+                (patient['id'], visit['visit_date'], visit.get('visit_type') or 'Consultation', visit.get('report_template_id') or None, visit.get('notes') or '', visit.get('referral_doctor') or ''))
+            visit_id = cursor.lastrowid
+            created_visits.append(dict(conn.execute('SELECT * FROM visits WHERE id = ?', (visit_id,)).fetchone()))
+            if scan_type:
+                conn.execute('INSERT INTO scans (patient_id, patient_display_id, visit_id, scan_type, scan_date, findings, conclusion, status, abnormal, ambiguity, growthAbnormality, normal, normalVariant) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                    (patient['id'], patient['patient_id'], visit_id, scan_type, datetime.now().isoformat(), '', '', 'draft', 0, 0, 0, 1, 0))
+        response = {'success': True, 'data': patient, 'visits': created_visits}
+        conn.execute('INSERT INTO patient_registration_requests (request_id, response) VALUES (?, ?)', (request_id, json.dumps(response)))
+        conn.commit()
+        return response
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 @app.put('/api/patients/{patient_id}')
 def update_patient(patient_id: int, data: dict):
@@ -716,9 +779,6 @@ def update_patient(patient_id: int, data: dict):
     if duplicate:
         conn.close()
         raise HTTPException(status_code=400, detail="Patient ID already exists")
-    if not data.get('dob') and str(data.get('age') if data.get('age') is not None else '').strip() == '':
-        conn.close()
-        raise HTTPException(status_code=400, detail="Enter a date of birth or age")
     if data.get('dob'):
         try:
             dob_date = datetime.strptime(str(data['dob']), '%Y-%m-%d').date()

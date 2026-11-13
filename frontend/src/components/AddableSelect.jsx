@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Check, Plus, X } from 'lucide-react'
 import { customOptionService } from '../api/customOptionService'
 
-export default function AddableSelect({ field, value, onChange, options = [], className = 'field-control', disabled = false }) {
+export default function AddableSelect({ field, value, onChange, options = [], className = 'field-control', disabled = false, skipAddOnTab = false }) {
   const [customOptions, setCustomOptions] = useState([])
   const [isAdding, setIsAdding] = useState(false)
   const [newValue, setNewValue] = useState('')
@@ -50,6 +50,7 @@ export default function AddableSelect({ field, value, onChange, options = [], cl
         </select>
         <button
           type="button"
+          tabIndex={skipAddOnTab ? -1 : undefined}
           disabled={disabled}
           title={`Add ${field.replaceAll('_', ' ')}`}
           onClick={() => { setIsAdding(!isAdding); setError('') }}

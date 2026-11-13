@@ -30,8 +30,19 @@ export const patientService = {
     return response.data;
   },
 
+  checkPatientId: async (patientId) => {
+    const response = await api.get('/patient-id-availability', { params: { patient_id: patientId } });
+    return response.data;
+  },
+
   createPatient: async (patientData) => {
     const response = await api.post('/patients', patientData);
+    invalidatePatients();
+    return response.data;
+  },
+
+  createRegistration: async (data) => {
+    const response = await api.post('/patient-registration', data);
     invalidatePatients();
     return response.data;
   },

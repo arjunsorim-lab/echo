@@ -78,20 +78,43 @@ export default function ClinicalWorkspace({ initialType = 'Adult Echo' }) {
   }, [patientId])
 
   useEffect(() => {
+    let active = true
     setSaved(false)
-    workspaceService.getReports({ patient_id: patientId || undefined, visit_id: visitId || undefined })
-      .then((result) => {
+    const loadReport = async () => {
+      try {
+        const result = await workspaceService.getReports({ patient_id: patientId || undefined, visit_id: visitId || undefined })
         const match = (result.data || []).find((report) => report.scan_type === scanType)
+        if (!active) return
         if (match) {
           const reportData = match.data || (typeof match.findings === 'string' ? JSON.parse(match.findings || '{}') : match.findings) || {}
+          const loadedData = {...emptyData(), ...reportData, investigationStatus:match.status || reportData.investigationStatus || 'Draft'}
           setReportId(match.id)
-          workspaceService.getReportHistory(match.id).then((historyResult) => setHistory(historyResult.data || [])).catch(() => setHistory([]))
+          workspaceService.getReportHistory(match.id).then((result) => { if (active) setHistory(result.data || []) }).catch(() => { if (active) setHistory([]) })
           setReportLocked((match.status || reportData.investigationStatus || '').toLowerCase() === 'completed')
-          setData({...emptyData(), ...reportData, investigationStatus:match.status || reportData.investigationStatus || 'Draft'})
-          setSavedSnapshot(JSON.stringify({...emptyData(), ...reportData, investigationStatus:match.status || reportData.investigationStatus || 'Draft'}))
+          setData(loadedData); setSavedSnapshot(JSON.stringify(loadedData))
+          return
         }
-        else { setReportId(''); setReportLocked(false); setHistory([]); setData(emptyData()); setSavedSnapshot('') }
-      }).catch(() => { setReportId(''); setReportLocked(false); setHistory([]); setData(emptyData()); setSavedSnapshot('') })
+        let initialData = emptyData()
+        if (patientId && visitId) {
+          const visitResult = await patientService.getVisits(patientId)
+          const visit = (visitResult.data || []).find((item) => String(item.id) === String(visitId))
+          if (visit?.report_template_id) {
+            const templateResult = await workspaceService.getTemplates()
+            const template = (templateResult.data || []).find((item) => String(item.id) === String(visit.report_template_id) && (!item.scan_type || item.scan_type === scanType))
+            if (template) {
+              const columns = Number.parseInt(template.layout, 10)
+              initialData = {...initialData, templateId: template.id, templateName: template.title, templateLayout: template.layout, templateViews: Array.isArray(template.views) ? template.views : [], imageColumns: String([2, 3, 4].includes(columns) ? columns : 1)}
+            }
+          }
+        }
+        if (!active) return
+        setReportId(''); setReportLocked(false); setHistory([]); setData(initialData); setSavedSnapshot('')
+      } catch {
+        if (active) { setReportId(''); setReportLocked(false); setHistory([]); setData(emptyData()); setSavedSnapshot(''); setSaveError('Unable to load the report or its selected template.') }
+      }
+    }
+    loadReport()
+    return () => { active = false }
   }, [patientId, visitId, scanType])
 
   useEffect(() => {
@@ -352,9 +375,9 @@ function Multiframes({clips,setClips,addFiles,media,error,dicomwebConfigured,pat
 
 function ReportPreview({scanType,data,setData,patient,media}) {
   const options=[{key:'reportType',label:'Report type',type:'select',options:['Report only','Report with images','With biometry graphs']},{key:'preprinted',label:'Preprinted stationery',type:'checkbox'},{key:'showLogo',label:'Logo',type:'checkbox'},{key:'showAlias',label:'Alias ID',type:'checkbox'},{key:'hideSectionTitles',label:'Hide section titles',type:'checkbox'},{key:'reportBorder',label:'Report border',type:'checkbox'},{key:'imageBorder',label:'Image border',type:'checkbox'},{key:'leftMargin',label:'Left margin',type:'number'},{key:'topMargin',label:'Top margin',type:'number'},{key:'lineSpacing',label:'Report line spacing',type:'number'},{key:'sectionSpacing',label:'Section spacing',type:'number'},{key:'landscape',label:'Landscape',type:'checkbox'},{key:'blackBackground',label:'Black image background',type:'checkbox'},{key:'footerLine',label:'Footer line',type:'checkbox'},{key:'pageNumberDate',label:'Page number and date',type:'checkbox'},{key:'printFooterText',label:'Print footer text',type:'checkbox'}]
-  const entries=Object.entries(data).filter(([key,value])=>value!==''&&value!==false&&!['customMeasurements','patientDetails'].includes(key)&&typeof value!=='object').slice(0,90)
+  const entries=Object.entries(data).filter(([key,value])=>value!==''&&value!==false&&!['customMeasurements','patientDetails','templateId','templateName','templateLayout','imageColumns'].includes(key)&&typeof value!=='object').slice(0,90)
   const selectedMedia=(media||[]).filter((item)=>(data.selectedMedia||[]).includes(item.id))
   const apiBase=import.meta.env.VITE_API_URL||'/api'
   const mailBody=`${data.reportTitle||scanType}\nPatient: ${patient?`${patient.first_name||''} ${patient.last_name||''}`.trim():''}\nPatient ID: ${patient?.patient_id||''}\n\n${data.impression||''}`
-  return <div className="grid gap-4 xl:grid-cols-[340px_1fr]"><Section title="Report layout and print options"><FieldGrid columns="lg:grid-cols-2" fields={options} data={data} setData={setData}/><p className="mt-3 text-xs text-slate-500">Layout choices are saved with the report when Save report is selected.</p></Section><div className="rounded border border-slate-300 bg-white p-8 shadow-lg"><div className="mb-6 flex justify-between border-b-2 border-primary-600 pb-4"><div><p className="text-sm font-semibold text-primary-700">{data.companyName||'echoAI'}</p><h2 className="text-2xl font-bold">{data.reportTitle||`${scanType} Report`}</h2></div><div className="flex gap-2 print:hidden"><button onClick={()=>window.print()} className="secondary-button"><Printer className="h-4 w-4"/>Print</button><button onClick={()=>window.print()} className="secondary-button"><FileDown className="h-4 w-4"/>PDF</button><button onClick={()=>window.location.href=`mailto:?subject=${encodeURIComponent(data.reportTitle||scanType)}&body=${encodeURIComponent(mailBody)}`} className="secondary-button"><Mail className="h-4 w-4"/>Mail</button></div></div><div className="grid gap-2 sm:grid-cols-2"><p><strong>Patient:</strong> {patient?`${patient.first_name||''} ${patient.last_name||''}`:'—'}</p><p><strong>Patient ID:</strong> {patient?.patient_id||'—'}</p><p><strong>Date of birth / Age:</strong> {patient?.dob||([patient?.age,patient?.age_unit].filter(Boolean).join(' '))||'—'}</p><p><strong>Gender:</strong> {patient?.gender||'—'}</p><p><strong>Contact:</strong> {patient?.mobile||patient?.phone1||'—'}</p></div><div className="mt-6 grid gap-x-8 gap-y-2 sm:grid-cols-2">{entries.map(([key,value])=><div className="flex justify-between gap-3 border-b border-slate-100 py-1 text-sm" key={key}><span className="capitalize text-slate-500">{key.replace(/([A-Z])/g,' $1')}</span><span className="text-right font-medium">{String(value)}</span></div>)}</div>{selectedMedia.length>0&&<section className="mt-7"><h3 className="font-semibold">Selected study images</h3><div className="mt-3 grid gap-4 sm:grid-cols-2">{selectedMedia.map((item)=><figure key={item.id} className="break-inside-avoid"><img className="max-h-80 w-full object-contain" src={item.modality?`${apiBase}/media-records/${item.id}/frames/${data.reportMediaFrames?.[item.id]||0}`:item.url} alt={item.name}/><figcaption className="mt-1 text-xs text-slate-600">{item.name}{item.modality?` · frame ${(data.reportMediaFrames?.[item.id]||0)+1}`:""}</figcaption></figure>)}</div></section>}{data.impression&&<div className="mt-7"><h3 className="font-semibold">Final impression</h3><p className="mt-2 whitespace-pre-wrap text-sm">{data.impression}</p></div>}{data.disclaimer&&<p className="mt-8 border-t pt-3 text-xs text-slate-500">{data.disclaimer}</p>}</div></div>
+  return <div className="grid gap-4 xl:grid-cols-[340px_1fr]"><Section title="Report layout and print options"><FieldGrid columns="lg:grid-cols-2" fields={options} data={data} setData={setData}/><p className="mt-3 text-xs text-slate-500">Layout choices are saved with the report when Save report is selected.</p></Section><div className="rounded border border-slate-300 bg-white p-8 shadow-lg"><div className="mb-6 flex justify-between border-b-2 border-primary-600 pb-4"><div><p className="text-sm font-semibold text-primary-700">{data.companyName||'echoAI'}</p><h2 className="text-2xl font-bold">{data.reportTitle||`${scanType} Report`}</h2></div><div className="flex gap-2 print:hidden"><button onClick={()=>window.print()} className="secondary-button"><Printer className="h-4 w-4"/>Print</button><button onClick={()=>window.print()} className="secondary-button"><FileDown className="h-4 w-4"/>PDF</button><button onClick={()=>window.location.href=`mailto:?subject=${encodeURIComponent(data.reportTitle||scanType)}&body=${encodeURIComponent(mailBody)}`} className="secondary-button"><Mail className="h-4 w-4"/>Mail</button></div></div><div className="grid gap-2 sm:grid-cols-2"><p><strong>Patient:</strong> {patient?`${patient.first_name||''} ${patient.last_name||''}`:'—'}</p><p><strong>Patient ID:</strong> {patient?.patient_id||'—'}</p><p><strong>Date of birth / Age:</strong> {patient?.dob||([patient?.age,patient?.age_unit].filter(Boolean).join(' '))||'—'}</p><p><strong>Gender:</strong> {patient?.gender||'—'}</p><p><strong>Contact:</strong> {patient?.mobile||patient?.phone1||'—'}</p></div><div className="mt-6 grid gap-x-8 gap-y-2 sm:grid-cols-2">{entries.map(([key,value])=><div className="flex justify-between gap-3 border-b border-slate-100 py-1 text-sm" key={key}><span className="capitalize text-slate-500">{key.replace(/([A-Z])/g,' $1')}</span><span className="text-right font-medium">{String(value)}</span></div>)}</div>{(selectedMedia.length>0||data.templateId)&&<section className="mt-7"><h3 className="font-semibold">{data.templateName || 'Selected study images'}</h3><div className="mt-3 grid gap-4" style={{gridTemplateColumns:`repeat(${Math.min(4, Math.max(1, Number(data.imageColumns) || 1))}, minmax(0, 1fr))`}}>{Array.from({length:Math.max(selectedMedia.length, data.templateId ? (Number(data.imageColumns)||1)**2 : 0)},(_,index)=>{const item=selectedMedia[index]; const view=data.templateViews?.[index]; return <figure key={item?.id || `slot-${index}`} className="break-inside-avoid">{item ? <img className="max-h-80 w-full object-contain" src={item.modality?`${apiBase}/media-records/${item.id}/frames/${data.reportMediaFrames?.[item.id]||0}`:item.url} alt={view || item.name}/> : <div className="aspect-video rounded border border-dashed border-slate-300 bg-slate-50"/>}<figcaption className="mt-1 text-xs text-slate-600">{view || item?.name || `View ${index+1}`}</figcaption></figure>})}</div></section>}{data.impression&&<div className="mt-7"><h3 className="font-semibold">Final impression</h3><p className="mt-2 whitespace-pre-wrap text-sm">{data.impression}</p></div>}{data.disclaimer&&<p className="mt-8 border-t pt-3 text-xs text-slate-500">{data.disclaimer}</p>}</div></div>
 }
