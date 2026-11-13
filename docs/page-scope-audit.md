@@ -1,6 +1,6 @@
 # Page-by-page scope audit
 
-Reviewed 13 November 2026. Compared current committed content against `c2ca04f`, the resolved main/feature merge whose tree preserved newer main implementations. All 28 files directly under `frontend/src/pages` were checked. There are five changed pages and 23 unchanged pages.
+Reviewed 13 November 2026. Compared current committed content against `c2ca04f`, the resolved main/feature merge whose tree preserved newer main implementations. All 28 files directly under `frontend/src/pages` were checked. There are six changed pages and 22 unchanged pages. Visits.jsx was subsequently changed in response to the explicit request to remove the empty space beside Visits.
 
 This baseline is explicit: it does not assert that the application was unchanged since the start of the conversation. The initial checkout already contained substantial uncommitted edits, and the merge subsequently retained newer main work. Those edits cannot safely be treated as unauthorized work introduced by this chat. The earlier competing implementations and their removal are documented in [change-scope-audit.md](change-scope-audit.md).
 
@@ -33,7 +33,7 @@ This baseline is explicit: it does not assert that the application was unchanged
 | [Search.jsx](../frontend/src/pages/Search.jsx) | Unchanged — preserve | File content is identical to the merged baseline. | No change to undo in this delta |
 | [SearchQuery.jsx](../frontend/src/pages/SearchQuery.jsx) | Unchanged — preserve | File content is identical to the merged baseline. | No change to undo in this delta |
 | [Settings.jsx](../frontend/src/pages/Settings.jsx) | Unchanged — preserve | File content is identical to the merged baseline. | No change to undo in this delta |
-| [Visits.jsx](../frontend/src/pages/Visits.jsx) | Unchanged — preserve | File content is identical to the merged baseline. | No change to undo in this delta |
+| [Visits.jsx](../frontend/src/pages/Visits.jsx) | Keep — explicit subsequent layout request | Removed the empty 320px sidebar grid track so Visits fills the available width. | User screenshot and request to remove unnecessary space beside Visits |
 
 ## Shared page surfaces
 
