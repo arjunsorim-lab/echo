@@ -76,15 +76,6 @@ export default function AddableSelect({ field, value, onChange, options = [], cl
         </div>
       )}
 
-      {customOptions.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          {customOptions.map((option) => (
-            <button key={option} type="button" onClick={() => onChange(option)} className="rounded-full border border-teal-200 bg-teal-50 px-2 py-1 text-xs text-teal-800 hover:bg-teal-100">
-              {option}
-            </button>
-          ))}
-        </div>
-      )}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   )

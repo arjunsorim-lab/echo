@@ -751,6 +751,11 @@ def create_patient_registration(data: dict):
                 raise HTTPException(status_code=400, detail="Each visit requires a valid scan type")
             if not str(visit.get('referral_doctor') or '').strip():
                 raise HTTPException(status_code=400, detail="Each visit requires a referral doctor or institute")
+            if not visit.get('report_template_id'):
+                raise HTTPException(status_code=400, detail="Each visit requires a report template")
+            template = conn.execute('SELECT scan_type FROM report_templates WHERE id = ?', (visit['report_template_id'],)).fetchone()
+            if not template or (template['scan_type'] and template['scan_type'] != scan_type):
+                raise HTTPException(status_code=400, detail="Select a valid report template for the scan type")
             cursor = conn.execute('INSERT INTO visits (patient_id, visit_date, visit_type, report_template_id, notes, referral_doctor) VALUES (?, ?, ?, ?, ?, ?)',
                 (patient['id'], visit['visit_date'], visit.get('visit_type') or 'Consultation', visit.get('report_template_id') or None, visit.get('notes') or '', visit.get('referral_doctor') or ''))
             visit_id = cursor.lastrowid

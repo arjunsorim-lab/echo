@@ -29,6 +29,12 @@ import {
   COUNTRY_DIAL_CODES,
 } from '../data/locationData'
 
+function createVisitDraft(referralDoctor = '') {
+  const now = new Date()
+  const visitDate = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+  return { id: Date.now() + Math.random(), visit_date: visitDate, referral_doctor: referralDoctor, scan_type: '', report_template_id: '', notes: '', referral_manual: false }
+}
+
 function NewPatient() {
   const navigate = useNavigate()
   const registrationId = useRef(crypto.randomUUID())
@@ -84,11 +90,13 @@ function NewPatient() {
     area_po: '',
   })
 
-  const [visits, setVisits] = useState([])
+  const [visits, setVisits] = useState(() => [createVisitDraft()])
   const [templates, setTemplates] = useState([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [submitError, setSubmitError] = useState('')
   const [isReferralModalOpen, setIsReferralModalOpen] = useState(false)
+  const [manualPatientReferral, setManualPatientReferral] = useState(false)
+  const [referralVisitId, setReferralVisitId] = useState(null)
   const [referralOptions, setReferralOptions] = useState([])
   const [zipLookupStatus, setZipLookupStatus] = useState('')
 
@@ -166,11 +174,7 @@ function NewPatient() {
     }
   }
 
-  const handleAddVisit = () => {
-    const now = new Date();
-    const formattedDateTime = new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-    setVisits([...visits, { id: Date.now(), visit_date: formattedDateTime, referral_doctor: formData.family_doctor || '', scan_type: '', report_template_id: '', notes: '' }])
-  }
+  const handleAddVisit = () => setVisits((current) => [...current, createVisitDraft(formData.family_doctor)])
   const handleUpdateVisit = (id, field, value) => setVisits(visits.map(v => v.id === id ? { ...v, [field]: value } : v))
   const handleDeleteVisit = (id) => setVisits(visits.filter(v => v.id !== id))
 
@@ -189,8 +193,8 @@ function NewPatient() {
               <h1 className="mt-1 text-2xl font-semibold tracking-tight text-slate-900">New patient</h1>
               <p className="mt-1 text-sm text-slate-500">Enter patient details and add a visit to begin a report.</p>
             </div>
-            <p className="text-xs font-medium text-slate-500"><span className="text-teal-700">*</span> Required fields</p>
           </div>
+          {submitError && <p role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{submitError}</p>}
           <div className="w-full">
             {/* Main Form */}
             <div className="space-y-5">
@@ -346,18 +350,18 @@ function NewPatient() {
                 <div className="p-5 sm:p-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-5 gap-y-5">
                     <div>
-                      <label className={labelClass}>Mobile # *</label>
-                      <div className="flex gap-1">
-                        {dialCode && <span className="flex items-center px-2.5 py-2 rounded-lg border border-slate-300 bg-slate-50 text-sm font-semibold text-slate-700 whitespace-nowrap select-none">{dialCode}</span>}
-                        <input type="tel" className={`${inputClass} flex-1`} value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} placeholder="Mobile number" required />
+                      <label className={labelClass}>Mobile *</label>
+                      <div className="flex h-11 overflow-hidden rounded-lg border border-slate-300 bg-white transition focus-within:border-teal-500 focus-within:ring-2 focus-within:ring-teal-500">
+                        {dialCode && <span className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-700 select-none">{dialCode}</span>}
+                        <input type="tel" className="min-w-0 flex-1 bg-transparent px-3 text-sm text-slate-900 outline-none placeholder:text-slate-400" value={formData.mobile} onChange={(e) => setFormData({ ...formData, mobile: e.target.value })} placeholder="Mobile number" required aria-label="Mobile number" />
                       </div>
                     </div>
                     <div>
-                      <label className={labelClass}>Phone #1</label>
+                      <label className={labelClass}>Phone 1</label>
                       <input type="tel" className={inputClass} value={formData.phone1} onChange={(e) => setFormData({ ...formData, phone1: e.target.value })} />
                     </div>
                     <div>
-                      <label className={labelClass}>Phone #2</label>
+                      <label className={labelClass}>Phone 2</label>
                       <input type="tel" className={inputClass} value={formData.phone2} onChange={(e) => setFormData({ ...formData, phone2: e.target.value })} />
                     </div>
                     <div>
@@ -397,8 +401,9 @@ function NewPatient() {
                     <div>
                       <label className={labelClass}>Referral Doctor/Institute</label>
                       <div className="flex flex-wrap sm:flex-nowrap gap-2">
-                        <input className={inputClass} list="referral-options" value={formData.family_doctor} onChange={(event) => setFormData({ ...formData, family_doctor: event.target.value })} placeholder="Enter or select doctor / institute" />
-                        <button type="button" onClick={() => setIsReferralModalOpen(true)} className="rounded-lg border border-teal-200 bg-teal-50 px-3 text-sm font-medium text-teal-700 whitespace-nowrap hover:bg-teal-100">+ New referral doctor</button>
+                        {manualPatientReferral ? <input className={inputClass} value={formData.family_doctor} onChange={(event) => setFormData({ ...formData, family_doctor: event.target.value })} placeholder="Enter doctor / institute" /> : <select className={selectClass} value={formData.family_doctor} onChange={(event) => { if (event.target.value === '__manual__') { setManualPatientReferral(true); setFormData(prev => ({ ...prev, family_doctor: '' })) } else setFormData(prev => ({ ...prev, family_doctor: event.target.value })) }}><option value="">Select doctor / institute</option>{referralOptions.map(option => <option key={option} value={option}>{option}</option>)}<option value="__manual__">Enter manually…</option></select>}
+                        {manualPatientReferral && <button type="button" onClick={() => setManualPatientReferral(false)} className="rounded-lg border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700">Choose saved</button>}
+                        <button type="button" onClick={() => { setReferralVisitId(null); setIsReferralModalOpen(true) }} className="rounded-lg border border-teal-200 bg-teal-50 px-3 text-sm font-medium text-teal-700 whitespace-nowrap hover:bg-teal-100">+ New referral doctor</button>
                       </div>
                     </div>
                   </div>
@@ -406,68 +411,41 @@ function NewPatient() {
               </div>
 
               {/* Visits Section */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center justify-between gap-4">
-                  <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2.5">
-                    <Calendar className="w-4 h-4 text-teal-600" /> Visits
-                  </h2>
-                  <button type="button" onClick={handleAddVisit} className="inline-flex items-center gap-1.5 rounded-lg bg-teal-700 px-3 py-2 text-sm font-medium text-white hover:bg-teal-800"><Plus className="h-4 w-4" /> Add visit</button>
+              <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-6">
+                  <div>
+                    <h2 className="flex items-center gap-2.5 text-sm font-semibold text-slate-900"><Calendar className="h-4 w-4 text-teal-600" /> Visits</h2>
+                    <p className="mt-1 text-xs text-slate-500">Add scan and referral details for each visit.</p>
+                  </div>
+                  <button type="button" onClick={handleAddVisit} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-teal-700 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800"><Plus className="h-4 w-4" /> Add visit</button>
                 </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full min-w-[1050px]">
-                    <thead className="bg-slate-50/70">
-                      <tr>
-                        {['No.', 'Visit Date *', 'Scan Type *', 'Report Template', 'Referral Doctor / Institute *', 'Notes', 'Action'].map(h => (
-                          <th key={h} className={`px-4 py-3 text-left text-xs font-medium text-slate-700 uppercase${h === 'Action' ? ' text-center' : ''}`}>{h}</th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                  {visits.length === 0 ? (
-                        <tr><td colSpan="7" className="px-4 py-8 text-center text-sm text-slate-500">No visits added yet. Add a visit to choose a scan type.</td></tr>
-                      ) : visits.map((visit, index) => (
-                        <tr key={visit.id} className="hover:bg-slate-50">
-                          <td className="px-4 py-3 text-sm text-slate-900">{index + 1}</td>
-                          <td className="px-4 py-3"><input type="datetime-local" className={inputClass} value={visit.visit_date?.slice(0, 16)} onChange={(e) => handleUpdateVisit(visit.id, 'visit_date', e.target.value)} required aria-label="Visit date" /></td>
-                          <td className="px-4 py-3"><select className={selectClass} value={visit.scan_type} onChange={(e) => handleUpdateVisit(visit.id, 'scan_type', e.target.value)} required aria-label="Scan type"><option value="">Select scan</option>{['Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'].map(type => <option key={type} value={type}>{type}</option>)}</select></td>
-                          <td className="px-4 py-3"><select className={selectClass} value={visit.report_template_id} onChange={(e) => handleUpdateVisit(visit.id, 'report_template_id', e.target.value)}><option value="">Select template</option>{templates.filter(t => !t.scan_type || t.scan_type === visit.scan_type).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select></td>
-                          <td className="px-4 py-3"><input type="text" list="referral-options" className={inputClass} value={visit.referral_doctor} onChange={(e) => handleUpdateVisit(visit.id, 'referral_doctor', e.target.value)} placeholder="Enter or select" required aria-label="Referral doctor or institute" /></td>
-                          <td className="px-4 py-3"><input type="text" className={inputClass} value={visit.notes} onChange={(e) => handleUpdateVisit(visit.id, 'notes', e.target.value)} placeholder="Notes" /></td>
-                          <td className="px-4 py-3 text-center">
-                            <button type="button" onClick={() => handleDeleteVisit(visit.id)} aria-label="Remove visit" className="inline-flex rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 transition">
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-4 p-4 sm:p-5">
+                  {visits.map((visit, index) => <div key={visit.id} className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
+                    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                      <h3 className="text-sm font-semibold text-slate-800">Visit {index + 1}</h3>
+                      {visits.length > 1 && <button type="button" onClick={() => handleDeleteVisit(visit.id)} aria-label={`Remove visit ${index + 1}`} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /> Remove</button>}
+                    </div>
+                    <div className="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-2 xl:grid-cols-3">
+                      <label className={labelClass}>Visit date and time *<input type="datetime-local" className={inputClass} value={visit.visit_date?.slice(0, 16) || ''} onChange={(e) => handleUpdateVisit(visit.id, 'visit_date', e.target.value)} required aria-label="Visit date and time" /></label>
+                      <label className={labelClass}>Scan type *<select className={selectClass} value={visit.scan_type} onChange={(e) => handleUpdateVisit(visit.id, 'scan_type', e.target.value)} required aria-label="Scan type"><option value="">Select scan type</option>{['Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'].map(type => <option key={type} value={type}>{type}</option>)}</select></label>
+                      <label className={labelClass}>Report template *<select className={selectClass} value={visit.report_template_id} onChange={(e) => handleUpdateVisit(visit.id, 'report_template_id', e.target.value)} required aria-label="Report template"><option value="">Select template</option>{templates.filter(t => !t.scan_type || t.scan_type === visit.scan_type).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select></label>
+                      <div><label className={labelClass}>Referral Doctor/Institute *</label><div className="flex gap-2">{visit.referral_manual ? <input type="text" className={inputClass} value={visit.referral_doctor} onChange={(e) => handleUpdateVisit(visit.id, 'referral_doctor', e.target.value)} placeholder="Enter manually" required aria-label="Referral doctor or institute" /> : <select className={selectClass} value={visit.referral_doctor} onChange={(e) => setVisits(current => current.map(item => item.id === visit.id ? (e.target.value === '__manual__' ? { ...item, referral_manual: true, referral_doctor: '' } : { ...item, referral_doctor: e.target.value }) : item))} required aria-label="Referral doctor or institute"><option value="">Select doctor / institute</option>{referralOptions.map(option => <option key={option} value={option}>{option}</option>)}<option value="__manual__">Enter manually…</option></select>}<button type="button" onClick={() => { setReferralVisitId(visit.id); setIsReferralModalOpen(true) }} className="h-11 shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">Select/add</button></div></div>
+                      <label className={labelClass}>Visit notes<input type="text" className={inputClass} value={visit.notes} onChange={(e) => handleUpdateVisit(visit.id, 'notes', e.target.value)} placeholder="Visit notes" /></label>
+                    </div>
+                  </div>)}
                 </div>
+              </section>
+              <div className="flex flex-wrap items-center justify-end gap-3 pt-1">
+                <button type="button" onClick={() => navigate('/search')} className="inline-flex h-11 items-center gap-2 rounded-lg bg-red-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2"><X className="h-4 w-4" /> Cancel</button>
+                <button type="submit" value="reporting" disabled={isSubmitting} className="inline-flex h-11 items-center rounded-lg bg-teal-700 px-5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 disabled:opacity-50">{isSubmitting ? 'Saving…' : 'Save & Next'} <ArrowRight className="ml-1 h-4 w-4" /></button>
               </div>
             </div>
 
           </div>
 
-          {/* Bottom Action Buttons */}
-          <div className="mt-5 bg-white rounded-xl shadow-sm border border-slate-200 p-4 sm:px-6">
-            {submitError && (
-              <p role="alert" className="mb-2 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm font-medium text-red-700">{submitError}</p>
-            )}
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <button type="button" onClick={() => navigate('/search')} className="px-4 py-2 text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition flex items-center gap-2 text-sm font-medium">
-                  <X className="w-4 h-4" /> Cancel
-                </button>
-              </div>
-              <div className="flex items-center gap-2">
-                <button type="submit" value="save" disabled={isSubmitting} className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50">Save</button>
-                <button type="submit" value="reporting" disabled={isSubmitting} className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 disabled:opacity-50">{isSubmitting ? 'Saving…' : 'Save & Next'} <ArrowRight className="inline-block ml-1 h-4 w-4" /></button>
-              </div>
-            </div>
-          </div>
+
         </div>
       </form>
-      <datalist id="referral-options">{referralOptions.map((option) => <option key={option} value={option} />)}</datalist>
       <ReferralDoctorModal
         open={isReferralModalOpen}
         onClose={() => setIsReferralModalOpen(false)}
@@ -475,10 +453,11 @@ function NewPatient() {
           const name = record.institution_name || record.name || `${record.first_name || ''} ${record.last_name || ''}`.trim()
           if (name) {
             setReferralOptions(prev => [...new Set([...prev, name])])
-            setFormData(prev => ({ ...prev, family_doctor: name }))
+            if (referralVisitId != null) setVisits(prev => prev.map(visit => visit.id === referralVisitId ? { ...visit, referral_doctor: name, referral_manual: false } : visit))
+            else { setManualPatientReferral(false); setFormData(prev => ({ ...prev, family_doctor: name })) }
           }
         }}
-        onSelect={(record) => { const name = record.institution_name || record.name || `${record.first_name || ''} ${record.last_name || ''}`.trim(); setFormData(prev => ({ ...prev, family_doctor: name })); setReferralOptions(prev => [...new Set([...prev, name])]) }}
+        onSelect={(record) => { const name = record.institution_name || record.name || `${record.first_name || ''} ${record.last_name || ''}`.trim(); if (referralVisitId != null) setVisits(prev => prev.map(visit => visit.id === referralVisitId ? { ...visit, referral_doctor: name, referral_manual: false } : visit)); else { setManualPatientReferral(false); setFormData(prev => ({ ...prev, family_doctor: name })) }; setReferralOptions(prev => [...new Set([...prev, name])]); setIsReferralModalOpen(false) }}
       />
     </>
   )
