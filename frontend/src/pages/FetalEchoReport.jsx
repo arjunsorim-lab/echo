@@ -356,6 +356,7 @@ function FetalEchoReport() {
   const [isReferralLetterOpen, setIsReferralLetterOpen] = useState(false)
   const [report, setReport] = useState(() => initializeDerived(blankReport(initialReport), 'Fetal Echo'))
   const [savedScanId, setSavedScanId] = useState(scanId || '')
+  const [loadedReportId,setLoadedReportId]=useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [progressValidationAttempted, setProgressValidationAttempted] = useState(false)
@@ -520,6 +521,7 @@ function FetalEchoReport() {
         const normalized = recalculateDerived(loadedReport, calculationRules, 'Fetal Echo')
         setReport(normalized)
         markSaved(normalized)
+        setLoadedReportId(String(scanId))
         if(searchParams.get('preview')==='1')setIsReportPreviewOpen(true)
       } catch (error) {
         if (!active) return
@@ -648,6 +650,8 @@ function FetalEchoReport() {
     }
     navigateSection(() => setActiveScanTab(id), setStatusMessage)
   }
+
+  if(scanId && loadedReportId!==String(scanId)) return <div className="p-6"><p role="status">{statusMessage || 'Loading saved report…'}</p><button className="secondary-button mt-3" onClick={()=>window.location.reload()}>Reload report</button></div>
 
   return (
     <>

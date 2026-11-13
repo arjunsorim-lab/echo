@@ -418,9 +418,8 @@ export default function Visits() {
         </div>
       </section>
 
-      {/* Main Visits Section + List of Scans Sidebar */}
-      <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
-        {/* Left: Visits Management Table */}
+      {/* Visits Management Table */}
+      <div className="grid min-w-0 grid-cols-1 gap-3">
         <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
           <div className="flex items-center justify-between border-b border-slate-200 px-4 py-3">
             <div>

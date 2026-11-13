@@ -299,6 +299,18 @@ class WorkflowTests(unittest.TestCase):
         code,result=upload('../../dummy.png',image);self.assertEqual(code,200,result);record=result['data']
         self.assertEqual(str(record['patient_id']),str(pid));self.assertEqual(str(record['visit_id']),str(vid))
         self.assertTrue(record['url'].startswith('/uploads/'));self.assertNotIn('..',record['url'])
+        import io, zipfile
+        export_route=f'/api/media-export/{pid}/{vid}'
+        req=urllib.request.Request(self.base+export_route,data=json.dumps({'ids':[record['id']]}).encode(),headers={'Authorization':'Bearer '+token,'Content-Type':'application/json'},method='POST')
+        with urllib.request.urlopen(req) as response:
+            self.assertEqual(response.headers['Content-Type'],'application/zip')
+            with zipfile.ZipFile(io.BytesIO(response.read())) as archive:
+                self.assertEqual(len(archive.namelist()),1)
+                self.assertEqual(archive.read(archive.namelist()[0]),image)
+        self.assertEqual(call('POST',export_route,{'ids':[record['id'],record['id']]},token)[0],422)
+        self.assertEqual(call('POST',export_route,{'ids':[999999]},token)[0],422)
+        self.assertEqual(call('POST',export_route,{'ids':[record['id']]})[0],401)
+
         self.assertNotEqual(record['url'],upload('../../dummy.png',image)[1]['data']['url'])
         with urllib.request.urlopen(urllib.request.Request(self.base+record['url'],headers={'Authorization':'Bearer '+token})) as r:self.assertEqual(r.read(),image)
         with self.assertRaises(urllib.error.HTTPError) as blocked:urllib.request.urlopen(self.base+record['url'])
@@ -334,6 +346,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(call('DELETE',f'/api/resources/media-records/{record["id"]}',token=token)[0],200)
         archived=call('GET','/api/resources/media-records',token=token)[1]['data']
         self.assertEqual(next(item for item in archived if item['id']==record['id'])['status'],'Archived')
+        self.assertEqual(call('POST',export_route,{'ids':[record['id']]},token)[0],422)
         self.assertTrue((self.folder/'uploads'/record['url'].split('/')[-1]).exists())
         self.assertEqual(call('PUT',route,layout,token)[0],422)
         self.assertEqual(call('PUT',f'/api/resources/media-records/{record["id"]}',{'status':'Uploaded'},token)[0],200)

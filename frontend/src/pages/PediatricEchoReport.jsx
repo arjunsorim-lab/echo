@@ -278,6 +278,7 @@ function PediatricEchoReport() {
   const [activeImageTab, setActiveImageTab] = useState('images')
   const [report, setReport] = useState(() => initializeDerived(blankReport(initialReport), 'Pediatric Echo'))
   const [savedScanId, setSavedScanId] = useState(scanId || '')
+  const [loadedReportId,setLoadedReportId]=useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [statusMessage, setStatusMessage] = useState('')
   const [savedReportPath, setSavedReportPath] = useState('')
@@ -395,6 +396,7 @@ function PediatricEchoReport() {
         const normalized = recalculateDerived(loadedReport, calculationRules, 'Pediatric Echo')
         setReport(normalized)
         markSaved(normalized)
+        setLoadedReportId(String(scanId))
         if(searchParams.get('preview')==='1')setIsPreviewOpen(true)
       } catch (error) {
         if (!active) return
@@ -508,6 +510,8 @@ function PediatricEchoReport() {
     updateReport(['add_new_tag'], checked)
     if (checked) setIsTagModalOpen(true)
   }
+
+  if(scanId && loadedReportId!==String(scanId)) return <div className="p-6"><p role="status">{statusMessage || 'Loading saved report…'}</p><button className="secondary-button mt-3" onClick={()=>window.location.reload()}>Reload report</button></div>
 
   return (
     <div data-locked={locked ? 'true' : 'false'} className="no-print report-editor-form min-h-0 flex-1 overflow-auto bg-gradient-to-br from-slate-50 to-slate-100 text-sm text-slate-900">

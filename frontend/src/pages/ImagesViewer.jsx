@@ -1,3 +1,4 @@
+import SelectedMediaActions from '../components/SelectedMediaActions'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Check, Download, ImagePlus, Play, Redo2, RotateCcw, Save, Trash2, Undo2, Upload } from 'lucide-react'
@@ -62,7 +63,8 @@ export default function ImagesViewer() {
   const scopedAssets=assets.filter(asset=>asset.status !== 'Archived' && patientId && String(asset.patient_id)===String(patientId) && (!visitId || String(asset.visit_id)===String(visitId)))
   const images=scopedAssets.filter(asset=>String(asset.type || '').startsWith('image/'))
   const videos=scopedAssets.filter(asset=>String(asset.type || '').startsWith('video/'))
-  const toggle = (id) => setSelected(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id].slice(-2))
+  useEffect(()=>setSelected([]),[visitId])
+  const toggle = (id) => setSelected(selected.includes(id) ? selected.filter((item) => item !== id) : [...selected, id].slice(-16))
 
   const uploader = <label className="primary-button cursor-pointer"><Upload className="h-4 w-4" />Import files<input className="hidden" type="file" accept="image/png,image/jpeg,image/webp,application/pdf,video/mp4,video/webm" multiple onChange={addFiles} /></label>
 
@@ -91,6 +93,7 @@ export default function ImagesViewer() {
         </div>
       </Section>
       <Tabs items={tabs} value={activeTab} onChange={setActiveTab} />
+      {activeTab === 'Images' && <SelectedMediaActions patient={patients.find(p=>String(p.id)===String(patientId))} visitId={visitId} selected={selected.map(id=>images.find(x=>x.id===id)).filter(Boolean)}/>}
       {activeTab === 'Images' && <MediaGrid assets={images} selected={selected} toggle={toggle} empty="Import an image or DICOM export to begin." />}
       {activeTab === 'Videos' && <VideoGrid assets={videos} />}
       {activeTab === 'Compare' && (patientId && visitId ? <ImageCompareModal open patient={patients.find(p=>String(p.id)===String(patientId))} visitId={visitId} images={images.map(a=>a.url)} mediaRecords={images} onClose={()=>setActiveTab('Images')}/> : <p>Select a patient and visit to compare images.</p>)}

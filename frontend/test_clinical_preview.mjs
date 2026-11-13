@@ -52,7 +52,7 @@ for (const pageSource of [adultSource, pediatricSource, source]) {
 }
 const assets=(await fs.readdir(path.join(root,'dist/assets'))).filter(f=>f.endsWith('.css'))
 const styles=(await Promise.all(assets.map(f=>fs.readFile(path.join(root,'dist/assets',f),'utf8')))).join('\n')
-const staticMarkup=markup.replace('<button class="primary-button">Print / Save PDF</button>','<button class="primary-button" onclick="window.print()">Print / Save PDF</button>').replace('<button class="secondary-button">Close preview</button>','<a class="secondary-button" href="/dashboard">Open application</a>')
+const staticMarkup=markup.replace('<button disabled="" class="primary-button">Print / Save PDF</button>','<button class="primary-button" onclick="window.print()">Print / Save PDF</button>').replace('<button class="primary-button">Print / Save PDF</button>','<button class="primary-button" onclick="window.print()">Print / Save PDF</button>').replace('<button class="secondary-button">Close preview</button>','<a class="secondary-button" href="/dashboard">Open application</a>')
 const html='<!doctype html><html><head><meta charset="utf-8"><title>Dummy fetal sample — layout review only</title><style>'+styles+'</style></head><body>'+staticMarkup+'</body></html>'
 await fs.writeFile(path.join(output,'fetal-sample.html'),html)
 console.log('PASS: full dummy fetal sample renders; patient/title/indication order; entered quality comments; internal/system notes excluded; no invented fallback patient or ratio; no Z-score formulas.')

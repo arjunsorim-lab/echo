@@ -201,7 +201,7 @@ test('all routed workspaces load without uncaught page errors',async({page})=>{
   const errors=[];page.on('pageerror',error=>errors.push(error.message))
   await login(page,'dr.shanthi',info.password)
   for(const route of ['/patients','/patients/new','/visits','/search','/referral-doctors','/referral-doctors/new','/reports','/measurements','/analytics','/settings','/administration','/profile','/echo-studies','/echo-scan','/images']) {
-    await page.goto(route);await page.waitForLoadState('networkidle');await expect(page.locator('main')).not.toBeEmpty()
+    await page.goto(route);await expect(page.locator('main')).toBeVisible();await expect(page.locator('main')).not.toBeEmpty()
   }
   expect(errors).toEqual([])
 })
