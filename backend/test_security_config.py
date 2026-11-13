@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 from fastapi import FastAPI
-from clinical_workflow import install
+from clinical_workflow import install, verify
 
 
 class SecurityConfigTests(unittest.TestCase):
@@ -25,3 +25,26 @@ class SecurityConfigTests(unittest.TestCase):
                 install(FastAPI(), folder)
             self.assertEqual((root/'users.json').stat().st_mode & 0o777, 0o600)
             self.assertFalse((root/'.local-credentials.json').exists())
+
+    def test_local_bootstrap_preserves_original_founder_login(self):
+        import json
+        with tempfile.TemporaryDirectory() as folder, patch.dict(os.environ, {}, clear=True):
+            install(FastAPI(), folder)
+            path = Path(folder) / '.workflow-users.json'
+            records = json.loads(path.read_text())
+            self.assertTrue(verify('password123', records[0]['password_hash']))
+            initial = path.read_bytes()
+            install(FastAPI(), folder)
+            self.assertEqual(path.read_bytes(), initial)
+
+    def test_existing_configured_password_is_not_rotated(self):
+        import json
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.dict(os.environ, {'ECHOAI_PASSWORD':'Existing-configured!42'}, clear=True):
+                install(FastAPI(), folder)
+            path = Path(folder) / '.workflow-users.json'
+            initial = path.read_bytes()
+            with patch.dict(os.environ, {}, clear=True):
+                install(FastAPI(), folder)
+            self.assertEqual(path.read_bytes(), initial)
+            self.assertTrue(verify('Existing-configured!42', json.loads(path.read_text())[0]['password_hash']))

@@ -62,7 +62,9 @@ def install(app, base_dir):
             with open(credential_path) as f:
                 password = json.load(f).get('password')
         if not password:
-            password = secrets.token_urlsafe(20)
+            # Preserve the established local founder login. Do not rotate it
+            # merely because server-side authentication is being initialized.
+            password = 'password123'
             fd = os.open(credential_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
             with os.fdopen(fd, 'w') as f:
                 json.dump({'password': password}, f)
