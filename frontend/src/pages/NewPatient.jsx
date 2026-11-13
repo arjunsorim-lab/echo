@@ -186,7 +186,7 @@ function NewPatient() {
   return (
     <>
       <form onSubmit={handleSubmit} onFocus={handleFieldFocus} className="h-full overflow-auto bg-slate-100/70 px-4 py-6 sm:px-6 lg:px-8">
-        <div className="w-full mx-auto">
+        <div className="mx-auto w-full max-w-none">
           <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
             <div>
               <p className="text-xs font-semibold uppercase tracking-widest text-teal-700">Patient registration</p>
@@ -197,10 +197,10 @@ function NewPatient() {
           {submitError && <p role="alert" className="mb-5 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{submitError}</p>}
           <div className="w-full">
             {/* Main Form */}
-            <div className="space-y-5">
+            <div className="space-y-4">
               {/* Basic Information */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-teal-50 to-emerald-50/50">
                   <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2.5">
                     <User className="w-4 h-4 text-teal-600" /> Basic Information
                   </h2>
@@ -291,7 +291,7 @@ function NewPatient() {
 
               {/* Address Information */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-teal-50 to-emerald-50/50">
                   <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2.5">
                     <MapPin className="w-4 h-4 text-teal-700" /> Address Information
                   </h2>
@@ -342,7 +342,7 @@ function NewPatient() {
 
               {/* Contact Information */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-teal-50 to-emerald-50/50">
                   <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2.5">
                     <Phone className="w-4 h-4 text-teal-700" /> Contact Information
                   </h2>
@@ -381,7 +381,7 @@ function NewPatient() {
 
               {/* Additional Information */}
               <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-slate-50/60">
+                <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-teal-50 to-emerald-50/50">
                   <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2.5">
                     <Building className="w-4 h-4 text-teal-600" /> Additional Information
                   </h2>
@@ -412,25 +412,25 @@ function NewPatient() {
 
               {/* Visits Section */}
               <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-                <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-slate-50/60 px-5 py-4 sm:px-6">
+                <div className="flex items-center justify-between gap-4 border-b border-slate-100 bg-gradient-to-r from-teal-50 to-emerald-50/50 px-5 py-4 sm:px-6">
                   <div>
-                    <h2 className="flex items-center gap-2.5 text-sm font-semibold text-slate-900"><Calendar className="h-4 w-4 text-teal-600" /> Visits</h2>
-                    <p className="mt-1 text-xs text-slate-500">Add scan and referral details for each visit.</p>
+                    <h2 className="flex items-center gap-2.5 text-sm font-semibold text-slate-900"><span className="grid h-8 w-8 place-items-center rounded-lg bg-teal-100 text-teal-700"><Calendar className="h-4 w-4" /></span> Visits <span className="rounded-full bg-white px-2 py-0.5 text-xs font-medium text-slate-500 ring-1 ring-slate-200">{visits.length}</span></h2>
+                    <p className="mt-1 pl-10 text-xs text-slate-500">Scan and referral details for each visit.</p>
                   </div>
                   <button type="button" onClick={handleAddVisit} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg bg-teal-700 px-3.5 text-sm font-semibold text-white shadow-sm transition hover:bg-teal-800"><Plus className="h-4 w-4" /> Add visit</button>
                 </div>
-                <div className="space-y-4 p-4 sm:p-5">
-                  {visits.map((visit, index) => <div key={visit.id} className="rounded-xl border border-slate-200 bg-white p-4 sm:p-5">
-                    <div className="mb-4 flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="space-y-3 p-4 sm:p-5">
+                  {visits.map((visit, index) => <div key={visit.id} className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 sm:p-5">
+                    <div className="mb-4 flex items-center justify-between border-b border-slate-200/70 pb-3">
                       <h3 className="text-sm font-semibold text-slate-800">Visit {index + 1}</h3>
                       {visits.length > 1 && <button type="button" onClick={() => handleDeleteVisit(visit.id)} aria-label={`Remove visit ${index + 1}`} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-medium text-slate-500 transition hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /> Remove</button>}
                     </div>
-                    <div className="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-2 xl:grid-cols-3">
-                      <label className={labelClass}>Visit date and time *<input type="datetime-local" className={inputClass} value={visit.visit_date?.slice(0, 16) || ''} onChange={(e) => handleUpdateVisit(visit.id, 'visit_date', e.target.value)} required aria-label="Visit date and time" /></label>
-                      <label className={labelClass}>Scan type *<select className={selectClass} value={visit.scan_type} onChange={(e) => handleUpdateVisit(visit.id, 'scan_type', e.target.value)} required aria-label="Scan type"><option value="">Select scan type</option>{['Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'].map(type => <option key={type} value={type}>{type}</option>)}</select></label>
-                      <label className={labelClass}>Report template *<select className={selectClass} value={visit.report_template_id} onChange={(e) => handleUpdateVisit(visit.id, 'report_template_id', e.target.value)} required aria-label="Report template"><option value="">Select template</option>{templates.filter(t => !t.scan_type || t.scan_type === visit.scan_type).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select></label>
-                      <div><label className={labelClass}>Referral Doctor/Institute *</label><div className="flex gap-2">{visit.referral_manual ? <input type="text" className={inputClass} value={visit.referral_doctor} onChange={(e) => handleUpdateVisit(visit.id, 'referral_doctor', e.target.value)} placeholder="Enter manually" required aria-label="Referral doctor or institute" /> : <select className={selectClass} value={visit.referral_doctor} onChange={(e) => setVisits(current => current.map(item => item.id === visit.id ? (e.target.value === '__manual__' ? { ...item, referral_manual: true, referral_doctor: '' } : { ...item, referral_doctor: e.target.value }) : item))} required aria-label="Referral doctor or institute"><option value="">Select doctor / institute</option>{referralOptions.map(option => <option key={option} value={option}>{option}</option>)}<option value="__manual__">Enter manually…</option></select>}<button type="button" onClick={() => { setReferralVisitId(visit.id); setIsReferralModalOpen(true) }} className="h-11 shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">Select/add</button></div></div>
-                      <label className={labelClass}>Visit notes<input type="text" className={inputClass} value={visit.notes} onChange={(e) => handleUpdateVisit(visit.id, 'notes', e.target.value)} placeholder="Visit notes" /></label>
+                    <div className="grid grid-cols-1 gap-x-4 gap-y-4 md:grid-cols-2 xl:grid-cols-12">
+                      <label className={`${labelClass} xl:col-span-3`}>Visit date and time *<input type="datetime-local" className={inputClass} value={visit.visit_date?.slice(0, 16) || ''} onChange={(e) => handleUpdateVisit(visit.id, 'visit_date', e.target.value)} required aria-label={`Visit ${index + 1} date and time`} /></label>
+                      <label className={`${labelClass} xl:col-span-3`}>Scan type *<select className={selectClass} value={visit.scan_type} onChange={(e) => handleUpdateVisit(visit.id, 'scan_type', e.target.value)} required aria-label={`Visit ${index + 1} scan type`}><option value="">Select scan type</option>{['Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'].map(type => <option key={type} value={type}>{type}</option>)}</select></label>
+                      <label className={`${labelClass} xl:col-span-6`}>Report template *<select className={selectClass} value={visit.report_template_id} onChange={(e) => handleUpdateVisit(visit.id, 'report_template_id', e.target.value)} required aria-label={`Visit ${index + 1} report template`}><option value="">Select template</option>{templates.filter(t => !t.scan_type || t.scan_type === visit.scan_type).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select></label>
+                      <div className="xl:col-span-6"><label className={labelClass}>Referral Doctor/Institute *</label><div className="flex gap-2">{visit.referral_manual ? <input type="text" className={inputClass} value={visit.referral_doctor} onChange={(e) => handleUpdateVisit(visit.id, 'referral_doctor', e.target.value)} placeholder="Enter manually" required aria-label={`Visit ${index + 1} referral doctor or institute`} /> : <select className={selectClass} value={visit.referral_doctor} onChange={(e) => setVisits(current => current.map(item => item.id === visit.id ? (e.target.value === '__manual__' ? { ...item, referral_manual: true, referral_doctor: '' } : { ...item, referral_doctor: e.target.value }) : item))} required aria-label={`Visit ${index + 1} referral doctor or institute`}><option value="">Select doctor / institute</option>{referralOptions.map(option => <option key={option} value={option}>{option}</option>)}<option value="__manual__">Enter manually…</option></select>}<button type="button" onClick={() => { setReferralVisitId(visit.id); setIsReferralModalOpen(true) }} className="h-11 shrink-0 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50">Select/add</button></div></div>
+                      <label className={`${labelClass} xl:col-span-6`}>Visit notes<input type="text" className={inputClass} value={visit.notes} onChange={(e) => handleUpdateVisit(visit.id, 'notes', e.target.value)} placeholder="Visit notes" /></label>
                     </div>
                   </div>)}
                 </div>
