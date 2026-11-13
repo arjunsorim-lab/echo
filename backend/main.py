@@ -747,8 +747,10 @@ def create_patient_registration(data: dict):
             if not isinstance(visit, dict) or not visit.get('visit_date'):
                 raise HTTPException(status_code=400, detail="Each visit must have a date")
             scan_type = visit.get('scan_type') or ''
-            if scan_type and scan_type not in ('Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'):
-                raise HTTPException(status_code=400, detail="Invalid scan type")
+            if not scan_type or scan_type not in ('Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'):
+                raise HTTPException(status_code=400, detail="Each visit requires a valid scan type")
+            if not str(visit.get('referral_doctor') or '').strip():
+                raise HTTPException(status_code=400, detail="Each visit requires a referral doctor or institute")
             cursor = conn.execute('INSERT INTO visits (patient_id, visit_date, visit_type, report_template_id, notes, referral_doctor) VALUES (?, ?, ?, ?, ?, ?)',
                 (patient['id'], visit['visit_date'], visit.get('visit_type') or 'Consultation', visit.get('report_template_id') or None, visit.get('notes') or '', visit.get('referral_doctor') or ''))
             visit_id = cursor.lastrowid

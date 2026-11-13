@@ -144,10 +144,14 @@ function NewPatient() {
       setSubmitError('Add a visit and select a scan type before continuing.')
       return
     }
+    if (visits.some((visit) => !visit.visit_date || !visit.scan_type || !visit.referral_doctor.trim())) {
+      setSubmitError('Enter a visit date, scan type, and referral doctor or institute for each visit.')
+      return
+    }
     setSubmitError('')
     setIsSubmitting(true)
     try {
-      const visitDrafts = visits.filter((item) => item.visit_date)
+      const visitDrafts = visits
       const result = await patientService.createRegistration({ request_id: registrationId.current, patient: formData, visits: visitDrafts })
       const patient = result.data
       const createdVisits = result.visits
@@ -413,7 +417,7 @@ function NewPatient() {
                   <table className="w-full min-w-[1050px]">
                     <thead className="bg-slate-50/70">
                       <tr>
-                        {['No.', 'Visit Date', 'Scan Type', 'Report Template', 'Referral Doctor / Institute', 'Notes', 'Action'].map(h => (
+                        {['No.', 'Visit Date *', 'Scan Type *', 'Report Template', 'Referral Doctor / Institute *', 'Notes', 'Action'].map(h => (
                           <th key={h} className={`px-4 py-3 text-left text-xs font-medium text-slate-700 uppercase${h === 'Action' ? ' text-center' : ''}`}>{h}</th>
                         ))}
                       </tr>
@@ -424,10 +428,10 @@ function NewPatient() {
                       ) : visits.map((visit, index) => (
                         <tr key={visit.id} className="hover:bg-slate-50">
                           <td className="px-4 py-3 text-sm text-slate-900">{index + 1}</td>
-                          <td className="px-4 py-3"><input type="datetime-local" className={inputClass} value={visit.visit_date?.slice(0, 16)} onChange={(e) => handleUpdateVisit(visit.id, 'visit_date', e.target.value)} /></td>
-                          <td className="px-4 py-3"><select className={selectClass} value={visit.scan_type} onChange={(e) => handleUpdateVisit(visit.id, 'scan_type', e.target.value)}><option value="">Select scan</option>{['Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'].map(type => <option key={type} value={type}>{type}</option>)}</select></td>
+                          <td className="px-4 py-3"><input type="datetime-local" className={inputClass} value={visit.visit_date?.slice(0, 16)} onChange={(e) => handleUpdateVisit(visit.id, 'visit_date', e.target.value)} required aria-label="Visit date" /></td>
+                          <td className="px-4 py-3"><select className={selectClass} value={visit.scan_type} onChange={(e) => handleUpdateVisit(visit.id, 'scan_type', e.target.value)} required aria-label="Scan type"><option value="">Select scan</option>{['Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'].map(type => <option key={type} value={type}>{type}</option>)}</select></td>
                           <td className="px-4 py-3"><select className={selectClass} value={visit.report_template_id} onChange={(e) => handleUpdateVisit(visit.id, 'report_template_id', e.target.value)}><option value="">Select template</option>{templates.filter(t => !t.scan_type || t.scan_type === visit.scan_type).map(t => <option key={t.id} value={t.id}>{t.title}</option>)}</select></td>
-                          <td className="px-4 py-3"><input type="text" list="referral-options" className={inputClass} value={visit.referral_doctor} onChange={(e) => handleUpdateVisit(visit.id, 'referral_doctor', e.target.value)} placeholder="Enter or select" /></td>
+                          <td className="px-4 py-3"><input type="text" list="referral-options" className={inputClass} value={visit.referral_doctor} onChange={(e) => handleUpdateVisit(visit.id, 'referral_doctor', e.target.value)} placeholder="Enter or select" required aria-label="Referral doctor or institute" /></td>
                           <td className="px-4 py-3"><input type="text" className={inputClass} value={visit.notes} onChange={(e) => handleUpdateVisit(visit.id, 'notes', e.target.value)} placeholder="Notes" /></td>
                           <td className="px-4 py-3 text-center">
                             <button type="button" onClick={() => handleDeleteVisit(visit.id)} aria-label="Remove visit" className="inline-flex rounded-lg p-2 text-slate-400 hover:bg-red-50 hover:text-red-600 transition">
