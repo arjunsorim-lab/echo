@@ -23,3 +23,5 @@ Reviewed 13 November 2026. This audit distinguishes current checkout changes fro
 | Exclude credentials, patient databases, uploads and build output from commits | Necessary to publish code without publishing local clinical data/secrets | Retained. Local database and patient files are not reverted or deleted. |
 
 This audit does not undo unrelated changes inherited from the newer main branch. Generated test fixtures remain isolated from the local patient database. It does not reset other users' passwords or remove patient records.
+
+The complete 28-page review is in [page-scope-audit.md](page-scope-audit.md), including the five attributable page deltas and unchanged shared navigation/style surfaces.
