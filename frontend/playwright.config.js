@@ -10,7 +10,7 @@ export default defineConfig({
   outputDir: 'test-results',
   use: {
     baseURL: 'http://127.0.0.1:55324',
-    actionTimeout: 30000,
+    actionTimeout: 15000,
     channel: 'chrome',
     headless: true,
     viewport: { width: 1440, height: 1000 },

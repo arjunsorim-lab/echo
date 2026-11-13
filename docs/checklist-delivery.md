@@ -81,6 +81,6 @@ Regenerate the complete synthetic fetal HTML sample with `npm run build && npm t
 - Frontend: eight unit tests plus the complete synthetic fetal preview assertions passed.
 - A broad browser run passed 31 cases and exposed three report-loading/preview failures; three later print cases were skipped after a serial failure. Those results were not represented as an all-pass run.
 - After correcting the saved-report loading gate, all nine targeted browser cases passed: selected-image persistence/export/print/report inclusion; A4 reports for all three echo types; long-report pagination for all three; new-patient fetal audit/completion; and L1/L2/L3 approval/locking.
-- The route smoke test now checks rendered content instead of waiting for indefinite global network idleness. Browser interaction timeout allows 30 seconds for the local fixture; clinical save timeout remains independently bounded at 30 seconds.
+- The route smoke test now checks rendered content instead of waiting for indefinite global network idleness. The global browser interaction timeout is restored to its original 15 seconds. Clinical save timeout remains independently bounded at 30 seconds.
 - The production build passed. Physical printer output and native operating-system sharing recipients are not automatically exercised; PDF generation and ZIP download are tested.
 - All three delayed-network regression tests passed: fetal, adult and paediatric report controls stay unavailable until their saved content loads, then navigation works.

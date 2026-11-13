@@ -10,7 +10,7 @@ For an isolated browser fixture, run `python3 backend/browser_fixture.py`. It pr
 
 The complete synthetic fetal HTML sample is generated at `frontend/test-output/fetal-sample.html`. Open it for layout review. It contains no clinical diagnosis and is labelled not approved for clinical use. The generated HTML and screenshots are ignored test output; regenerate after changing the preview.
 
-Runtime configuration includes `DB_PATH`, `UPLOADS_DIR`, `ECHOAI_USERS_PATH`, `ECHOAI_PASSWORD`, `HOST` and `PORT`. Configure deployment values explicitly. Local credentials and password hashes must remain outside version control and container images. A fresh installation generates local credentials when none are configured; never put those passwords in frontend source.
+Runtime configuration includes `DB_PATH`, `UPLOADS_DIR`, `ECHOAI_USERS_PATH`, `ECHOAI_PASSWORD`, `HOST` and `PORT`. Configure deployment values explicitly. Local credentials and password hashes must remain outside version control and container images. Local startup preserves the original founder login (`dr.shanthi` / `password123`) unless an explicit password is configured. Existing configured accounts are not rotated on startup. Production continues to use explicitly configured credentials.
 
 No calculation rules are shipped. `ECHOAI_CALCULATION_RULES` must remain unset until clinical definitions and independent cases are approved. Do not use synthetic test rules for patient reports.
 
