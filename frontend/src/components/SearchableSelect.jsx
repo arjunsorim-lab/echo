@@ -1,10 +1,10 @@
-﻿import { useState, useRef, useEffect, useMemo } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { Search, ChevronDown, X, Check } from 'lucide-react'
 
 /**
  * A searchable custom dropdown select component.
  *
- * @param {Array<{value: string|number, label: string}>} options
+ * @param {Array<{value: string|number, label: string, badge?: string, visitCount?: number}>} options
  * @param {string|number} value
  * @param {function(string|number): void} onChange
  * @param {string} placeholder
@@ -26,7 +26,7 @@ export default function SearchableSelect({
   const containerRef = useRef(null)
   const searchInputRef = useRef(null)
 
-  // Find selected option label
+  // Find selected option
   const selectedOption = useMemo(() => {
     return options.find((opt) => String(opt.value) === String(value))
   }, [options, value])
@@ -38,7 +38,8 @@ export default function SearchableSelect({
     return options.filter(
       (opt) =>
         opt.label.toLowerCase().includes(q) ||
-        String(opt.value).toLowerCase().includes(q)
+        String(opt.value).toLowerCase().includes(q) ||
+        (opt.badge && String(opt.badge).toLowerCase().includes(q))
     )
   }, [options, searchQuery])
 
@@ -86,7 +87,18 @@ export default function SearchableSelect({
         }`}
       >
         <span className={`block truncate ${!selectedOption ? 'text-slate-400' : 'font-medium'}`}>
-          {selectedOption ? selectedOption.label : placeholder}
+          {selectedOption ? (
+            <span className="flex items-center gap-2 truncate">
+              <span className="truncate">{selectedOption.label}</span>
+              {selectedOption.badge && (
+                <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[11px] font-semibold text-teal-700 border border-teal-200 shrink-0">
+                  {selectedOption.badge}
+                </span>
+              )}
+            </span>
+          ) : (
+            placeholder
+          )}
         </span>
         <div className="flex items-center gap-1 shrink-0">
           {value !== '' && value !== null && value !== undefined && (
@@ -107,7 +119,7 @@ export default function SearchableSelect({
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute left-0 z-50 mt-1.5 max-h-72 w-full min-w-[240px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl ring-1 ring-black/5 animate-in fade-in-50 zoom-in-95">
+        <div className="absolute left-0 z-50 mt-1.5 max-h-72 w-full min-w-[280px] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-xl ring-1 ring-black/5 animate-in fade-in-50 zoom-in-95">
           {/* Search Box */}
           <div className="p-2 border-b border-slate-100 bg-slate-50/80 sticky top-0 backdrop-blur-xs z-10">
             <div className="relative flex items-center">
@@ -152,14 +164,27 @@ export default function SearchableSelect({
                   <div
                     key={opt.value}
                     onClick={() => handleSelect(opt.value)}
-                    className={`flex cursor-pointer items-center justify-between rounded-md px-3 py-2 text-xs transition-colors ${
+                    className={`flex cursor-pointer items-center justify-between rounded-lg px-3 py-2 text-xs transition-colors ${
                       isSelected
                         ? 'bg-teal-50 font-semibold text-teal-900'
                         : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
                     <span className="truncate pr-2">{opt.label}</span>
-                    {isSelected && <Check className="h-3.5 w-3.5 shrink-0 text-teal-600" />}
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {opt.badge && (
+                        <span
+                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold border ${
+                            opt.visitCount > 0
+                              ? 'bg-teal-50 text-teal-700 border-teal-200'
+                              : 'bg-slate-100 text-slate-500 border-slate-200'
+                          }`}
+                        >
+                          {opt.badge}
+                        </span>
+                      )}
+                      {isSelected && <Check className="h-3.5 w-3.5 text-teal-600" />}
+                    </div>
                   </div>
                 )
               })

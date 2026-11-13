@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import {
   LayoutDashboard,
   UserPlus,
@@ -10,10 +10,14 @@ import {
   Cog,
   Power,
   Crown,
+  User,
 } from 'lucide-react'
 import EchoLogo from './EchoLogo'
 
 function Sidebar() {
+  const location = useLocation()
+  const currentPath = location.pathname
+
   const navItems = [
     { path: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { path: '/patients/new', icon: UserPlus, label: 'New Patient' },
@@ -23,7 +27,24 @@ function Sidebar() {
     { path: '/reports', icon: FileText, label: 'Reports' },
     { path: '/analytics', icon: BarChart3, label: 'Analytics' },
     { path: '/settings', icon: Cog, label: 'Settings' },
+    { path: '/profile', icon: User, label: 'Doctor Profile' },
   ]
+
+  const isItemActive = (itemPath) => {
+    if (itemPath === '/patients/new') {
+      return currentPath === '/patients/new' || currentPath === '/new-patient'
+    }
+    if (itemPath === '/patients') {
+      return (
+        currentPath === '/patients' ||
+        (currentPath.startsWith('/patients/') && !currentPath.startsWith('/patients/new'))
+      )
+    }
+    if (itemPath === '/dashboard') {
+      return currentPath === '/dashboard' || currentPath === '/'
+    }
+    return currentPath === itemPath || currentPath.startsWith(itemPath + '/')
+  }
 
   return (
     <aside className="no-print flex h-screen w-64 shrink-0 flex-col justify-between border-r border-slate-200/80 bg-white p-4 font-sans text-slate-700 select-none overflow-y-auto no-scrollbar">
@@ -37,24 +58,24 @@ function Sidebar() {
         <nav className="space-y-1">
           {navItems.map((item) => {
             const Icon = item.icon
+            const active = isItemActive(item.path)
 
             return (
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={({ isActive }) =>
-                  `flex items-center space-x-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-150 ${
-                    isActive
-                      ? 'bg-[#e6f4f1] text-[#0f5449] font-bold shadow-2xs'
-                      : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
-                  }`
-                }
+                className={`flex items-center space-x-3 rounded-xl px-3.5 py-2.5 text-sm font-medium transition-all duration-150 ${
+                  active
+                    ? 'bg-[#e6f4f1] text-[#0f5449] font-bold shadow-2xs'
+                    : 'text-slate-600 hover:bg-slate-100/80 hover:text-slate-900'
+                }`}
               >
                 <Icon className="h-4 w-4" />
                 <span>{item.label}</span>
               </NavLink>
             )
           })}
+
 
           <form action="/" method="get" className="pt-1">
             <input type="hidden" name="signout" value="1" />
@@ -70,7 +91,7 @@ function Sidebar() {
       </div>
 
       {/* Upgrade Plan Card & Footer */}
-      <div className="space-y-4 pt-4 border-t border-slate-100">
+      {/* <div className="space-y-4 pt-4 border-t border-slate-100">
         <div className="rounded-xl border border-amber-200/60 bg-gradient-to-br from-amber-50/50 to-orange-50/30 p-3.5 shadow-2xs cursor-pointer hover:shadow-xs transition">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
@@ -87,7 +108,7 @@ function Sidebar() {
           <p>Version 1.0.0</p>
           <p className="mt-0.5">© 2026 Echo AI</p>
         </div>
-      </div>
+      </div> */}
     </aside>
   )
 }

@@ -26,6 +26,7 @@ const scanRoutes = {
   'Adult Echo': '/adult-echo-report',
   'Fetal Echo': '/fetal-echo-report',
   'Pediatric Echo': '/pediatric-echo-report',
+  Ultrasound: '/echo-studies',
 }
 
 const asList = (result) => {
@@ -108,6 +109,7 @@ export default function Dashboard() {
     adult_echo: 81,
     fetal_echo: 26,
     pediatric_echo: 30,
+    ultrasound: 0,
   })
 
   const [searchQuery, setSearchQuery] = useState('')
@@ -137,6 +139,7 @@ export default function Dashboard() {
             adult_echo: statsResult.data.adult_echo ?? prev.adult_echo,
             fetal_echo: statsResult.data.fetal_echo ?? prev.fetal_echo,
             pediatric_echo: statsResult.data.pediatric_echo ?? prev.pediatric_echo,
+            ultrasound: statsResult.data.ultrasound ?? prev.ultrasound,
           }))
         }
 
@@ -269,6 +272,10 @@ export default function Dashboard() {
       iconBg: 'bg-[#f97316]', // orange
       strokeColor: '#f97316',
       link: '/pediatric-echo-report',
+    },
+    {
+      title: 'ULTRASOUND', value: stats.ultrasound, change: 'Studies', isPositive: true,
+      icon: Activity, iconBg: 'bg-[#0891b2]', strokeColor: '#0891b2', link: '/echo-studies?type=Ultrasound',
     },
   ]
 
@@ -467,7 +474,7 @@ export default function Dashboard() {
 
             {/* Scan Type Filter Pills */}
             <div className="flex items-center rounded-xl bg-slate-100/80 p-0.5">
-              {['All', 'Adult Echo', 'Fetal Echo', 'Pediatric Echo'].map((type) => (
+              {['All', 'Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound'].map((type) => (
                 <button
                   key={type}
                   type="button"

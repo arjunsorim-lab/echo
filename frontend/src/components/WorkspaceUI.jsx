@@ -49,7 +49,7 @@ export function Section({ title, description, children, className = '' }) {
   )
 }
 
-export function Field({ label, optionField, addable = false, type = 'text', value, onChange, options, placeholder, rows = 3, min, max }) {
+export function Field({ label, optionField, addable = false, type = 'text', value, onChange, options, placeholder, rows = 3, min, max, readOnly = false, required = false }) {
   const common = {
     value: value ?? '',
     onChange: (event) => onChange?.(type === 'checkbox' ? event.target.checked : event.target.value),
@@ -57,28 +57,29 @@ export function Field({ label, optionField, addable = false, type = 'text', valu
 
   return (
     <div className="field-label">
-      <span>{label}</span>
+      <span>{label}{required && <span className="text-red-600"> *</span>}</span>
       {type === 'select' && addable ? (
         <AddableSelect
           field={`select_${optionField || String(label).toLowerCase().replace(/[^a-z0-9]+/g, '_')}`}
           options={options}
           value={value}
           onChange={onChange}
+          disabled={readOnly}
         />
       ) : type === 'select' ? (
-        <select className="field-control" {...common}>
+        <select className="field-control" disabled={readOnly} required={required} {...common}>
           <option value="">Select</option>
           {options?.map((option) => <option key={option} value={option}>{option}</option>)}
         </select>
       ) : type === 'textarea' ? (
-        <textarea className="field-control h-auto py-2" rows={rows} placeholder={placeholder} {...common} />
+        <textarea className="field-control h-auto py-2" rows={rows} placeholder={placeholder} readOnly={readOnly} required={required} {...common} />
       ) : type === 'checkbox' ? (
         <span className="flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3">
-          <input type="checkbox" checked={Boolean(value)} onChange={common.onChange} className="h-4 w-4 rounded text-teal-600" />
+          <input type="checkbox" checked={Boolean(value)} onChange={common.onChange} required={required} disabled={readOnly} className="h-4 w-4 rounded text-teal-600" />
           <span className="text-sm font-normal text-slate-700">Enabled</span>
         </span>
       ) : (
-        <input className="field-control" type={type} placeholder={placeholder} min={min} max={max} {...common} />
+        <input className="field-control" type={type} placeholder={placeholder} min={min} max={max} readOnly={readOnly} required={required} {...common} />
       )}
     </div>
   )

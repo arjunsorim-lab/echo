@@ -1,6 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FileText, Eye, Printer, Search, Plus, Filter } from 'lucide-react'
+import {
+  FileText,
+  Eye,
+  Printer,
+  Search,
+  Plus,
+  Filter,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+} from 'lucide-react'
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 
@@ -12,6 +23,8 @@ export default function Reports() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedScanType, setSelectedScanType] = useState('All')
   const [selectedStatus, setSelectedStatus] = useState('All')
+  const [currentPage, setCurrentPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
   useEffect(() => {
     Promise.all([patientService.getPatients(), scanService.getScans()])
@@ -22,6 +35,11 @@ export default function Reports() {
       .catch((err) => console.error(err))
       .finally(() => setLoading(false))
   }, [])
+
+  // Reset to page 1 on filter or search changes
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [searchQuery, selectedScanType, selectedStatus])
 
   const patientMap = useMemo(() => {
     const map = new Map()
@@ -41,6 +59,27 @@ export default function Reports() {
       return matchesSearch && matchesType && matchesStatus
     })
   }, [scans, patientMap, searchQuery, selectedScanType, selectedStatus])
+
+  const totalItems = filteredReports.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  const startIndex = (currentPage - 1) * pageSize
+  const endIndex = Math.min(startIndex + pageSize, totalItems)
+  const paginatedReports = useMemo(() => {
+    return filteredReports.slice(startIndex, endIndex)
+  }, [filteredReports, startIndex, endIndex])
+
+  const getPageNumbers = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1)
+    }
+    if (currentPage <= 3) {
+      return [1, 2, 3, 4, '...', totalPages]
+    }
+    if (currentPage >= totalPages - 2) {
+      return [1, '...', totalPages - 3, totalPages - 2, totalPages - 1, totalPages]
+    }
+    return [1, '...', currentPage - 1, currentPage, currentPage + 1, '...', totalPages]
+  }
 
   const openReport = (scan) => {
     const route = scan.scan_type === 'Fetal Echo'
@@ -137,7 +176,7 @@ export default function Reports() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200">
-              {filteredReports.map((report) => {
+              {paginatedReports.map((report) => {
                 const p = patientMap.get(report.patient_id) || {}
                 const name = `${p.salutation || ''} ${p.first_name || ''} ${p.last_name || ''}`.trim() || p.patient_id || 'Unknown'
                 const isComplete = String(report.status || '').toLowerCase() === 'completed'
@@ -203,6 +242,101 @@ export default function Reports() {
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination Footer */}
+        <div className="flex flex-col gap-3 border-t border-slate-200 bg-slate-50/70 px-4 py-3 sm:flex-row sm:items-center sm:justify-between text-xs text-slate-600">
+          <div className="flex items-center gap-3">
+            <div>
+              Showing <span className="font-bold text-slate-900">{totalItems > 0 ? startIndex + 1 : 0}</span> to{' '}
+              <span className="font-bold text-slate-900">{endIndex}</span> of{' '}
+              <span className="font-bold text-slate-900">{totalItems}</span> reports
+            </div>
+            <div className="flex items-center gap-1.5 border-l border-slate-200 pl-3">
+              <span className="text-slate-500">Rows:</span>
+              <select
+                value={pageSize}
+                onChange={(e) => {
+                  setPageSize(Number(e.target.value))
+                  setCurrentPage(1)
+                }}
+                className="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700 outline-none focus:border-teal-500"
+              >
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+            </div>
+          </div>
+
+          {totalPages > 1 && (
+            <div className="flex flex-wrap items-center gap-1">
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(1)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                title="First Page"
+              >
+                <ChevronsLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                className="flex h-8 items-center gap-1 px-2.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-600 shadow-2xs hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                title="Previous Page"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Prev</span>
+              </button>
+
+              {getPageNumbers().map((pNum, idx) => {
+                if (pNum === '...') {
+                  return (
+                    <span key={`ell-${idx}`} className="flex h-8 w-7 items-center justify-center text-slate-400 font-bold select-none">
+                      …
+                    </span>
+                  )
+                }
+                const isActive = pNum === currentPage
+                return (
+                  <button
+                    key={pNum}
+                    type="button"
+                    onClick={() => setCurrentPage(pNum)}
+                    className={`flex h-8 min-w-8 items-center justify-center rounded-lg text-xs font-bold transition px-2 ${
+                      isActive
+                        ? 'bg-teal-600 text-white shadow-2xs'
+                        : 'border border-slate-200 bg-white text-slate-700 hover:bg-slate-50'
+                    }`}
+                  >
+                    {pNum}
+                  </button>
+                )
+              })}
+
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                className="flex h-8 items-center gap-1 px-2.5 rounded-lg border border-slate-200 bg-white font-semibold text-slate-600 shadow-2xs hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                title="Next Page"
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="h-3.5 w-3.5" />
+              </button>
+              <button
+                type="button"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+                className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-2xs hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed transition"
+                title="Last Page"
+              >
+                <ChevronsRight className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

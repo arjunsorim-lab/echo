@@ -403,3 +403,74 @@ export function calculateAge(dob) {
   return age >= 0 ? String(age) : ''
 }
 
+/**
+ * Calculate age and unit (Years, Months, Days) from a DOB string (YYYY-MM-DD).
+ * Returns { age: '', unit: 'Years' } if invalid.
+ */
+export function calculateAgeWithUnit(dob) {
+  if (!dob) return { age: '', unit: 'Years' }
+  const today = new Date()
+  const birth = new Date(dob)
+  if (isNaN(birth.getTime())) return { age: '', unit: 'Years' }
+
+  let years = today.getFullYear() - birth.getFullYear()
+  let months = today.getMonth() - birth.getMonth()
+  let days = today.getDate() - birth.getDate()
+
+  if (days < 0) {
+    months -= 1
+    const prevMonthLastDay = new Date(today.getFullYear(), today.getMonth(), 0).getDate()
+    days += prevMonthLastDay
+  }
+  if (months < 0) {
+    years -= 1
+    months += 12
+  }
+
+  if (years >= 1) {
+    return { age: String(years), unit: 'Years' }
+  } else if (months >= 1) {
+    return { age: String(months), unit: 'Months' }
+  } else {
+    const diffTime = Math.max(0, today.getTime() - birth.getTime())
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    return { age: String(diffDays), unit: 'Days' }
+  }
+}
+
+/**
+ * Calculate age for a specific unit (Years, Months, Days) from a DOB string (YYYY-MM-DD).
+ * Returns string representing age in that unit.
+ */
+export function calculateAgeForUnit(dob, unit) {
+  if (!dob) return ''
+  const today = new Date()
+  const birth = new Date(dob)
+  if (isNaN(birth.getTime())) return ''
+
+  let years = today.getFullYear() - birth.getFullYear()
+  let months = today.getMonth() - birth.getMonth()
+  let days = today.getDate() - birth.getDate()
+
+  if (days < 0) {
+    months -= 1
+    const prevMonthLastDay = new Date(today.getFullYear(), today.getMonth(), 0).getDate()
+    days += prevMonthLastDay
+  }
+  if (months < 0) {
+    years -= 1
+    months += 12
+  }
+
+  if (unit === 'Years') {
+    return String(years)
+  } else if (unit === 'Months') {
+    return String(years * 12 + months)
+  } else if (unit === 'Days') {
+    const diffTime = Math.max(0, today.getTime() - birth.getTime())
+    const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24))
+    return String(diffDays)
+  }
+  return ''
+}
+

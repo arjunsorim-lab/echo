@@ -1,6 +1,6 @@
-from fastapi import FastAPI, HTTPException, UploadFile, File, Query
+from fastapi import FastAPI, HTTPException, UploadFile, File, Query, Form
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, ConfigDict
 from typing import Optional, List, Any, Dict
@@ -9,6 +9,12 @@ import json
 from datetime import datetime, date
 import os
 import shutil
+import io
+import uuid
+import secrets
+from urllib.parse import quote
+from email.parser import BytesParser
+from email.policy import default as email_policy
 
 app = FastAPI(title="Echo AI Backend", version="1.0.0")
 
@@ -99,11 +105,12 @@ def init_db():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             patient_id TEXT UNIQUE,
             salutation TEXT,
-            first_name TEXT NOT NULL,
+            first_name TEXT,
             middle_name TEXT,
             last_name TEXT,
             gender TEXT,
-            age INTEGER,
+            age TEXT,
+            age_unit TEXT DEFAULT 'Years',
             dob TEXT,
             mobile TEXT,
             phone1 TEXT,
@@ -156,6 +163,7 @@ def init_db():
         'ethnic_origin': 'TEXT',
         'fax': 'TEXT',
         'family_doctor': 'TEXT',
+        'age_unit': "TEXT DEFAULT 'Years'",
     }
     existing_patient_columns = {
         row[1] for row in c.execute('PRAGMA table_info(patients)').fetchall()
@@ -171,6 +179,7 @@ def init_db():
             patient_id INTEGER NOT NULL,
             visit_date TEXT,
             visit_type TEXT,
+            report_template_id INTEGER,
             doctor_id INTEGER,
             diagnosis TEXT,
             notes TEXT,
@@ -184,6 +193,9 @@ def init_db():
             FOREIGN KEY (patient_id) REFERENCES patients(id)
         )
     ''')
+    visit_columns = {row[1] for row in c.execute('PRAGMA table_info(visits)').fetchall()}
+    if 'report_template_id' not in visit_columns:
+        c.execute('ALTER TABLE visits ADD COLUMN report_template_id INTEGER')
     
     # 3. Scans table
     c.execute('''
@@ -386,6 +398,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS clinical_reports (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             patient_id INTEGER,
+            visit_id TEXT,
             scan_id INTEGER,
             scan_type TEXT,
             report_title TEXT,
@@ -394,6 +407,22 @@ def init_db():
             status TEXT DEFAULT 'draft',
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    report_columns = {row[1] for row in c.execute('PRAGMA table_info(clinical_reports)').fetchall()}
+    if 'visit_id' not in report_columns:
+        c.execute('ALTER TABLE clinical_reports ADD COLUMN visit_id TEXT')
+
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS clinical_report_changes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            report_id INTEGER NOT NULL,
+            field_path TEXT NOT NULL,
+            old_value TEXT,
+            new_value TEXT,
+            changed_by TEXT,
+            changed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (report_id) REFERENCES clinical_reports(id) ON DELETE CASCADE
         )
     ''')
     
@@ -434,9 +463,24 @@ def init_db():
             status TEXT,
             url TEXT,
             data_url TEXT,
+            modality TEXT,
+            sop_instance_uid TEXT,
+            number_of_frames INTEGER DEFAULT 1,
+            metadata TEXT,
+            storage_path TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+    media_columns = {row[1] for row in c.execute('PRAGMA table_info(media_records)').fetchall()}
+    for column, definition in {
+        'modality': 'TEXT',
+        'sop_instance_uid': 'TEXT',
+        'number_of_frames': 'INTEGER DEFAULT 1',
+        'metadata': 'TEXT',
+        'storage_path': 'TEXT',
+    }.items():
+        if column not in media_columns:
+            c.execute(f'ALTER TABLE media_records ADD COLUMN {column} {definition}')
 
     # 12. Saved queries table
     c.execute('''
@@ -486,6 +530,8 @@ def _map_patient_row(row):
     patient['country'] = patient.get('country') or 'India'
     patient['fax'] = patient.get('fax') or ''
     patient['family_doctor'] = patient.get('family_doctor') or ''
+    patient['age_unit'] = patient.get('age_unit') or 'Years'
+    patient['visit_count'] = patient.get('visit_count', 0)
 
     return patient
 
@@ -501,6 +547,7 @@ def get_dashboard_stats():
     adult_echo = c.execute('SELECT COUNT(*) FROM scans WHERE scan_type = "Adult Echo"').fetchone()[0]
     fetal_echo = c.execute('SELECT COUNT(*) FROM scans WHERE scan_type = "Fetal Echo"').fetchone()[0]
     pediatric_echo = c.execute('SELECT COUNT(*) FROM scans WHERE scan_type = "Pediatric Echo"').fetchone()[0]
+    ultrasound = c.execute('SELECT COUNT(*) FROM scans WHERE scan_type = "Ultrasound"').fetchone()[0]
     
     today_str = date.today().isoformat()
     todays_visits = c.execute('SELECT COUNT(*) FROM visits WHERE visit_date LIKE ?', (f"{today_str}%",)).fetchone()[0]
@@ -517,6 +564,7 @@ def get_dashboard_stats():
             "adult_echo": adult_echo,
             "fetal_echo": fetal_echo,
             "pediatric_echo": pediatric_echo,
+            "ultrasound": ultrasound,
             "todays_visits": todays_visits,
             "upcoming_visits": upcoming_visits,
         }
@@ -528,8 +576,19 @@ def get_dashboard_stats():
 def get_patients():
     conn = get_db()
     patients = conn.execute('SELECT * FROM patients ORDER BY id DESC').fetchall()
+    visit_counts = {}
+    for r in conn.execute('SELECT patient_id, COUNT(*) as c FROM visits GROUP BY patient_id').fetchall():
+        visit_counts[str(r['patient_id'])] = r['c']
+
+    result = []
+    for p in patients:
+        row_dict = _map_patient_row(p)
+        c1 = visit_counts.get(str(p['id']), 0)
+        c2 = visit_counts.get(str(p['patient_id']), 0)
+        row_dict['visit_count'] = c1 if str(p['id']) == str(p['patient_id']) else (c1 + c2)
+        result.append(row_dict)
     conn.close()
-    return {"success": True, "data": [_map_patient_row(p) for p in patients]}
+    return {"success": True, "data": result}
 
 @app.get('/api/patients/{patient_id}')
 def get_patient(patient_id: str):
@@ -548,10 +607,33 @@ def create_patient(data: dict):
     conn = get_db()
     cursor = conn.cursor()
     
-    patient_id = data.get('patient_id')
+    patient_id = str(data.get('patient_id') or '').strip()
     if not patient_id:
-        count = conn.execute('SELECT COUNT(*) FROM patients').fetchone()[0]
-        patient_id = f"PAT{str(count + 1).zfill(6)}"
+        conn.close()
+        raise HTTPException(status_code=400, detail="Patient ID is required")
+    duplicate = conn.execute('SELECT 1 FROM patients WHERE patient_id = ?', (patient_id,)).fetchone()
+    if duplicate:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Patient ID already exists")
+    if not data.get('dob') and str(data.get('age') if data.get('age') is not None else '').strip() == '':
+        conn.close()
+        raise HTTPException(status_code=400, detail="Enter a date of birth or age")
+    if data.get('dob'):
+        try:
+            dob_date = datetime.strptime(str(data['dob']), '%Y-%m-%d').date()
+        except ValueError:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Enter a valid date of birth")
+        if dob_date > date.today():
+            conn.close()
+            raise HTTPException(status_code=400, detail="Date of birth cannot be in the future")
+    if data.get('age') not in (None, ''):
+        try:
+            if float(data['age']) < 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            conn.close()
+            raise HTTPException(status_code=400, detail="Age must be a non-negative number")
     
     salutation = data.get('salutation', '')
     first_name = data.get('first_name', '')
@@ -559,6 +641,9 @@ def create_patient(data: dict):
     last_name = data.get('last_name', '')
     gender = data.get('gender', 'M')
     age = int(data.get('age')) if data.get('age') and str(data.get('age')).isdigit() else None
+    if data.get('age') not in (None, '') and age is None:
+        age = str(data.get('age')).strip()
+    age_unit = data.get('age_unit') or 'Years'
     dob = data.get('dob', '')
     mobile = data.get('mobile', '')
     phone1 = data.get('phone1', '')
@@ -592,15 +677,15 @@ def create_patient(data: dict):
     try:
         cursor.execute('''
             INSERT INTO patients (
-                patient_id, salutation, first_name, middle_name, last_name, gender, age, dob,
+                patient_id, salutation, first_name, middle_name, last_name, gender, age, age_unit, dob,
                 mobile, phone1, phone2, email, address, street, area, area_po, taluk,
                 city, district_city, state, pincode, zip_code, country, ethnic_origin,
                 aadhar_number, abha_number, blood_group, marital_status, occupation,
                 religion, nationality, emergency_contact_name, emergency_contact_phone,
                 emergency_contact_relation, fax, family_doctor, referred_by, registration_date, referred_by_doctor_id
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ''', (
-            patient_id, salutation, first_name, middle_name, last_name, gender, age, dob,
+            patient_id, salutation, first_name, middle_name, last_name, gender, age, age_unit, dob,
             mobile, phone1, phone2, email, street, street, area, area_po, taluk,
             city, city, state, pincode, pincode, country, ethnic_origin,
             aadhar_number, abha_number, blood_group, marital_status, occupation,
@@ -611,12 +696,6 @@ def create_patient(data: dict):
         new_id = cursor.lastrowid
         conn.commit()
         
-        # Increment settings next_number if setting exists
-        setting = conn.execute('SELECT next_number FROM settings WHERE id = 1').fetchone()
-        if setting:
-            conn.execute('UPDATE settings SET next_number = next_number + 1 WHERE id = 1')
-            conn.commit()
-            
         inserted = conn.execute('SELECT * FROM patients WHERE id = ?', (new_id,)).fetchone()
         conn.close()
         return {"success": True, "data": _map_patient_row(inserted)}
@@ -628,18 +707,42 @@ def create_patient(data: dict):
 def update_patient(patient_id: int, data: dict):
     conn = get_db()
     cursor = conn.cursor()
+    existing = conn.execute('SELECT * FROM patients WHERE id = ?', (patient_id,)).fetchone()
+    if not existing:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Patient not found")
+    requested_patient_id = str(data.get('patient_id') or existing['patient_id']).strip()
+    duplicate = conn.execute('SELECT 1 FROM patients WHERE patient_id = ? AND id != ?', (requested_patient_id, patient_id)).fetchone()
+    if duplicate:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Patient ID already exists")
+    if not data.get('dob') and str(data.get('age') if data.get('age') is not None else '').strip() == '':
+        conn.close()
+        raise HTTPException(status_code=400, detail="Enter a date of birth or age")
+    if data.get('dob'):
+        try:
+            dob_date = datetime.strptime(str(data['dob']), '%Y-%m-%d').date()
+        except ValueError:
+            conn.close()
+            raise HTTPException(status_code=400, detail="Enter a valid date of birth")
+        if dob_date > date.today():
+            conn.close()
+            raise HTTPException(status_code=400, detail="Date of birth cannot be in the future")
     
     street = data.get('street') or data.get('address') or ''
     city = data.get('district_city') or data.get('city') or ''
     pincode = data.get('zip_code') or data.get('pincode') or ''
     aadhar_number = data.get('aadhaar_no') or data.get('aadhar_number') or ''
     age = int(data.get('age')) if data.get('age') and str(data.get('age')).isdigit() else None
+    if data.get('age') not in (None, '') and age is None:
+        age = str(data.get('age')).strip()
+    age_unit = data.get('age_unit') or 'Years'
     
     try:
         cursor.execute('''
             UPDATE patients SET
                 patient_id = ?, salutation = ?, first_name = ?, middle_name = ?, last_name = ?, gender = ?,
-                age = ?, dob = ?, mobile = ?, phone1 = ?, phone2 = ?, email = ?,
+                age = ?, age_unit = ?, dob = ?, mobile = ?, phone1 = ?, phone2 = ?, email = ?,
                 address = ?, street = ?, area = ?, area_po = ?, taluk = ?, city = ?, district_city = ?,
                 state = ?, pincode = ?, zip_code = ?, country = ?, ethnic_origin = ?, aadhar_number = ?,
                 abha_number = ?, blood_group = ?, marital_status = ?, occupation = ?,
@@ -649,8 +752,8 @@ def update_patient(patient_id: int, data: dict):
                 updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
         ''', (
-            data.get('patient_id'), data.get('salutation'), data.get('first_name'), data.get('middle_name'),
-            data.get('last_name'), data.get('gender'), age, data.get('dob'), data.get('mobile'),
+            existing['patient_id'], existing['salutation'], existing['first_name'], existing['middle_name'],
+            existing['last_name'], existing['gender'], existing['age'], existing['age_unit'], existing['dob'], data.get('mobile'),
             data.get('phone1'), data.get('phone2'), data.get('email'), street, street, data.get('area'),
             data.get('area_po'), data.get('taluk'), city, city, data.get('state'), pincode, pincode,
             data.get('country', 'India'), data.get('ethnic_origin'), aadhar_number, data.get('abha_number'),
@@ -715,9 +818,9 @@ def add_visit(patient_id: int, data: dict):
     ob = data.get('ob', '')
     
     cursor.execute('''
-        INSERT INTO visits (patient_id, visit_date, visit_type, doctor_id, diagnosis, notes, referral_doctor, image_count, avi, pregnancy, ob)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ''', (patient_id, visit_date, visit_type, doctor_id, diagnosis, notes, referral_doctor, image_count, avi, pregnancy, ob))
+        INSERT INTO visits (patient_id, visit_date, visit_type, report_template_id, doctor_id, diagnosis, notes, referral_doctor, image_count, avi, pregnancy, ob)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ''', (patient_id, visit_date, visit_type, data.get('report_template_id'), doctor_id, diagnosis, notes, referral_doctor, image_count, avi, pregnancy, ob))
     
     visit_id = cursor.lastrowid
     conn.commit()
@@ -732,11 +835,11 @@ def update_visit(patient_id: int, visit_id: int, data: dict):
     
     cursor.execute('''
         UPDATE visits SET
-            visit_date = ?, visit_type = ?, doctor_id = ?, diagnosis = ?, notes = ?,
+            visit_date = ?, visit_type = ?, report_template_id = ?, doctor_id = ?, diagnosis = ?, notes = ?,
             referral_doctor = ?, image_count = ?, avi = ?, pregnancy = ?, ob = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ? AND patient_id = ?
     ''', (
-        data.get('visit_date'), data.get('visit_type'), data.get('doctor_id'),
+        data.get('visit_date'), data.get('visit_type'), data.get('report_template_id'), data.get('doctor_id'),
         data.get('diagnosis'), data.get('notes'), data.get('referral_doctor'),
         data.get('image_count', 0), data.get('avi', 0), data.get('pregnancy', 0),
         data.get('ob', ''), visit_id, patient_id
@@ -756,13 +859,39 @@ def delete_visit(patient_id: int, visit_id: int):
     conn.close()
     return {"success": True, "message": "Visit deleted successfully"}
 
+def _map_scan_row(scan_row):
+    if not scan_row:
+        return None
+    d = dict(scan_row)
+    findings = d.get('findings') or ''
+    if findings.strip().startswith('{') and findings.strip().endswith('}'):
+        try:
+            parsed = json.loads(findings)
+            if 'adult_echo_report' in parsed:
+                d['adult_echo_report'] = parsed['adult_echo_report']
+            elif parsed.get('scan_type') == 'Adult Echo' or d.get('scan_type') == 'Adult Echo':
+                d['adult_echo_report'] = parsed
+
+            if 'pediatric_echo_report' in parsed:
+                d['pediatric_echo_report'] = parsed['pediatric_echo_report']
+            elif parsed.get('scan_type') == 'Pediatric Echo' or d.get('scan_type') == 'Pediatric Echo':
+                d['pediatric_echo_report'] = parsed
+
+            if 'fetal_echo_report' in parsed:
+                d['fetal_echo_report'] = parsed['fetal_echo_report']
+            elif parsed.get('scan_type') == 'Fetal Echo' or d.get('scan_type') == 'Fetal Echo':
+                d['fetal_echo_report'] = parsed
+        except Exception:
+            pass
+    return d
+
 # Scans Endpoints
 @app.get('/api/scans')
 def get_scans():
     conn = get_db()
     scans = conn.execute('SELECT * FROM scans ORDER BY id DESC').fetchall()
     conn.close()
-    return {"success": True, "data": [dict(s) for s in scans]}
+    return {"success": True, "data": [_map_scan_row(s) for s in scans]}
 
 @app.get('/api/scans/{scan_id}')
 def get_scan(scan_id: int):
@@ -771,14 +900,14 @@ def get_scan(scan_id: int):
     conn.close()
     if not scan:
         raise HTTPException(status_code=404, detail="Scan not found")
-    return {"success": True, "data": dict(scan)}
+    return {"success": True, "data": _map_scan_row(scan)}
 
 @app.get('/api/scans/patient/{patient_id}')
 def get_scans_by_patient(patient_id: int):
     conn = get_db()
     scans = conn.execute('SELECT * FROM scans WHERE patient_id = ? ORDER BY id DESC', (patient_id,)).fetchall()
     conn.close()
-    return {"success": True, "data": [dict(s) for s in scans]}
+    return {"success": True, "data": [_map_scan_row(s) for s in scans]}
 
 @app.post('/api/scans')
 def create_scan(data: dict):
@@ -791,6 +920,13 @@ def create_scan(data: dict):
     scan_type = data.get('scan_type', 'Adult Echo')
     scan_date = data.get('scan_date') or datetime.now().isoformat()
     findings = data.get('findings', '')
+    if 'adult_echo_report' in data:
+        findings = json.dumps(data['adult_echo_report'])
+    elif 'pediatric_echo_report' in data:
+        findings = json.dumps(data['pediatric_echo_report'])
+    elif 'fetal_echo_report' in data:
+        findings = json.dumps(data['fetal_echo_report'])
+
     conclusion = data.get('conclusion', '')
     status = data.get('status', 'draft')
     abnormal = 1 if data.get('abnormal') else 0
@@ -824,24 +960,39 @@ def create_scan(data: dict):
     conn.commit()
     inserted = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
     conn.close()
-    return {"success": True, "data": dict(inserted)}
+    return {"success": True, "data": _map_scan_row(inserted)}
 
 @app.put('/api/scans/{scan_id}')
 def update_scan(scan_id: int, data: dict):
     conn = get_db()
     cursor = conn.cursor()
+    existing_scan = conn.execute('SELECT status FROM scans WHERE id = ?', (scan_id,)).fetchone()
+    if not existing_scan:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Scan not found")
+    if (existing_scan['status'] or '').lower() == 'completed':
+        conn.close()
+        raise HTTPException(status_code=409, detail="Completed scans cannot be edited")
     
+    findings = data.get('findings')
+    if 'adult_echo_report' in data:
+        findings = json.dumps(data['adult_echo_report'])
+    elif 'pediatric_echo_report' in data:
+        findings = json.dumps(data['pediatric_echo_report'])
+    elif 'fetal_echo_report' in data:
+        findings = json.dumps(data['fetal_echo_report'])
+
     cursor.execute('''
         UPDATE scans SET
             patient_id = ?, patient_display_id = ?, visit_id = ?, scan_type = ?, scan_date = ?,
-            findings = ?, conclusion = ?, status = ?, abnormal = ?, ambiguity = ?,
+            findings = COALESCE(?, findings), conclusion = ?, status = ?, abnormal = ?, ambiguity = ?,
             growthAbnormality = ?, normal = ?, normalVariant = ?, indication = ?, diagnosis = ?,
             referralDoctor = ?, primaryConsultant = ?, signedByLeft = ?, signedByRight = ?,
             typedBy = ?, reviewedBy = ?, icdCode = ?, updated_at = CURRENT_TIMESTAMP
         WHERE id = ?
     ''', (
         data.get('patient_id'), data.get('patient_display_id'), data.get('visit_id'),
-        data.get('scan_type'), data.get('scan_date'), data.get('findings'), data.get('conclusion'),
+        data.get('scan_type'), data.get('scan_date'), findings, data.get('conclusion'),
         data.get('status'), 1 if data.get('abnormal') else 0, 1 if data.get('ambiguity') else 0,
         1 if data.get('growthAbnormality') else 0, 1 if data.get('normal') else 0,
         1 if data.get('normalVariant') else 0, data.get('indication'), data.get('diagnosis'),
@@ -852,12 +1003,17 @@ def update_scan(scan_id: int, data: dict):
     conn.commit()
     updated = conn.execute('SELECT * FROM scans WHERE id = ?', (scan_id,)).fetchone()
     conn.close()
-    return {"success": True, "data": dict(updated)}
+    return {"success": True, "data": _map_scan_row(updated)}
+
 
 @app.delete('/api/scans/{scan_id}')
 def delete_scan(scan_id: int):
     conn = get_db()
     cursor = conn.cursor()
+    existing_scan = conn.execute('SELECT status FROM scans WHERE id = ?', (scan_id,)).fetchone()
+    if existing_scan and (existing_scan['status'] or '').lower() == 'completed':
+        conn.close()
+        raise HTTPException(status_code=409, detail="Completed scans cannot be deleted")
     cursor.execute('DELETE FROM scans WHERE id = ?', (scan_id,))
     conn.commit()
     conn.close()
@@ -1104,7 +1260,7 @@ def delete_template(template_id: int):
 
 # Clinical Reports Endpoints
 @app.get('/api/clinical-reports')
-def get_reports(patient_id: Optional[int] = Query(None), scan_type: Optional[str] = Query(None)):
+def get_reports(patient_id: Optional[int] = Query(None), scan_type: Optional[str] = Query(None), visit_id: Optional[str] = Query(None)):
     conn = get_db()
     query = 'SELECT * FROM clinical_reports WHERE 1=1'
     params_list = []
@@ -1115,10 +1271,21 @@ def get_reports(patient_id: Optional[int] = Query(None), scan_type: Optional[str
     if scan_type is not None:
         query += ' AND scan_type = ?'
         params_list.append(scan_type)
+    if visit_id is not None:
+        query += ' AND visit_id = ?'
+        params_list.append(visit_id)
     
     reports = conn.execute(query, params_list).fetchall()
     conn.close()
-    return {"success": True, "data": [dict(r) for r in reports]}
+    rows = []
+    for report in reports:
+        item = dict(report)
+        try:
+            item['data'] = json.loads(item.get('findings') or '{}')
+        except (TypeError, json.JSONDecodeError):
+            item['data'] = {}
+        rows.append(item)
+    return {"success": True, "data": rows}
 
 @app.get('/api/clinical-reports/{report_id}')
 def get_report(report_id: int):
@@ -1127,7 +1294,12 @@ def get_report(report_id: int):
     conn.close()
     if not report:
         raise HTTPException(status_code=404, detail="Report not found")
-    return {"success": True, "data": dict(report)}
+    item = dict(report)
+    try:
+        item['data'] = json.loads(item.get('findings') or '{}')
+    except (TypeError, json.JSONDecodeError):
+        item['data'] = {}
+    return {"success": True, "data": item}
 
 @app.post('/api/clinical-reports')
 def create_report(data: dict):
@@ -1135,11 +1307,11 @@ def create_report(data: dict):
     cursor = conn.cursor()
     
     cursor.execute('''
-        INSERT INTO clinical_reports (patient_id, scan_id, scan_type, report_title, findings, conclusion, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO clinical_reports (patient_id, visit_id, scan_id, scan_type, report_title, findings, conclusion, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (
-        data.get('patient_id'), data.get('scan_id'), data.get('scan_type'),
-        data.get('report_title'), data.get('findings'), data.get('conclusion'),
+        data.get('patient_id'), data.get('visit_id'), data.get('scan_id'), data.get('scan_type'),
+        data.get('report_title'), json.dumps(data.get('data', data.get('findings', {}))), data.get('conclusion'),
         data.get('status', 'draft'), datetime.now().isoformat()
     ))
     
@@ -1147,31 +1319,88 @@ def create_report(data: dict):
     conn.commit()
     inserted = conn.execute('SELECT * FROM clinical_reports WHERE id = ?', (report_id,)).fetchone()
     conn.close()
-    return {"success": True, "data": dict(inserted)}
+    inserted_data = dict(inserted)
+    inserted_data['data'] = json.loads(inserted_data.get('findings') or '{}')
+    return {"success": True, "data": inserted_data}
 
 @app.put('/api/clinical-reports/{report_id}')
 def update_report(report_id: int, data: dict):
     conn = get_db()
     cursor = conn.cursor()
     
+    previous = conn.execute('SELECT * FROM clinical_reports WHERE id = ?', (report_id,)).fetchone()
+    if not previous:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Report not found")
+    if (previous['status'] or '').lower() == 'completed':
+        conn.close()
+        raise HTTPException(status_code=409, detail="Completed reports cannot be edited")
+    status = data.get('status') or previous['status'] or 'Draft'
+    if status.lower() not in {'draft', 'in progress', 'completed'}:
+        conn.close()
+        raise HTTPException(status_code=400, detail="Status must be Draft, In Progress, or Completed")
+    previous_data = {}
+    try:
+        previous_data = json.loads(previous['findings'] or '{}')
+    except (TypeError, json.JSONDecodeError):
+        pass
+    next_data = data.get('data', data.get('findings', {}))
+    if isinstance(next_data, str):
+        try:
+            next_data = json.loads(next_data)
+        except json.JSONDecodeError:
+            next_data = {'findings': next_data}
+    changed_by = data.get('changed_by') or ''
+
+    def record_differences(old, new, prefix=''):
+        if isinstance(old, dict) and isinstance(new, dict):
+            for key in old.keys() | new.keys():
+                path = f'{prefix}.{key}' if prefix else key
+                record_differences(old.get(key), new.get(key), path)
+        elif old != new:
+            conn.execute(
+                'INSERT INTO clinical_report_changes (report_id, field_path, old_value, new_value, changed_by) VALUES (?, ?, ?, ?, ?)',
+                (report_id, prefix, json.dumps(old, ensure_ascii=False), json.dumps(new, ensure_ascii=False), changed_by),
+            )
+
+    record_differences(previous_data, next_data)
     cursor.execute('''
         UPDATE clinical_reports SET
-            scan_type = ?, report_title = ?, findings = ?, conclusion = ?, status = ?, updated_at = ?
+            visit_id = ?, scan_type = ?, report_title = ?, findings = ?, conclusion = ?, status = ?, updated_at = ?
         WHERE id = ?
     ''', (
-        data.get('scan_type'), data.get('report_title'), data.get('findings'),
-        data.get('conclusion'), data.get('status'), datetime.now().isoformat(), report_id
+        data.get('visit_id'), data.get('scan_type'), data.get('report_title'), json.dumps(next_data, ensure_ascii=False),
+        data.get('conclusion'), status, datetime.now().isoformat(), report_id
     ))
     
     conn.commit()
     updated = conn.execute('SELECT * FROM clinical_reports WHERE id = ?', (report_id,)).fetchone()
     conn.close()
-    return {"success": True, "data": dict(updated)}
+    updated_data = dict(updated)
+    try:
+        updated_data['data'] = json.loads(updated_data.get('findings') or '{}')
+    except (TypeError, json.JSONDecodeError):
+        updated_data['data'] = {}
+    return {"success": True, "data": updated_data}
+
+@app.get('/api/clinical-reports/{report_id}/history')
+def get_report_history(report_id: int):
+    conn = get_db()
+    rows = conn.execute(
+        'SELECT field_path, old_value, new_value, changed_by, changed_at FROM clinical_report_changes WHERE report_id = ? ORDER BY id DESC',
+        (report_id,),
+    ).fetchall()
+    conn.close()
+    return {"success": True, "data": [dict(row) for row in rows]}
 
 @app.delete('/api/clinical-reports/{report_id}')
 def delete_report(report_id: int):
     conn = get_db()
     cursor = conn.cursor()
+    report = conn.execute('SELECT status FROM clinical_reports WHERE id = ?', (report_id,)).fetchone()
+    if report and (report['status'] or '').lower() == 'completed':
+        conn.close()
+        raise HTTPException(status_code=409, detail="Completed reports cannot be deleted")
     cursor.execute('DELETE FROM clinical_reports WHERE id = ?', (report_id,))
     conn.commit()
     conn.close()
@@ -1306,20 +1535,276 @@ def delete_resource(resource: str, item_id: int):
     return {"success": True, "message": "Resource deleted successfully"}
 
 # Media Upload Endpoint
-@app.post('/api/media-upload')
-async def upload_media(file: UploadFile = File(...)):
-    try:
-        os.makedirs(UPLOADS_DIR, exist_ok=True)
+@app.get('/api/media-records')
+def get_media_records(patient_id: str = Query(...), visit_id: str = Query(...)):
+    conn = get_db()
+    rows = conn.execute(
+        'SELECT id, patient_id, visit_id, name, type, size, status, url, modality, sop_instance_uid, number_of_frames, metadata, created_at '
+        'FROM media_records WHERE patient_id=? AND visit_id=? ORDER BY id DESC',
+        (patient_id, visit_id),
+    ).fetchall()
+    conn.close()
+    result = [dict(row) for row in rows]
+    for item in result:
+        if item.get('metadata'):
+            try:
+                item['metadata'] = json.loads(item['metadata'])
+            except (TypeError, json.JSONDecodeError):
+                item['metadata'] = {}
+    return {'success': True, 'data': result}
 
-        file_path = os.path.join(UPLOADS_DIR, file.filename)
-        with open(file_path, "wb") as buffer:
-            content = await file.read()
+
+@app.post('/api/media-upload')
+async def upload_media(
+    file: UploadFile = File(...),
+    patient_id: str = Form(...),
+    visit_id: str = Form(...),
+):
+    conn = get_db()
+    patient = conn.execute('SELECT id FROM patients WHERE id=?', (patient_id,)).fetchone()
+    visit = conn.execute('SELECT id FROM visits WHERE id=? AND patient_id=?', (visit_id, patient_id)).fetchone()
+    if not patient or not visit:
+        conn.close()
+        raise HTTPException(status_code=404, detail='Patient and visit must exist before importing study media.')
+    try:
+        content = await file.read()
+        if not content:
+            raise HTTPException(status_code=400, detail='The uploaded file is empty.')
+        original_name = os.path.basename(file.filename or 'study-file')
+        extension = os.path.splitext(original_name)[1].lower()
+        is_dicom = extension in {'.dcm', '.dicom'} or content[128:132] == b'DICM'
+        modality = ''
+        sop_instance_uid = ''
+        frame_count = 1
+        metadata = {'original_name': original_name}
+        if is_dicom:
+            try:
+                import pydicom
+                dataset = pydicom.dcmread(io.BytesIO(content), stop_before_pixels=True, force=True)
+            except ImportError:
+                raise HTTPException(status_code=503, detail='DICOM import requires the pydicom package.')
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=f'Invalid DICOM file: {exc}')
+            modality = str(getattr(dataset, 'Modality', '') or '')
+            sop_instance_uid = str(getattr(dataset, 'SOPInstanceUID', '') or '')
+            frame_count = max(1, int(getattr(dataset, 'NumberOfFrames', 1) or 1))
+            # Keep only non-identifying technical study metadata; patient demographics remain sourced from the app.
+            metadata.update({key: str(getattr(dataset, dicom_key, '') or '') for key, dicom_key in {
+                'sop_class_uid': 'SOPClassUID', 'study_instance_uid': 'StudyInstanceUID',
+                'series_instance_uid': 'SeriesInstanceUID', 'rows': 'Rows', 'columns': 'Columns',
+                'transfer_syntax_uid': 'file_meta',
+            }.items() if dicom_key != 'file_meta'})
+            metadata['transfer_syntax_uid'] = str(getattr(getattr(dataset, 'file_meta', None), 'TransferSyntaxUID', '') or '')
+
+        os.makedirs(UPLOADS_DIR, exist_ok=True)
+        stored_name = f'{uuid.uuid4().hex}{extension}'
+        file_path = os.path.join(UPLOADS_DIR, stored_name)
+        with open(file_path, 'wb') as buffer:
             buffer.write(content)
-        
-        rel_path = f"uploads/{file.filename}"
-        return {"success": True, "data": {"filename": file.filename, "path": rel_path, "url": rel_path}}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
+        rel_path = f'/uploads/{stored_name}'
+        cursor = conn.execute(
+            'INSERT INTO media_records (patient_id, visit_id, name, type, size, status, url, modality, sop_instance_uid, number_of_frames, metadata, storage_path) '
+            'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (patient_id, visit_id, original_name, file.content_type or ('application/dicom' if is_dicom else 'application/octet-stream'),
+             len(content), 'Imported', rel_path, modality, sop_instance_uid, frame_count, json.dumps(metadata), file_path),
+        )
+        conn.commit()
+        return {'success': True, 'data': {'id': cursor.lastrowid, 'patient_id': patient_id, 'visit_id': visit_id,
+                'filename': original_name, 'path': rel_path, 'url': rel_path, 'modality': modality,
+                'sop_instance_uid': sop_instance_uid, 'number_of_frames': frame_count, 'metadata': metadata}}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        conn.rollback()
+        raise HTTPException(status_code=500, detail=f'Upload failed: {str(exc)}')
+    finally:
+        conn.close()
+
+
+@app.get('/api/media-records/{media_id}/frames/{frame_number}')
+def get_media_frame(media_id: int, frame_number: int):
+    conn = get_db()
+    row = conn.execute('SELECT storage_path, number_of_frames FROM media_records WHERE id=?', (media_id,)).fetchone()
+    conn.close()
+    if not row or not row['storage_path'] or not os.path.isfile(row['storage_path']):
+        raise HTTPException(status_code=404, detail='Study image not found.')
+    if frame_number < 0 or frame_number >= int(row['number_of_frames'] or 1):
+        raise HTTPException(status_code=404, detail='Frame number is outside this study.')
+    try:
+        import numpy as np
+        import pydicom
+        from PIL import Image
+        dataset = pydicom.dcmread(row['storage_path'], force=True)
+        pixels = dataset.pixel_array
+        frame = pixels if pixels.ndim == 2 else pixels[frame_number]
+        if frame.ndim == 3:
+            if frame.shape[-1] >= 3:
+                frame = frame[..., :3]
+                frame = frame.astype(np.float64)
+                low, high = float(np.nanmin(frame)), float(np.nanmax(frame))
+                frame = np.zeros_like(frame, dtype=np.uint8) if high <= low else ((frame - low) * (255.0 / (high - low))).astype(np.uint8)
+                image = Image.fromarray(frame, mode='RGB')
+            else:
+                frame = frame[..., 0]
+                image = None
+        else:
+            image = None
+        if image is None:
+            frame = frame.astype(np.float64)
+            low, high = float(np.nanmin(frame)), float(np.nanmax(frame))
+            pixels8 = np.zeros_like(frame, dtype=np.uint8) if high <= low else ((frame - low) * (255.0 / (high - low))).astype(np.uint8)
+            if str(getattr(dataset, 'PhotometricInterpretation', '')) == 'MONOCHROME1':
+                pixels8 = 255 - pixels8
+            image = Image.fromarray(pixels8, mode='L')
+        output = io.BytesIO()
+        image.save(output, format='PNG')
+        output.seek(0)
+        return StreamingResponse(output, media_type='image/png')
+    except ImportError:
+        raise HTTPException(status_code=503, detail='DICOM frame preview requires pydicom, numpy, and Pillow.')
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f'Unable to decode this DICOM frame: {exc}')
+
+
+@app.get('/api/dicomweb/status')
+def dicomweb_status():
+    return {'success': True, 'configured': bool(os.environ.get('DICOMWEB_URL'))}
+
+
+def _dicomweb_headers():
+    headers = {'Accept': 'application/dicom+json, application/json'}
+    token = os.environ.get('DICOMWEB_BEARER_TOKEN')
+    if token:
+        headers['Authorization'] = f'Bearer {token}'
+    return headers
+
+
+def _dicomweb_auth():
+    if os.environ.get('DICOMWEB_USERNAME'):
+        return (os.environ['DICOMWEB_USERNAME'], os.environ.get('DICOMWEB_PASSWORD', ''))
+    return None
+
+
+@app.get('/api/dicomweb/studies')
+async def search_dicomweb_studies(patient_id: str = Query(...)):
+    base_url = os.environ.get('DICOMWEB_URL', '').rstrip('/')
+    if not base_url:
+        raise HTTPException(status_code=503, detail='DICOMweb is not configured.')
+    conn = get_db()
+    patient = conn.execute('SELECT patient_id FROM patients WHERE id=?', (patient_id,)).fetchone()
+    conn.close()
+    if not patient:
+        raise HTTPException(status_code=404, detail='Patient not found.')
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=45.0, follow_redirects=False) as client:
+            response = await client.get(f'{base_url}/studies', params={'PatientID': patient['patient_id'], 'includefield': 'all'}, headers=_dicomweb_headers(), auth=_dicomweb_auth())
+        if response.status_code != 200:
+            raise HTTPException(status_code=502, detail=f'DICOMweb QIDO-RS returned HTTP {response.status_code}.')
+        try:
+            studies = response.json()
+        except ValueError:
+            raise HTTPException(status_code=502, detail='DICOMweb returned an invalid QIDO-RS response.')
+        return {'success': True, 'data': studies}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f'DICOMweb query failed: {exc}')
+
+
+@app.post('/api/dicomweb/studies/{study_uid}/import')
+async def import_dicomweb_study(study_uid: str, patient_id: str = Form(...), visit_id: str = Form(...)):
+    base_url = os.environ.get('DICOMWEB_URL', '').rstrip('/')
+    if not base_url:
+        raise HTTPException(status_code=503, detail='DICOMweb is not configured.')
+    conn = get_db()
+    valid_patient = conn.execute('SELECT id FROM patients WHERE id=?', (patient_id,)).fetchone()
+    valid_visit = conn.execute('SELECT id FROM visits WHERE id=? AND patient_id=?', (visit_id, patient_id)).fetchone()
+    conn.close()
+    if not valid_patient or not valid_visit:
+        raise HTTPException(status_code=404, detail='Patient and visit must exist before importing study media.')
+    try:
+        import httpx
+        headers = _dicomweb_headers()
+        headers['Accept'] = 'multipart/related; type="application/dicom"'
+        encoded_uid = quote(study_uid, safe='.')
+        async with httpx.AsyncClient(timeout=120.0, follow_redirects=False) as client:
+            response = await client.get(f'{base_url}/studies/{encoded_uid}', headers=headers, auth=_dicomweb_auth())
+        if response.status_code != 200:
+            raise HTTPException(status_code=502, detail=f'DICOMweb WADO-RS returned HTTP {response.status_code}.')
+        mime_header = f'Content-Type: {response.headers.get("content-type", "application/octet-stream")}\r\nMIME-Version: 1.0\r\n\r\n'.encode('latin1')
+        message = BytesParser(policy=email_policy).parsebytes(mime_header + response.content)
+        parts = list(message.iter_parts()) if message.is_multipart() else []
+        dicom_parts = [part for part in parts if part.get_content_type() == 'application/dicom']
+        if not dicom_parts:
+            raise HTTPException(status_code=502, detail='DICOMweb response contained no DICOM instances.')
+        import pydicom
+        conn = get_db()
+        stored = []
+        os.makedirs(UPLOADS_DIR, exist_ok=True)
+        for part in dicom_parts:
+            content = part.get_payload(decode=True) or b''
+            if not content:
+                continue
+            dataset = pydicom.dcmread(io.BytesIO(content), stop_before_pixels=True, force=True)
+            original_name = f'{str(getattr(dataset, "SOPInstanceUID", "instance"))}.dcm'
+            stored_name = f'{uuid.uuid4().hex}.dcm'
+            file_path = os.path.join(UPLOADS_DIR, stored_name)
+            with open(file_path, 'wb') as target:
+                target.write(content)
+            modality = str(getattr(dataset, 'Modality', '') or '')
+            frame_count = max(1, int(getattr(dataset, 'NumberOfFrames', 1) or 1))
+            metadata = {'sop_class_uid': str(getattr(dataset, 'SOPClassUID', '') or ''),
+                        'study_instance_uid': str(getattr(dataset, 'StudyInstanceUID', '') or ''),
+                        'series_instance_uid': str(getattr(dataset, 'SeriesInstanceUID', '') or ''),
+                        'rows': str(getattr(dataset, 'Rows', '') or ''), 'columns': str(getattr(dataset, 'Columns', '') or '')}
+            cursor = conn.execute(
+                'INSERT INTO media_records (patient_id, visit_id, name, type, size, status, url, modality, sop_instance_uid, number_of_frames, metadata, storage_path) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+                (patient_id, visit_id, original_name, 'application/dicom', len(content), 'Imported from DICOMweb',
+                 f'/uploads/{stored_name}', modality, str(getattr(dataset, 'SOPInstanceUID', '') or ''), frame_count, json.dumps(metadata), file_path),
+            )
+            stored.append({'id': cursor.lastrowid, 'name': original_name, 'modality': modality, 'number_of_frames': frame_count})
+        conn.commit()
+        conn.close()
+        return {'success': True, 'data': stored}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f'DICOMweb study import failed: {exc}')
+
+
+@app.post('/api/dicomweb/studies/{media_id}')
+async def send_media_to_dicomweb(media_id: int):
+    base_url = os.environ.get('DICOMWEB_URL', '').rstrip('/')
+    if not base_url:
+        raise HTTPException(status_code=503, detail='DICOMweb is not configured. Set DICOMWEB_URL and the required PACS credentials.')
+    conn = get_db()
+    row = conn.execute('SELECT storage_path, name, modality FROM media_records WHERE id=?', (media_id,)).fetchone()
+    conn.close()
+    if not row or not row['storage_path'] or not os.path.isfile(row['storage_path']):
+        raise HTTPException(status_code=404, detail='Imported study file not found.')
+    if row['modality'] == '':
+        raise HTTPException(status_code=415, detail='Only DICOM instances can be sent through DICOMweb.')
+    try:
+        import httpx
+        with open(row['storage_path'], 'rb') as source:
+            payload = source.read()
+        boundary = 'echoai-' + secrets.token_hex(16)
+        body = (f'--{boundary}\r\nContent-Type: application/dicom\r\n\r\n'.encode('ascii') + payload + f'\r\n--{boundary}--\r\n'.encode('ascii'))
+        headers = _dicomweb_headers()
+        headers['Content-Type'] = f'multipart/related; type="application/dicom"; boundary={boundary}'
+        auth = _dicomweb_auth()
+        async with httpx.AsyncClient(timeout=90.0, follow_redirects=False) as client:
+            response = await client.post(f'{base_url}/studies', content=body, headers=headers, auth=auth)
+        if response.status_code not in (200, 202):
+            raise HTTPException(status_code=502, detail=f'DICOMweb STOW-RS rejected the study with HTTP {response.status_code}.')
+        return {'success': True, 'status_code': response.status_code, 'message': 'Study sent to DICOMweb.'}
+    except HTTPException:
+        raise
+    except ImportError:
+        raise HTTPException(status_code=503, detail='DICOMweb sending requires the httpx package.')
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f'DICOMweb request failed: {exc}')
 
 app.mount('/uploads', StaticFiles(directory=UPLOADS_DIR, check_dir=False), name='uploads')
 

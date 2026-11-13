@@ -28,16 +28,27 @@ export default function ReferralDoctorModal({ open, onClose, onSaved, onSelect }
   useEffect(() => { if (open) loadRecords() }, [open])
 
   const filtered = useMemo(() => records.filter((record) => {
-    const text = `${record.first_name || ''} ${record.last_name || ''} ${record.institution_name || ''} ${record.speciality || ''}`.toLowerCase()
+    const text = `${record.first_name || ''} ${record.last_name || ''} ${record.institution_name || ''} ${record.name || ''} ${record.hospital || ''} ${record.speciality || ''} ${record.specialty || ''}`.toLowerCase()
     return text.includes(search.toLowerCase())
   }), [records, search])
+
+  const recordName = (record) => record.institution_name || record.name || `${record.first_name || ''} ${record.last_name || ''}`.trim()
+  const recordType = (record) => record.doctor_type || (record.hospital && !record.name ? 'hospital' : 'doctor')
 
   if (!open) return null
 
   const save = async () => {
     setSaving(true)
     try {
-      const result = await referralDoctorService.createReferralDoctor(form)
+      const result = await referralDoctorService.createReferralDoctor({
+        ...form,
+        name: form.doctor_type === 'hospital' ? form.institution_name : [form.salutation, form.first_name, form.middle_name, form.last_name].filter(Boolean).join(' '),
+        specialty: form.speciality,
+        hospital: form.doctor_type === 'hospital' ? form.institution_name : form.parent_institution,
+        clinic_address: form.street,
+        phone: form.phone1 || form.mobile,
+        registration_number: form.reg_no,
+      })
       setForm(emptyForm)
       await loadRecords()
       onSaved?.(result.data)
@@ -113,7 +124,7 @@ export default function ReferralDoctorModal({ open, onClose, onSaved, onSelect }
           <div className="mt-5 overflow-hidden rounded-xl border border-slate-200">
             <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 p-3"><h3 className="text-sm font-semibold text-slate-900">Saved referral records</h3><input className="field-control max-w-xs" placeholder="Search records…" value={search} onChange={(event) => setSearch(event.target.value)} /></div>
             <div className="max-h-64 overflow-auto">
-              <table className="data-table min-w-[760px]"><thead><tr><th>Name</th><th>Type</th><th>Registration</th><th>Speciality</th><th>Institution</th><th>City</th></tr></thead><tbody>{filtered.map((record) => <tr key={record.id} onClick={() => setSelectedId(record.id)} onDoubleClick={() => { onSelect?.(record); onClose?.() }} className={selectedId === record.id ? 'selected-row' : ''}><td>{record.doctor_type === 'hospital' ? record.institution_name : `${record.first_name || ''} ${record.last_name || ''}`.trim()}</td><td className="capitalize">{record.doctor_type}</td><td>{record.reg_no || '—'}</td><td>{record.speciality || '—'}</td><td>{record.parent_institution || record.institution_name || '—'}</td><td>{record.district_city || '—'}</td></tr>)}</tbody></table>
+              <table className="data-table min-w-[760px]"><thead><tr><th>Name</th><th>Type</th><th>Registration</th><th>Speciality</th><th>Institution</th><th>City</th></tr></thead><tbody>{filtered.map((record) => <tr key={record.id} onClick={() => setSelectedId(record.id)} onDoubleClick={() => { onSelect?.(record); onClose?.() }} className={selectedId === record.id ? 'selected-row' : ''}><td>{recordName(record)}</td><td className="capitalize">{recordType(record)}</td><td>{record.reg_no || record.registration_number || '—'}</td><td>{record.speciality || record.specialty || '—'}</td><td>{record.parent_institution || record.institution_name || record.hospital || '—'}</td><td>{record.district_city || '—'}</td></tr>)}</tbody></table>
               {!loading && !filtered.length && <p className="py-8 text-center text-sm text-slate-500">No referral doctors or hospitals found.</p>}
               {loading && <p className="py-8 text-center text-sm text-slate-500">Loading referral records…</p>}
             </div>

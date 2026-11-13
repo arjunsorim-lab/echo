@@ -21,6 +21,7 @@ import FetalEchoReport from './pages/FetalEchoReport'
 import AdultEchoReport from './pages/AdultEchoReport'
 import PediatricEchoReport from './pages/PediatricEchoReport'
 import EchoScan from './pages/EchoScan'
+import Profile from './pages/Profile'
 
 function isSignedIn() {
   return Boolean(
@@ -136,6 +137,9 @@ function App() {
         } />
         <Route path="/settings" element={
           <ProtectedPage><Settings /></ProtectedPage>
+        } />
+        <Route path="/profile" element={
+          <ProtectedPage><Profile /></ProtectedPage>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

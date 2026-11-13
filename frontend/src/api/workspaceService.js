@@ -7,6 +7,7 @@ export const workspaceService = {
 
   getReports: async (params = {}) => (await api.get('/clinical-reports', { params })).data,
   getReport: async (id) => (await api.get(`/clinical-reports/${id}`)).data,
+  getReportHistory: async (id) => (await api.get(`/clinical-reports/${id}/history`)).data,
   createReport: async (data) => (await api.post('/clinical-reports', data)).data,
   updateReport: async (id, data) => (await api.put(`/clinical-reports/${id}`, data)).data,
   deleteReport: async (id) => (await api.delete(`/clinical-reports/${id}`)).data,
@@ -21,4 +22,14 @@ export const workspaceService = {
   update: async (resource, id, data) => (await api.put(`/resources/${resource}/${id}`, data)).data,
   remove: async (resource, id) => (await api.delete(`/resources/${resource}/${id}`)).data,
   uploadMedia: async (formData) => (await api.post('/media-upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } })).data,
+  getMediaRecords: async (params) => (await api.get('/media-records', { params })).data,
+  getDicomwebStatus: async () => (await api.get('/dicomweb/status')).data,
+  searchDicomwebStudies: async (patientId) => (await api.get('/dicomweb/studies', { params: { patient_id: patientId } })).data,
+  importDicomwebStudy: async (studyUid, patientId, visitId) => {
+    const form = new FormData()
+    form.append('patient_id', patientId)
+    form.append('visit_id', visitId)
+    return (await api.post(`/dicomweb/studies/${encodeURIComponent(studyUid)}/import`, form, { headers: { 'Content-Type': 'multipart/form-data' } })).data
+  },
+  sendToDicomweb: async (id) => (await api.post(`/dicomweb/studies/${id}`)).data,
 }
