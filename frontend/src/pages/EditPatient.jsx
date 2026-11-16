@@ -17,6 +17,7 @@ import {
 import { patientService } from '../api/patientService'
 import { scanService } from '../api/scanService'
 import AddableSelect from '../components/AddableSelect'
+import PatientSalutationSelect from '../components/PatientSalutationSelect'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
 import { referralDoctorService } from '../api/referralDoctorService'
 import {
@@ -388,13 +389,11 @@ function EditPatient() {
                     </div>
                     <div>
                       <label className={labelClass}>Salutation</label>
-                      <AddableSelect
-                        field="patient_salutation"
+                      <PatientSalutationSelect
                         className={selectClass}
                         options={salutations}
                         value={formData.salutation}
                         onChange={(value) => setFormData({ ...formData, salutation: value })}
-                        disabled
                       />
                     </div>
                     <div>
@@ -583,11 +582,6 @@ function EditPatient() {
                       {zipLookupStatus === 'found' && (
                         <p className="mt-1 text-xs text-teal-600 font-medium">
                           Taluk and Post auto-filled
-                        </p>
-                      )}
-                      {zipLookupStatus === 'notfound' && (
-                        <p className="mt-1 text-xs text-amber-500 font-medium">
-                          Pincode not in database - fill manually
                         </p>
                       )}
                     </div>

@@ -17,6 +17,7 @@ import {
 import { patientService } from '../api/patientService'
 import { workspaceService } from '../api/workspaceService'
 import AddableSelect from '../components/AddableSelect'
+import PatientSalutationSelect from '../components/PatientSalutationSelect'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
 import { referralDoctorService } from '../api/referralDoctorService'
 import {
@@ -215,7 +216,7 @@ function NewPatient() {
                     </div>
                     <div>
                       <label className={labelClass}>Salutation</label>
-                      <AddableSelect skipAddOnTab field="patient_salutation" className={selectClass} options={salutations} value={formData.salutation} onChange={(value) => setFormData({ ...formData, salutation: value })} />
+                      <PatientSalutationSelect skipAddOnTab className={selectClass} options={salutations} value={formData.salutation} onChange={(value) => setFormData({ ...formData, salutation: value })} />
                     </div>
                     <div>
                       <label className={labelClass}>First Name *</label>
@@ -322,7 +323,6 @@ function NewPatient() {
                       <label className={labelClass}>Zip Code</label>
                       <input type="text" className={inputClass} value={formData.zip_code} onChange={(e) => handleZipChange(e.target.value)} maxLength={10} placeholder="Enter zip / pincode" />
                       {zipLookupStatus === 'found' && <p className="mt-1 text-xs text-teal-600 font-medium">✓ Taluk &amp; Post auto-filled</p>}
-                      {zipLookupStatus === 'notfound' && <p className="mt-1 text-xs text-amber-500 font-medium">Pincode not in database — fill manually</p>}
                     </div>
                     <div>
                       <label className={labelClass}>Country</label>

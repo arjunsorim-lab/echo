@@ -10,4 +10,9 @@ export const customOptionService = {
     const response = await api.post('/custom-options', { field, value })
     return response.data
   },
+
+  deleteOption: async (id, field) => {
+    const response = await api.delete(`/custom-options/${id}`, { params: { field } })
+    return response.data
+  },
 }

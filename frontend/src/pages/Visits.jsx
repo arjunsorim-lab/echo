@@ -15,6 +15,7 @@ import { scanService } from '../api/scanService'
 import { workspaceService } from '../api/workspaceService'
 import ReferralDoctorModal from '../components/ReferralDoctorModal'
 import SearchableSelect from '../components/SearchableSelect'
+import AnimatedOptionsDropdown from '../components/AnimatedOptionsDropdown'
 
 export default function Visits() {
   const navigate = useNavigate()
@@ -40,7 +41,7 @@ export default function Visits() {
     notes: '',
   })
   const scanTypes = ['Adult Echo', 'Fetal Echo', 'Pediatric Echo', 'Ultrasound']
-  const matchingTemplates = templates.filter((template) => template.scan_type === visitData.scan_type)
+  const matchingTemplates = templates.filter((template) => !template.scan_type || template.scan_type === visitData.scan_type)
   const selectedPatientRecord = patients.find((item) => String(item.id) === String(selectedPatient))
 
   useEffect(() => {
@@ -220,7 +221,7 @@ export default function Visits() {
       return
     }
     const selectedTmpl = templates.find((t) => String(t.id) === String(visitData.report_template_id))
-    if (!selectedTmpl || selectedTmpl.scan_type !== visitData.scan_type) {
+    if (!selectedTmpl || (selectedTmpl.scan_type && selectedTmpl.scan_type !== visitData.scan_type)) {
       alert('Choose a report template that matches the selected scan type.')
       return
     }
@@ -383,7 +384,7 @@ export default function Visits() {
           {/* Add Visit Form */}
           <form
             onSubmit={addVisit}
-            className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 lg:grid-cols-[190px_170px_minmax(220px,1fr)_minmax(220px,1fr)_minmax(160px,1fr)_auto]"
+            className="grid gap-3 border-b border-slate-200 bg-slate-50 p-4 lg:grid-cols-4 2xl:grid-cols-[170px_150px_150px_minmax(180px,1fr)_minmax(180px,1fr)_minmax(140px,.8fr)_auto]"
           >
             <label className="field-label">
               <span>Visit date and time *</span>
@@ -403,12 +404,25 @@ export default function Visits() {
                 disabled={!patient || saving}
                 className="field-control disabled:bg-slate-100"
                 value={visitData.scan_type}
-                onChange={(event) => setVisitData((current) => ({ ...current, scan_type: event.target.value, report_template_id: '' }))}
+                onChange={(event) => {
+                  const scanType = event.target.value
+                  const matchingTemplate = templates.find((template) => template.scan_type === scanType)
+                    || templates.find((template) => !template.scan_type)
+                  setVisitData((current) => ({
+                    ...current,
+                    scan_type: scanType,
+                    report_template_id: matchingTemplate ? String(matchingTemplate.id) : '',
+                  }))
+                }}
               >
                 <option value="">Select scan type</option>
                 {scanTypes.map((type) => <option key={type} value={type}>{type}</option>)}
               </select>
             </label>
+            <div className="field-label">
+              <span>Additional options</span>
+              <AnimatedOptionsDropdown disabled={!patient || saving} />
+            </div>
             <label className="field-label">
               <span>Report template *</span>
               <select
@@ -443,7 +457,7 @@ export default function Visits() {
             </label>
             <button
               disabled={!patient || saving || !visitData.visit_date || !visitData.scan_type || !visitData.report_template_id}
-              className="primary-button self-end disabled:cursor-not-allowed disabled:opacity-40"
+              className="primary-button self-end disabled:cursor-not-allowed disabled:opacity-40 lg:col-start-4 2xl:col-start-auto"
             >
               <Save className="h-4 w-4" />
               {saving ? 'Saving…' : 'Add visit'}

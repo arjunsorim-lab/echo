@@ -1169,6 +1169,34 @@ def create_custom_option(data: dict):
     conn.close()
     return {"success": True, "data": dict(inserted)}
 
+@app.delete('/api/custom-options/{option_id}')
+def delete_custom_option(option_id: int, field: str = Query(...)):
+    # Salutations are the only custom option group with per-option deletion in the UI.
+    # Other lookup groups remain protected from accidental deletion through this endpoint.
+    if field != 'patient_salutation':
+        raise HTTPException(status_code=400, detail='Custom option deletion is not enabled for this field')
+
+    built_in_salutations = {'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Baby', 'Master'}
+    conn = get_db()
+    option = conn.execute(
+        'SELECT value FROM custom_options WHERE id = ? AND field = ?',
+        (option_id, field),
+    ).fetchone()
+    if not option:
+        conn.close()
+        raise HTTPException(status_code=404, detail='Custom salutation not found')
+    if option['value'] in built_in_salutations:
+        conn.close()
+        raise HTTPException(status_code=403, detail='Built-in salutations cannot be deleted')
+
+    conn.execute(
+        'DELETE FROM custom_options WHERE id = ? AND field = ?',
+        (option_id, field),
+    )
+    conn.commit()
+    conn.close()
+    return {"success": True, "message": "Custom salutation deleted"}
+
 @app.get('/api/lookup-options')
 def get_lookup_options(category: Optional[str] = None):
     conn = get_db()
