@@ -201,14 +201,14 @@ function NewPatient() {
             {/* Main Form */}
             <div className="space-y-4">
               {/* Basic Information */}
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-                <div className="px-5 sm:px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-teal-50 to-emerald-50/50">
+              <div className="relative z-20 bg-white rounded-xl shadow-sm border border-slate-200 overflow-visible">
+                <div className="rounded-t-xl px-5 sm:px-6 py-4 border-b border-slate-100 bg-gradient-to-r from-teal-50 to-emerald-50/50">
                   <h2 className="text-sm font-semibold text-slate-900 flex items-center gap-2.5">
                     <User className="w-4 h-4 text-teal-600" /> Basic Information
                   </h2>
                 </div>
                 <div className="p-5 sm:p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-5">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-5 gap-y-3 items-start">
                     <div>
                       <label className={labelClass}>Patient ID *</label>
                       <input type="text" className={inputClass} value={formData.patient_id} onChange={(e) => { patientIdCheck.current++; setCheckingPatientId(false); setPatientIdError(''); setFormData({ ...formData, patient_id: e.target.value }) }} onBlur={(e) => checkPatientId(e.target.value)} aria-invalid={patientIdError.startsWith('This Patient ID') || undefined} aria-describedby={patientIdError || checkingPatientId ? 'patient-id-status' : undefined} required placeholder="e.g., TM0012026" />
