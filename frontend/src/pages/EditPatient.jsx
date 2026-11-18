@@ -438,11 +438,6 @@ function EditPatient() {
                         />
                         <Calendar className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                       </div>
-                      {formData.dob && formData.age && (
-                        <p className="mt-1 text-xs text-teal-600 font-medium">
-                          Age: {formData.age} {formData.age_unit || 'Years'}
-                        </p>
-                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>

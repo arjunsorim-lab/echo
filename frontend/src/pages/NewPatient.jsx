@@ -235,11 +235,6 @@ function NewPatient() {
                       <div className="relative">
                         <input type="date" className={inputClass} value={formData.dob} onChange={(e) => handleDobChange(e.target.value)} required />
                       </div>
-                      {formData.dob && formData.age && (
-                        <p className="mt-1 text-xs text-teal-600 font-medium">
-                          Age: {formData.age} {formData.age_unit || 'Years'}
-                        </p>
-                      )}
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <div>

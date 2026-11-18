@@ -1171,31 +1171,91 @@ def create_custom_option(data: dict):
 
 @app.delete('/api/custom-options/{option_id}')
 def delete_custom_option(option_id: int, field: str = Query(...)):
-    # Salutations are the only custom option group with per-option deletion in the UI.
-    # Other lookup groups remain protected from accidental deletion through this endpoint.
-    if field != 'patient_salutation':
-        raise HTTPException(status_code=400, detail='Custom option deletion is not enabled for this field')
 
-    built_in_salutations = {'Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Baby', 'Master'}
+    # Only these patient dropdowns support deletion
+    allowed_fields = {
+        'patient_salutation',
+        'patient_marital_status',
+        'patient_ethnic_origin',
+        'patient_country',
+        'patient_state',
+        'patient_district_city',
+    }
+
+    if field not in allowed_fields:
+        raise HTTPException(
+            status_code=400,
+            detail='Deletion is not enabled for this field'
+        )
+
+    # Protect known built-in options
+    protected_options = {
+        'patient_salutation': {
+            'mr.', 'mrs.', 'ms.', 'dr.', 'baby', 'master'
+        },
+        'patient_marital_status': {
+            'single', 'married', 'divorced', 'widowed'
+        },
+        'patient_ethnic_origin': {
+            'indian', 'asian', 'african', 'european', 'other'
+        },
+        'patient_country': {
+            'india', 'australia', 'usa', 'uk',
+            'canada', 'germany', 'france', 'uae',
+            'saudi arabia', 'singapore',
+            'sri lanka', 'nepal', 'bangladesh',
+            'pakistan', 'china', 'japan',
+            'south korea', 'brazil',
+            'south africa', 'nigeria', 'kenya',
+            'other',
+        },
+    }
+
     conn = get_db()
-    option = conn.execute(
-        'SELECT value FROM custom_options WHERE id = ? AND field = ?',
-        (option_id, field),
-    ).fetchone()
-    if not option:
-        conn.close()
-        raise HTTPException(status_code=404, detail='Custom salutation not found')
-    if option['value'] in built_in_salutations:
-        conn.close()
-        raise HTTPException(status_code=403, detail='Built-in salutations cannot be deleted')
 
-    conn.execute(
-        'DELETE FROM custom_options WHERE id = ? AND field = ?',
-        (option_id, field),
-    )
-    conn.commit()
-    conn.close()
-    return {"success": True, "message": "Custom salutation deleted"}
+    try:
+        # Retrieve only a matching custom option
+        option = conn.execute(
+            '''
+            SELECT id, field, value
+            FROM custom_options
+            WHERE id = ? AND field = ?
+            ''',
+            (option_id, field)
+        ).fetchone()
+
+        if not option:
+            raise HTTPException(
+                status_code=404,
+                detail='Custom option not found'
+            )
+
+        option_value = str(option['value']).strip().casefold()
+
+        if option_value in protected_options.get(field, set()):
+            raise HTTPException(
+                status_code=403,
+                detail='Built-in options cannot be deleted'
+            )
+
+        # Delete only the custom option definition
+        conn.execute(
+            '''
+            DELETE FROM custom_options
+            WHERE id = ? AND field = ?
+            ''',
+            (option_id, field)
+        )
+
+        conn.commit()
+
+        return {
+            'success': True,
+            'message': 'Custom option deleted successfully'
+        }
+
+    finally:
+        conn.close()
 
 @app.get('/api/lookup-options')
 def get_lookup_options(category: Optional[str] = None):
